@@ -1,0 +1,28 @@
+{
+  "id": "borg",
+  "name": "The Borg",
+  "version": "0.1.0",
+  "shape": "plugin",
+  "facets": [
+    "plugin"
+  ],
+  "modApi": 1,
+  "engine": ">=0.12.0",
+  "dependencies": {
+    "core": "*"
+  },
+  "capabilities": [
+    "command:add"
+  ],
+  "author": "neostryder (RPGM Tools)",
+  "license": "GPL-2.0-only",
+  "description": "Angband's automatic player, ported faithfully from 4.2.6's borg/ and installed from this mod's own repository. It plays the game the way a player does - through the same commands, over the frozen perceive/act agent API - so it is a mod like any other rather than privileged code inside the engine. Installing and enabling it does NOT hand it your character: switch on \"Let the Borg play\" below and it takes the keyboard from the next turn. The Borg is deterministic and draws only its own seeded generator, so it does not flag your save as non-deterministic. Only one autoplayer can hold the keyboard at a time.",
+  "rules": [
+    {
+      "flag": "borg.autoplay",
+      "title": "Let the Borg play",
+      "description": "Hand the Borg your character. It perceives the level, decides, and issues commands on its own, following the same priority ladder as upstream Angband's borg: avoid death, recover, fight, improve gear, take loot, explore, descend. Off by default, because enabling a mod and giving away the keyboard are different decisions.",
+      "default": false
+    }
+  ]
+}
