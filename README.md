@@ -73,6 +73,22 @@ To develop against an unreleased engine:
 
     NEO_ANGBAND_LOCAL_CORE=1 npm test
 
+## Questions, or something wrong
+
+[**The RPGM Tools Discord**](https://discord.gg/YegtwbHTBQ) is the fastest way
+to ask anything - whether a behaviour is intended, how to get this installed,
+or what you should try next. No GitHub account needed.
+
+[Open an issue here](../../issues/new/choose) for a bug in **this mod**. Two
+things belong against the game instead, and the forms will point you there: the
+mod **system** (an install that fails, a load order that will not stick, a
+conflict report that looks wrong), and the game **not matching Angband 4.2.6**
+once this mod is switched off - changing the game is what a mod is for.
+
+For anything that should not be public, including a security report:
+**strider-angband (at) rpgm.tools**. See
+[SECURITY.md](https://github.com/neostryder/neo-angband/blob/master/SECURITY.md).
+
 ## Licence
 
 Same dual licence as Neo Angband and Angband — GPL v2 or the Angband licence. See
