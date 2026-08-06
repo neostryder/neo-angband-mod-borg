@@ -1,7 +1,7 @@
 {
   "id": "borg",
   "name": "The Borg",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "shape": "plugin",
   "facets": [
     "plugin"
@@ -14,7 +14,7 @@
   "capabilities": [
     "command:add"
   ],
-  "author": "neostryder (RPGM Tools)",
+  "author": "neostryder",
   "license": "GPL-2.0-only",
   "description": "Angband's automatic player, ported from 4.2.6's borg/. It plays the way you do - through the same commands, over the frozen agent API - so it is a mod like any other rather than privileged code inside the engine.\n\nInstalling it does not hand it your character: switch on \"Let the Borg play\" below and it takes the keyboard from the next turn. It is deterministic and draws only its own seeded generator, so it does not flag your save as non-reproducible. Only one autoplayer can hold the keyboard at a time.",
   "rules": [
@@ -24,5 +24,6 @@
       "description": "Hand the Borg your character. It perceives the level, decides, and issues commands on its own, following the same priority ladder as upstream Angband's borg: avoid death, recover, fight, improve gear, take loot, explore, descend. Off by default, because enabling a mod and giving away the keyboard are different decisions.",
       "default": false
     }
-  ]
+  ],
+  "repository": "https://github.com/neostryder/neo-angband-mod-borg"
 }
