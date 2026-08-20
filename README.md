@@ -89,6 +89,9 @@ For anything that should not be public, including a security report:
 **strider-angband (at) rpgm.tools**. See
 [SECURITY.md](https://github.com/neostryder/neo-angband/blob/master/SECURITY.md).
 
+Asking about AI use in this project? [AI_USAGE_POLICY.md](https://github.com/neostryder/neo-angband/blob/master/AI_USAGE_POLICY.md)
+in the main repository is the complete answer.
+
 ## Licence
 
 Same dual licence as Neo Angband and Angband — GPL v2 or the Angband licence. See
