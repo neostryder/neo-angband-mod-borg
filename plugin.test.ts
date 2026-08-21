@@ -31,6 +31,7 @@ interface BuiltPlugin {
     flags: Record<string, boolean>;
     core: typeof Core;
     log: (m: string) => void;
+    registries?: unknown;
   }): AgentController | undefined;
 }
 
@@ -39,13 +40,48 @@ interface BuiltPlugin {
  * this proves the thing that check blessed actually runs. */
 const built = ((await import("./plugin.js")) as { default: BuiltPlugin }).default;
 
-function install(flags: Record<string, boolean>): {
+function install(
+  flags: Record<string, boolean>,
+  registries?: unknown,
+): {
   controller: AgentController | undefined;
   logs: string[];
 } {
   const logs: string[] = [];
-  const controller = built.controller({ flags, core: Core, log: (m) => logs.push(m) });
+  const controller = built.controller({
+    flags,
+    core: Core,
+    log: (m) => logs.push(m),
+    ...(registries === undefined ? {} : { registries }),
+  });
   return { controller, logs };
+}
+
+/**
+ * A `ctx.registries`-shaped host fact carrying one core race and one a mod added.
+ *
+ * Only the field the plugin reads is real. That is deliberate: the claim under
+ * test is "the shipped bundle reaches for the registry and reports what it
+ * found", and a fuller fixture would only make the test slower at asserting the
+ * same thing. Whether the facts it derives are CORRECT is src/resolvers.test.ts.
+ */
+function hostRegistries(): unknown {
+  return {
+    monsters: {
+      races: [
+        { ridx: 0, name: "soldier ant", blows: [], flags: [], spellFlags: [], friends: [] },
+        {
+          ridx: 1,
+          name: "joiner ant",
+          from: { owner: "tutorial-03" },
+          blows: [],
+          flags: [],
+          spellFlags: [],
+          friends: [],
+        },
+      ],
+    },
+  };
 }
 
 describe("the built plugin.js", () => {
@@ -95,6 +131,29 @@ describe("the built plugin.js", () => {
       () => controller(view, makeFakeActions())?.code ?? null,
     );
     expect(codes.every((c) => c !== null)).toBe(true);
+  });
+
+  it("takes the registry when the host offers one, and says how much it saw", () => {
+    /* THE ANTI-INERT TEST. Every other test in this file passed for months while
+     * the plugin built its Borg with no resolvers at all, because a Borg with no
+     * danger vision still returns a command every turn. What that proves is that
+     * "it decided a move" cannot detect this class of bug, so the wiring needs an
+     * assertion of its own. The count is in the message so a player's log says
+     * whether the Borg could see, not just that it started. */
+    const { controller, logs } = install({ "borg.autoplay": true }, hostRegistries());
+    expect(typeof controller).toBe("function");
+    expect(logs.join(" ")).toMatch(/danger vision over 2 races/u);
+  });
+
+  it("says plainly when the host supplies no registry, instead of playing quietly", () => {
+    /* An older game, which is a real case: this mod installs into any host whose
+     * engine range it declares, and `ctx.registries` did not exist before
+     * 2026-08-21. It must still play - and it must not look the same as a wired
+     * one, because "the Borg plays badly" and "the Borg was given no monster
+     * data" have completely different fixes. */
+    const { controller, logs } = install({ "borg.autoplay": true });
+    expect(typeof controller).toBe("function");
+    expect(logs.join(" ")).toMatch(/playing blind/u);
   });
 
   it("yields when the player is dead", () => {

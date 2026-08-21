@@ -79,6 +79,26 @@ describe("makeCoreResolvers", () => {
     expect(facts.freqInnate).toBe(0);
   });
 
+  it("gives a MOD'S monster the same real facts as one of core's", () => {
+    /* His requirement, 2026-08-21: modded creatures must work with the Borg the
+     * same as vanilla ones. Nothing here opts in to that - the resolver indexes
+     * by ridx and never looks at `from`, so a mod's race is resolved by the same
+     * line of code, and the only way to BREAK this would be to add a provenance
+     * check. The test exists so that nobody adds one. */
+    const modRace = fakeRace({
+      name: "joiner ant",
+      from: { owner: "tutorial-03" },
+    } as Partial<MonsterRace>);
+    const facts = makeCoreResolvers({ races: [modRace] }).resolveMonsterFacts!(
+      ctxWithKill(),
+      1,
+    );
+    /* Real facts, not the conservative fallback: a mod's monster is dangerous. */
+    expect(facts.blows).toEqual([{ dice: 3, sides: 6, effect: MONBLOW.FIRE }]);
+    expect(facts.freqInnate).toBe(4);
+    expect(facts.flags.has("UNIQUE")).toBe(true);
+  });
+
   it("marks races with companions as hasFriends", () => {
     const resolvers = makeCoreResolvers({
       races: [fakeRace({ friends: [{} as never] })],

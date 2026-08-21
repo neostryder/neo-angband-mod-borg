@@ -696,6 +696,41 @@ function adjDexSafe(dexIndex) {
   const i = dexIndex < 0 ? 0 : dexIndex >= ADJ_DEX_SAFE.length ? ADJ_DEX_SAFE.length - 1 : dexIndex;
   return ADJ_DEX_SAFE[i];
 }
+var BLOW_EFFECT_BY_NAME = {
+  NONE: 0 /* NONE */,
+  HURT: 1 /* HURT */,
+  POISON: 2 /* POISON */,
+  DISENCHANT: 3 /* DISENCHANT */,
+  DRAIN_CHARGES: 4 /* DRAIN_CHARGES */,
+  EAT_GOLD: 5 /* EAT_GOLD */,
+  EAT_ITEM: 6 /* EAT_ITEM */,
+  EAT_FOOD: 7 /* EAT_FOOD */,
+  EAT_LIGHT: 8 /* EAT_LIGHT */,
+  ACID: 9 /* ACID */,
+  ELEC: 10 /* ELEC */,
+  FIRE: 11 /* FIRE */,
+  COLD: 12 /* COLD */,
+  BLIND: 13 /* BLIND */,
+  CONFUSE: 14 /* CONFUSE */,
+  TERRIFY: 15 /* TERRIFY */,
+  PARALYZE: 16 /* PARALYZE */,
+  LOSE_STR: 17 /* LOSE_STR */,
+  LOSE_INT: 18 /* LOSE_INT */,
+  LOSE_WIS: 19 /* LOSE_WIS */,
+  LOSE_DEX: 20 /* LOSE_DEX */,
+  LOSE_CON: 21 /* LOSE_CON */,
+  LOSE_ALL: 22 /* LOSE_ALL */,
+  SHATTER: 23 /* SHATTER */,
+  EXP_10: 24 /* EXP_10 */,
+  EXP_20: 25 /* EXP_20 */,
+  EXP_40: 26 /* EXP_40 */,
+  EXP_80: 27 /* EXP_80 */,
+  HALLU: 28 /* HALLU */,
+  BLACK_BREATH: 29 /* BLACK_BREATH */
+};
+function borgMonBlowEffect(name) {
+  return BLOW_EFFECT_BY_NAME[name] ?? 0 /* NONE */;
+}
 
 // src/danger/geometry.ts
 function trait(world, bi) {
@@ -14190,6 +14225,56 @@ function createBorg(opts = {}) {
   return { world, rng, controller };
 }
 
+// src/resolvers.ts
+function raceFlagNames(race) {
+  const out = /* @__PURE__ */ new Set();
+  for (const f of race.flags) {
+    const entry = MON_RACE_FLAG_ENTRIES[f];
+    if (entry) out.add(entry.name);
+  }
+  return out;
+}
+function raceSpellOrdinals(race) {
+  const out = [];
+  for (const f of race.spellFlags) {
+    if (MON_SPELL_ENTRIES[f]) out.push(f);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+function raceBlows(race) {
+  return race.blows.map((b) => {
+    const rv = b.dice ? b.dice.randomValue() : null;
+    return {
+      dice: rv ? rv.dice : 0,
+      sides: rv ? rv.sides : 0,
+      effect: borgMonBlowEffect(b.effect.name)
+    };
+  });
+}
+function makeCoreResolvers(input) {
+  const byRidx = /* @__PURE__ */ new Map();
+  for (const r of input.races) byRidx.set(r.ridx, r);
+  const resolveMonsterFacts = (ctx, killIndex) => {
+    const kill = ctx.world.kills.at(killIndex);
+    const race = byRidx.get(kill.rIdx);
+    if (!race) return defaultResolveMonsterFacts(ctx, killIndex);
+    return {
+      rIdx: race.ridx,
+      flags: raceFlagNames(race),
+      level: race.level,
+      sleep: race.sleep,
+      spellPower: race.spellPower,
+      freqInnate: race.freqInnate,
+      freqSpell: race.freqSpell,
+      hasFriends: race.friends.length > 0 || race.friendsBase.length > 0,
+      blows: raceBlows(race),
+      spells: raceSpellOrdinals(race)
+    };
+  };
+  return { resolveMonsterFacts };
+}
+
 // plugin.ts
 var AUTOPLAY_FLAG = "borg.autoplay";
 var plugin_default = {
@@ -14200,8 +14285,13 @@ var plugin_default = {
     if (!coreIsBound()) {
       throw new Error("the Borg could not take the engine from ctx.core");
     }
-    const borg = createBorg();
-    ctx.log("the Borg has the keyboard");
+    const races = ctx.registries?.monsters.races;
+    const borg = races ? createBorg({ resolvers: makeCoreResolvers({ races }) }) : createBorg();
+    if (races) {
+      ctx.log(`the Borg has the keyboard, and danger vision over ${races.length} races`);
+    } else {
+      ctx.log("the Borg has the keyboard, but this host supplies no monster registry: playing blind");
+    }
     return borg.controller;
   }
 };

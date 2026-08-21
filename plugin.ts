@@ -47,6 +47,7 @@ import type * as Core from "@rpgm-tools/neo-angband-core";
 import type { AgentController } from "@rpgm-tools/neo-angband-core";
 import { bindCore, coreIsBound } from "./src/core-api.js";
 import { createBorg } from "./src/controller.js";
+import { makeCoreResolvers } from "./src/resolvers.js";
 
 /**
  * What this plugin needs from the host's context, structurally. Declared here
@@ -58,6 +59,16 @@ interface ControllerCtx {
   readonly flags: Readonly<Record<string, boolean>>;
   readonly core: typeof Core;
   readonly log: (msg: string) => void;
+  /**
+   * The bound content registries (host `ctx.registries`, added 2026-08-21).
+   *
+   * Structurally optional and read defensively, because this file has to compile
+   * and RUN against a host that predates the field: a mod installed into an older
+   * game gets `undefined` here and must degrade rather than throw. `Core.CoreRegistries`
+   * rather than a hand-written shape, so a change to the registry the Borg reads
+   * fails this repository's build instead of surfacing as bad play.
+   */
+  readonly registries?: Core.CoreRegistries;
 }
 
 /**
@@ -89,8 +100,44 @@ export default {
       throw new Error("the Borg could not take the engine from ctx.core");
     }
 
-    const borg = createBorg();
-    ctx.log("the Borg has the keyboard");
+    /*
+     * DANGER VISION. Without this the Borg plays blind: every seam in
+     * BorgResolvers falls back to a deliberately inert default, and the one that
+     * matters is resolveMonsterFacts - zero blows and zero spell frequency, so
+     * borg_danger returns no threat, so nothing is ever worth fleeing. The ported
+     * math was correct the whole time and was being fed zeroes.
+     *
+     * `makeCoreResolvers` has existed in src/resolvers.ts since the port landed
+     * and had NO CALLER, because the facts resolver is asked about a monster the
+     * Borg is TRACKING rather than one on screen, which needs the race registry
+     * by ridx, and no path from a plugin to that registry existed. `ctx.registries`
+     * is that path.
+     *
+     * MODDED CREATURES COME FREE, which is the point of reading the registry
+     * rather than shipping a table. Binding runs after mods compose, so a mod's
+     * monster is a MonsterRace at a real ridx in this list and the Borg fears it
+     * on exactly the same arithmetic as one of core's. A vanilla-only table would
+     * have made every modded monster invisible to the danger math - the same
+     * defect as the inert default, restricted to modded content, and much harder
+     * to notice.
+     *
+     * The other three seams (activation identity, the in-shop signal, and the
+     * force-descend option) are still on their defaults and are NOT covered by
+     * this call; see PLANNED.md. Wiring one seam and claiming four is how this
+     * mod got into this state.
+     */
+    const races = ctx.registries?.monsters.races;
+    const borg = races
+      ? createBorg({ resolvers: makeCoreResolvers({ races }) })
+      : createBorg();
+    if (races) {
+      ctx.log(`the Borg has the keyboard, and danger vision over ${races.length} races`);
+    } else {
+      /* An older host, or a context built before binding. Say which, because
+       * "the Borg plays badly" and "the Borg was handed no monster data" look
+       * identical from the outside and have completely different fixes. */
+      ctx.log("the Borg has the keyboard, but this host supplies no monster registry: playing blind");
+    }
     return borg.controller;
   },
 };

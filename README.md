@@ -15,23 +15,30 @@ fresh set of heuristics that merely look similar.
 
 > ### What is ported and what is CONNECTED are not the same thing
 >
-> Measured 2026-08-21, and stated here rather than left for you to find. All of
-> the above is true of the code in `src/`. It is **not yet true of the mod you
-> install**, because `plugin.ts` builds the Borg without handing it any host
-> resolvers, so four seams fall back to what their own header calls the
-> conservative defaults: zero-magnitude danger, no activations, never in a shop,
-> and no power gained from an item it has not been told the value of.
+> Measured 2026-08-21, stated here rather than left for you to find, and **being
+> closed one seam at a time**. All of the above is true of the code in `src/`.
+> Not all of it is yet true of the mod you install, because `plugin.ts` builds
+> the Borg from host-supplied resolvers and only some of them exist.
 >
-> In play that means it takes the keyboard and moves, and it does so **without
-> danger perception and without shopping**, which is not the ported Borg's
-> behaviour. It also does not start a new character when it dies.
+> **Wired (2026-08-21): danger vision.** The plugin now reads the game's bound
+> monster registry from `ctx.registries` and builds the real facts resolver, so
+> `borg_danger` runs on actual blows, spell frequencies and race flags rather
+> than on zeroes. This is what makes the Borg flee. **A mod's monsters are
+> covered on exactly the same terms as core's**: the registry is bound after mods
+> compose their content, and the resolver indexes by `ridx` without consulting
+> provenance, so a creature a mod added is feared by the same arithmetic.
 >
-> This is being fixed to a stated target - full functionality, watched over
-> several runs - and the work is written down in [PLANNED.md](PLANNED.md),
-> including why the first step is a change in the game rather than here. Until
-> that is done, treat this mod as a faithful port that is not yet wired, and do
-> not take a green test suite for evidence otherwise: the tests cover dispatch and
-> ladder ordering, and not one of them plays a turn.
+> **Still on conservative defaults**, and they are not small: the Borg **never
+> enters a shop** (no in-shop signal), **never uses an item's activation** (no
+> activation identity), and **cannot value a piece of gear it has not evaluated**.
+> It also **does not start a new character when it dies**, which is the single
+> most requested behaviour.
+>
+> The target is full functionality watched over several runs, and the remaining
+> work is written down in [PLANNED.md](PLANNED.md). Until it is done, do not take
+> a green test suite for evidence: 174 tests pass and only three of them assert
+> that anything is wired at all. The rest cover dispatch and ladder ordering, and
+> not one of them plays a game to its end.
 
 It is a **mod**, not part of the engine, and that division is decided rather than
 incidental:

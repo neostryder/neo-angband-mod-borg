@@ -10,22 +10,30 @@ ported code. Every item is a seam that was built, documented and never connected
 which is a failure mode this project has now hit four times, so the shape is worth
 naming: a capability that exists in the tree and not in the product.
 
-## What is actually wrong
+## What was actually wrong
 
-`plugin.ts` calls `createBorg()` with no argument. `src/controller.ts` then does
+**Written 2026-08-21 before any of it was fixed, and kept in the past tense rather
+than deleted: the diagnosis is the useful part, and a file that erases what was
+wrong as soon as it is fixed teaches nobody the shape of the failure.** The first
+item below is now closed; see Progress.
+
+`plugin.ts` called `createBorg()` with no argument. `src/controller.ts` then does
 `buildThinkSession(opts.resolvers ?? {})`, and `src/think-session.ts` says in its
 own header what an empty resolver set means: the four seams "default to faithful
 conservative behavior (zero-magnitude danger, no activations, never in a shop, no
 power gain from an unevaluated swap/buy/sell) so the Borg is correct-but-cautious
 until a host wires real engine data."
 
-**No host wires them.** So the shipped Borg plays with no danger perception, never
-shops, never uses an activation, and cannot evaluate an equipment swap.
+**No host wired any of them.** So the shipped Borg played with no danger
+perception, never shopped, never used an activation, and could not evaluate an
+equipment swap.
 
-The resolver factory is not missing either. `src/resolvers.ts` already exports
-`makeCoreResolvers`, which bridges core's `MonsterRace` records into the
+The resolver factory was not missing either. `src/resolvers.ts` has always
+exported `makeCoreResolvers`, which bridges core's `MonsterRace` records into the
 `MonsterFacts` the ported `borg_danger` math needs, and its own comment says the
-numbers "match upstream verbatim" once it is installed. It has never had a caller.
+numbers "match upstream verbatim" once it is installed. **It had never had a
+caller**, for a reason worth keeping: the thing it needed was not in the mod at
+all. Nothing here could have fixed it.
 
 ## Definition of done
 
@@ -45,9 +53,25 @@ Three claims, and the third is the one that decides it:
 Until 3 is done, nothing here says the Borg plays properly. See the README's own
 Status section, which was narrowed on 2026-08-21 for exactly this reason.
 
+## Progress
+
+| Date | What landed |
+|---|---|
+| 2026-08-21 | **Step 1 done.** The host gained `ctx.registries` (the whole bound `CoreRegistries`, latched once at boot in `main.ts` and reaching every plugin context). `plugin.ts` now calls `createBorg({ resolvers: makeCoreResolvers({ races }) })`, so `makeCoreResolvers` has a caller for the first time. The Borg has danger vision, including over monsters a mod added. Three tests assert the wiring rather than the dispatch, one of them against the built `plugin.js`. |
+
+## Releasing this
+
+**The version is 0.4.0 in the files and there is NO TAG yet, deliberately.** The
+game installs a mod from a TAG, pinned by digest, and a tag must never be moved -
+so tagging is the release event and the version field is not. Danger vision needs
+a host that supplies `ctx.registries`, which no released game does yet, so a 0.4.0
+tag today would ship a mod whose headline change is inert on every game a player
+can actually be running. The tag goes out with the engine release that carries the
+field, and it will pick up whatever else in this file has landed by then.
+
 ## The work, in order
 
-### 1. A route from the plugin to the bound registries
+### 1. A route from the plugin to the bound registries - DONE 2026-08-21
 
 `makeCoreResolvers` needs `readonly MonsterRace[]`, the whole registry indexed by
 `ridx`, because `FactsResolver` is `(ctx, killIndex) => MonsterFacts` and resolves
@@ -64,6 +88,21 @@ So this is a host change first: give `ModPluginContext` the bound registries, or
 narrower accessor for the race registry. That decision belongs in the game
 repository and it is the gate on everything below.
 
+**Resolved: the whole `CoreRegistries`, not a narrower accessor.** Two mods wanted
+this within a day of each other and wanted different halves - the Borg wants races
+by `ridx`, a tile pack wants races and object kinds with their `base`/`tval` and
+provenance - so a curated slice was already two fields behind before it was
+written. That is the same argument `ctx.core` settled (MOD_COMPATIBILITY.md
+decision 18: a curated list is the thing that drifts).
+
+It is a LATCH (`setModRegistries`, called once from `main.ts`) rather than an
+argument threaded through the seven places that build a context. A new call site
+that forgot to pass it would hand its mod `registries: undefined`, which is a
+legal state during content composition and therefore indistinguishable from a
+call site that forgot - a mod reading no monsters and reporting nothing. A test
+asserts `main.ts` actually makes the call, because every other test in this file's
+history passed against a seam nothing filled.
+
 ### 2. Wire the four seams and say which are real
 
 Once the registries are reachable, `plugin.ts` becomes
@@ -73,11 +112,27 @@ four has to be checked individually rather than assumed, because
 identity and the in-shop signal on their conservative defaults, which its own
 docstring says.
 
-- **Monster facts** - `makeCoreResolvers` already does this. Needs a caller.
+- **Monster facts** - **DONE 2026-08-21.** `makeCoreResolvers({ races })` is
+  called from `plugin.ts` with `ctx.registries.monsters.races`. A mod's creature is
+  covered by the same code path: binding runs after composition, so it is a
+  `MonsterRace` at a real `ridx`, and the resolver never consults `from`. A test
+  pins that, so that nobody adds a provenance check later.
 - **Activation identity** - the Borg cannot use an activation it cannot name.
-- **In a shop** - the Borg never shops while this answers "no".
+  `ctx.registries.objects` now reaches the object kinds, so the data is in hand;
+  what is not yet decided is how `borg_equips_item(act, checkCharge)` maps a named
+  activation onto the gear the Borg is wearing.
+- **In a shop** - the Borg never shops while this answers "no". Needs the player's
+  grid against the town's store entrance features, which is `ctx.state` plus
+  `ctx.registries.features`, so this is now also unblocked.
 - **Power of an unevaluated swap/buy/sell** - the Borg cannot judge an item it has
   not been told the value of, so it hoards.
+
+**Mod items and creatures must work with the Borg the same as vanilla ones**
+(owner's requirement, 2026-08-21). Reading the registry rather than shipping a
+table is what makes that free, and it is the standard every remaining seam is held
+to: an activation table keyed by core's svals, or a shop check that knows only
+core's store list, would each reintroduce the inert-default bug restricted to
+modded content, where it is much harder to notice.
 
 ### 3. The restart loop
 
