@@ -318,7 +318,7 @@ export function borgThinkShopBuyUseful(
 
       const qty = borgMinItemQuantity(ctx, item, d);
       const wields = buyWields(ctx, item, d);
-      const sim: BuySim = { item, qty, wields };
+      const sim: BuySim = { item, store: k, qty, wields };
       const p = d?.buyShopEval ? d.buyShopEval(ctx, sim) : ctx.world.self.power;
       const c = shopCost(item) * qty;
 
@@ -370,7 +370,7 @@ export function borgThinkHomeBuyUseful(
 
     const qty = borgMinItemQuantity(ctx, item, d);
     const wields = wieldSlot(item) !== null;
-    const sim: BuySim = { item, qty, wields };
+    const sim: BuySim = { item, store: BORG_HOME, qty, wields };
     const p = d?.buyHomeEval ? d.buyHomeEval(ctx, sim) : ctx.world.self.power;
 
     if (p <= bP) continue;

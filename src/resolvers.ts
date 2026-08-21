@@ -9,6 +9,13 @@
  * needs, so the ported borg_danger math reproduces upstream verbatim instead of
  * running on the conservative zero-state defaults.
  *
+ * The fourth seam it fills is the odd one out and worth naming. Danger vision,
+ * activation identity and the in-shop signal are all facts the host READS and
+ * passes down. Hypothetical-loadout power is a fact the host cannot read at all:
+ * it is a derive, and only the engine can run it. So what arrives here is not
+ * data but the answer to "can this engine do that" - see CoreResolverInput
+ * .loadout.
+ *
  * This lives in the borg package (not a specific host) so web / cli / desktop
  * all wire the Borg the same faithful way. It depends only on @rpgm-tools/neo-angband-core,
  * which the package already depends on.
@@ -21,6 +28,7 @@ import type { BorgResolvers } from "./think-session.js";
 import type { BlowFacts, FactsResolver, MonsterFacts } from "./danger/facts.js";
 import { defaultResolveMonsterFacts } from "./danger/facts.js";
 import { borgMonBlowEffect } from "./danger/tables.js";
+import { borgSimulatePower } from "./trait/simulate.js";
 
 /** The one field every activation source (kind/ego/artifact) carries. */
 interface ActivationLike {
@@ -63,6 +71,24 @@ export interface CoreResolverInput {
    * inShop on its conservative default (never in a shop).
    */
   state?: CoreShopLookup;
+  /**
+   * Whether this engine can derive a HYPOTHETICAL loadout - in practice
+   * `typeof ctx.core.simulateLoadout === "function"`, which is true from Neo
+   * Angband 0.25.0 on. Omit or pass false to leave the swap/buy/sell power seam
+   * on its conservative default.
+   *
+   * A capability answer rather than the function itself, because the evaluation
+   * does NOT go through `ctx.core`: it goes through `view.simulateLoadout`, the
+   * accessor the same engine build puts on the frozen view, so the ItemViews it
+   * returns are built with the same deps the live view's are. An ItemView priced
+   * in one read and unpriced in the other would change what the Borg decides
+   * about the same object depending on which read produced it.
+   *
+   * Passed in rather than probed here so the plugin's log line and the seam's
+   * behaviour are derived from ONE fact. Every other version of this has ended
+   * with a host reporting a capability it did not wire.
+   */
+  loadout?: boolean;
 }
 
 /** RF_* code names for the set flags in a race flag set (index == RF value). */
@@ -155,11 +181,12 @@ function findActivatedItem(
 
 /**
  * Build the resolvers that give the Borg real danger vision, activation
- * identity and the in-shop signal. Each of `objects` and `state` is
- * independently optional: an older host that supplies races but not the object
- * registry still gets danger vision, with activation identity left on its
- * conservative default (documented in BorgResolvers), and the same for a host
- * with no live state yet.
+ * identity, the in-shop signal and hypothetical-loadout power. Each of
+ * `objects`, `state` and `loadout` is independently optional: an older host that
+ * supplies races but not the object registry still gets danger vision, with
+ * activation identity left on its conservative default (documented in
+ * BorgResolvers), and the same for a host with no live state yet or an engine
+ * that cannot derive a loadout nobody is wearing.
  */
 export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
   const byRidx = new Map<number, MonsterRace>();
@@ -211,5 +238,17 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     return shopnum > 0 ? shopnum - 1 : null;
   };
 
-  return { resolveMonsterFacts, resolveActivation, activateHandle, inShop };
+  const resolvers: BorgResolvers = {
+    resolveMonsterFacts,
+    resolveActivation,
+    activateHandle,
+    inShop,
+  };
+  if (input.loadout) {
+    // borgSimulatePower reads view.simulateLoadout and returns null when it is
+    // absent, so this stays correct on an engine that reports the capability and
+    // hands over a view that cannot answer (a worldless harness).
+    resolvers.loadoutPower = (ctx, change) => borgSimulatePower(ctx, change);
+  }
+  return resolvers;
 }

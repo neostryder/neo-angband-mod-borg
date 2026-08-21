@@ -8,6 +8,43 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.6.0
+
+### Added
+
+- **The Borg evaluates gear it is not wearing**, the fourth and last
+  `BorgResolvers` seam from `PLANNED.md`. `borg_wear_stuff`,
+  `borg_think_shop_buy_useful` and `borg_think_shop_sell_useless` all decide by
+  comparing `borg.power` now against `borg.power` with a candidate worn, bought
+  or sold, and every one of them was reading a default that reported no gain from
+  anything. So the Borg wore nothing it picked up, bought nothing it needed and
+  sold nothing it was finished with, on any host.
+- `makeCoreResolvers` takes a fourth input, `loadout`. It is a capability rather
+  than a datum: scoring a loadout the character is not in means re-running the
+  engine's own `calc_bonuses` over a hypothetical set of worn objects, which only
+  the engine can do. Neo Angband 0.25.0 adds `AgentView.simulateLoadout` for
+  exactly that, and `plugin.ts` probes for it rather than assuming it.
+- `borgSimulatePower` (`src/trait/simulate.ts`) runs the ported `borg_notice` and
+  `borg_power` over the loadout the engine describes, which is the same wield /
+  recompute / revert shape upstream uses. It scores against a scratch copy of the
+  self-model, so evaluating a dozen candidates in one turn leaves the Borg's own
+  view of itself untouched.
+- **A mod's items are evaluated on exactly the same terms as core's.** The
+  simulated loadout arrives as ordinary `ItemView`s and the ported scoring reads
+  their properties, never their provenance. A test pins that, the same way the
+  monster-facts test does.
+
+### Changed
+
+- On an engine older than 0.25.0 the swap / buy / sell seam stays on its
+  conservative default and the Borg's log says "no loadout evaluation" instead of
+  "loadout evaluation". The engine range stays permissive (`>=0.12.0`): a mod that
+  can still do most of its job should not refuse to load.
+- The two SWAP valuations (`weapon_swap_value`, `armour_swap_value`) are
+  deliberately left unwired. This port has no swap subsystem, so both contribute
+  zero to `borg_power` and an evaluator would compare two numbers that are equal
+  by construction. Recorded as unreachable rather than pending.
+
 ## 0.5.0
 
 ### Added

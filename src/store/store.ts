@@ -166,6 +166,13 @@ export function recordBought(
 export interface BuySim {
   /** The candidate ware being evaluated. */
   item: StoreItemView;
+  /**
+   * Which shop it is on the shelf of: the index into `view.stores()`, which is
+   * store_num (the home is BORG_HOME). A ware is not in the gear and so has no
+   * handle, and `item.index` alone does not say which shop's stock it indexes -
+   * so a seam that has to address the ware needs both halves.
+   */
+  store: number;
   /** Quantity considered (borg_min_item_quantity). */
   qty: number;
   /** True when the item would be wielded (an equipment upgrade candidate). */

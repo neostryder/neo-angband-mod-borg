@@ -7,12 +7,13 @@
 
 import { describe, expect, it } from "vitest";
 import { RF, RSF } from "@rpgm-tools/neo-angband-core";
-import type { ItemView, MonsterRace } from "@rpgm-tools/neo-angband-core";
+import type { ItemView, MonsterRace, PlayerView } from "@rpgm-tools/neo-angband-core";
 import { makeCoreResolvers } from "./resolvers.js";
 import type { CoreObjectLookup, CoreShopLookup } from "./resolvers.js";
 import { BorgWorld } from "./world/model.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { MONBLOW } from "./danger/tables.js";
+import { getDerived } from "./trait/state.js";
 import type { BorgContext } from "./context.js";
 
 /** A minimal MonsterRace carrying only the fields the resolver reads. */
@@ -245,5 +246,153 @@ describe("makeCoreResolvers: in-shop signal", () => {
   it("stays on the conservative default with no live state", () => {
     const resolvers = makeCoreResolvers({ races: [] });
     expect(resolvers.inShop!(ctxWithEquipment([]))).toBeNull();
+  });
+});
+
+describe("makeCoreResolvers: hypothetical-loadout power", () => {
+  /**
+   * A view that answers simulateLoadout with a loadout differing from the live
+   * one only in the fields named. The engine's real accessor derives those from
+   * calc_bonuses; here they are stated, because what is under test is the Borg
+   * half - that the ported borg_notice / borg_power run over the answer and that
+   * running them leaves the live self-model alone.
+   */
+  function viewThatSimulates(
+    over: {
+      player?: Partial<PlayerView>;
+      equipment?: (ItemView | null)[];
+      inventory?: ItemView[];
+    },
+    onChange?: (change: unknown) => void,
+  ): BorgContext["view"] {
+    const base = makeScenarioView();
+    return {
+      ...base,
+      simulateLoadout: (change: unknown) => {
+        onChange?.(change);
+        return {
+          after: {
+            player: { ...base.player(), ...over.player },
+            equipment: over.equipment ?? [],
+            inventory: over.inventory ?? [],
+          },
+        };
+      },
+    } as BorgContext["view"];
+  }
+
+  function ctxWithView(view: BorgContext["view"]): BorgContext {
+    return {
+      world: new BorgWorld(),
+      view,
+      act: makeFakeActions(),
+      rng: undefined as never,
+    };
+  }
+
+  it("is absent until the host says the engine can derive a loadout", () => {
+    expect(makeCoreResolvers({ races: [] }).loadoutPower).toBeUndefined();
+    expect(makeCoreResolvers({ races: [], loadout: false }).loadoutPower).toBeUndefined();
+    expect(makeCoreResolvers({ races: [], loadout: true }).loadoutPower).toBeDefined();
+  });
+
+  it("scores the SIMULATED loadout, not the live one", () => {
+    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const slow = ctxWithView(viewThatSimulates({ player: { speed: 110 } }));
+    const fast = ctxWithView(viewThatSimulates({ player: { speed: 130 } }));
+
+    const slowPower = resolvers.loadoutPower!(slow, {});
+    const fastPower = resolvers.loadoutPower!(fast, {});
+    expect(slowPower).not.toBeNull();
+    /* borg_power's speed reward (power.c) is what makes this observable: a
+       simulation that quietly scored the live view would return the same number
+       for both. */
+    expect(fastPower!).toBeGreaterThan(slowPower!);
+  });
+
+  it("passes the change through to the engine verbatim", () => {
+    const seen: unknown[] = [];
+    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const ctx = ctxWithView(viewThatSimulates({}, (c) => seen.push(c)));
+    const change = { wield: [{ from: "gear" as const, handle: 12 }] };
+    resolvers.loadoutPower!(ctx, change);
+    expect(seen).toEqual([change]);
+  });
+
+  it("leaves the LIVE self-model exactly as it found it", () => {
+    /* The failure this guards against is not an exception. A ladder scores a
+       dozen candidates a turn; if scoring wrote through to the live world, the
+       Borg would spend the rest of the think believing it was wearing the last
+       thing it merely considered. */
+    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const ctx = ctxWithView(viewThatSimulates({ player: { speed: 130 } }));
+    ctx.world.self.trait = [1, 2, 3];
+    ctx.world.self.power = 4242;
+    const derivedBefore = getDerived(ctx.world);
+    derivedBefore.has.set("marker", 9);
+
+    const scored = resolvers.loadoutPower!(ctx, {});
+    expect(scored).not.toBeNull();
+    expect(scored).not.toBe(4242);
+
+    expect(ctx.world.self.trait).toEqual([1, 2, 3]);
+    expect(ctx.world.self.power).toBe(4242);
+    /* The derived side-state is keyed by the world object, so a simulation that
+       reused the live world would have replaced this block wholesale. */
+    expect(getDerived(ctx.world)).toBe(derivedBefore);
+    expect(getDerived(ctx.world).has.get("marker")).toBe(9);
+  });
+
+  it("answers null on an engine whose view cannot derive a loadout", () => {
+    /* An older game, and the case this mod's permissive engine range exists for.
+       Null rather than the current power, so "cannot answer" and "nothing would
+       change" stay distinguishable. */
+    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const ctx = ctxWithEquipment([]);
+    expect(resolvers.loadoutPower!(ctx, {})).toBeNull();
+  });
+
+  it("scores a MOD'S item exactly as it scores one of core's", () => {
+    /* The hard requirement again: modded items must work with the Borg the same
+       as vanilla ones. Nothing opts in - the simulated loadout arrives as
+       ItemViews and the ported self-model reads their PROPERTIES, never their
+       provenance. The two loadouts below differ only in the names and the
+       namespaced id, so an equal score is the claim and the > baseline check is
+       what stops it from being vacuous. */
+    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const properties: Partial<ItemView> = {
+      tval: 36 /* TV_SOFT_ARMOR */,
+      ac: 12,
+      toA: 8,
+      weight: 80,
+      ego: true,
+      resists: [{ element: "ACID", level: 1 }],
+    };
+    const coreItem = fakeItem({ ...properties, egoName: "of Resist Acid" });
+    const modItem = fakeItem({
+      ...properties,
+      egoName: "of the Tutorial",
+      kindId: "tutorial-02:padded-jerkin",
+    });
+
+    /* Slot 6 is the body-armour slot: equipment() is indexed by BODY SLOT, so an
+       armour handed over at index 0 would be read as the wielded weapon. */
+    const inBodySlot = (item: ItemView | null): (ItemView | null)[] => {
+      const slots = new Array<ItemView | null>(12).fill(null);
+      slots[6] = item;
+      return slots;
+    };
+    const score = (item: ItemView | null): number =>
+      resolvers.loadoutPower!(
+        ctxWithView(viewThatSimulates({ equipment: inBodySlot(item) })),
+        {},
+      )!;
+
+    /* Non-vacuity first: the armour has to be SEEN, or an equality between two
+       unseen items would prove nothing. Direction is deliberately not asserted -
+       whether this particular jerkin is an improvement is borg_power's business
+       and not the claim here. */
+    expect(score(coreItem)).not.toBe(score(null));
+    expect(score(modItem)).toBe(score(coreItem));
   });
 });
