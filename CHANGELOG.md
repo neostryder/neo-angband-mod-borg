@@ -8,6 +8,23 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.6.3
+
+### Fixed
+
+- **The README claimed more than the mod does, and a player reads it before
+  deciding to install.** `plugin.js` is byte-identical to 0.6.2, and this is a
+  release rather than a commit because the README ships inside the payload the
+  game fetches at a tag: a correction that stays on `master` is a correction
+  nobody installing this can see.
+
+  What it now says is what was measured. Watched in the released 0.25.0 desktop
+  build over two characters, the Borg took the keyboard, shopped, wore what it
+  bought, found the town's down staircase and descended - and then stalled on the
+  first dungeon level both times without dying, so it never started a new
+  character. Two of the three stalls are this mod's and one is the game's. All
+  three are named, with their mechanisms and their owners, in `PLANNED.md`.
+
 ## 0.6.2
 
 ### Fixed
