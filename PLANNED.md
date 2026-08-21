@@ -55,8 +55,96 @@ Three claims, and the third is the one that decides it:
    cover `borg_think` dispatch, ladder determinism and ladder priorities, and not
    one of them plays a turn.
 
+   **NOT DONE. First attempted 2026-08-21, and it failed.** The watching happened
+   and is written down below; what it showed is that the Borg does not yet get far
+   enough for this claim to be answerable. It reached 50 feet twice and stalled
+   both times without dying, so the restart loop was never exercised at all. Three
+   distinct stalls are named in "Watched playing" below, one of them in this
+   repository and two of them in the game's.
+
 Until 3 is done, nothing here says the Borg plays properly. See the README's own
 Status section, which was narrowed on 2026-08-21 for exactly this reason.
+
+## Watched playing, 2026-08-21
+
+The instrument: the released 0.25.0 desktop artefact (`Neo.Angband-0.25.0-win.zip`)
+unpacked to a scratch path, driven over CDP. The mod installed through the game's
+own **Install a mod...** row from the curated list, at its tag, enabled, with
+capabilities granted and *Let the Borg play* switched on. Not a local build, not a
+harness: the bytes a player downloads.
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| Mod version | 0.6.2 | 0.6.2 |
+| Character | Gnome Paladin, level 1 | Gnome Paladin, level 1 (a second character, same roll) |
+| `auto_more` | off (the game's default) | on |
+| Depth reached | **50 ft (L1)** | **50 ft (L1)** |
+| Shopped | **yes** - gold 600 to 301, and it wore what it bought (AC 0 to 1) | **yes**, same |
+| Fled | not observed - it met no monster | not observed |
+| Used an activation | not observed - it owned nothing with one | not observed |
+| Took stairs | **yes** - found the town's down staircase and descended | **yes** |
+| How it died | **it did not die** | **it did not die** |
+| Reincarnated | **never exercised**, because nothing died | **never exercised** |
+| How it ended | wedged on L1 repeating `disarm` against a locked door, 559 times over 8 minutes, with game time frozen | wedged on L1 oscillating in a three-square corridor for 9 minutes; game time DID pass (food 89% to 84%) and nothing else changed |
+
+What the two runs do establish, and it is not nothing: the mod installs from its
+tag into a released build, takes the keyboard, and reports what it wired - `the
+Borg has the keyboard, and danger vision over 624 races, activation identity, the
+in-shop signal and loadout evaluation`. The town half of the ladder works. It
+shopped, and it wore the armour it bought, which is the loadout seam from 0.6.0
+doing real work in a real game for the first time. Then it walked to the down
+staircase and used it.
+
+### The three stalls, and which repository each belongs to
+
+**1. A refused command repeats forever, and no game time passes. THIS
+REPOSITORY.** On L1 the Borg stood beside a closed door and issued `disarm` at it
+without end. The chain is exact:
+
+- A door's lock is stored as a "door lock" **trap record** on that grid. That is
+  upstream Angband's own data model, faithfully ported.
+- `CellView.trap` is "this grid has any trap record", so a locked door reports
+  `trap: true`.
+- `src/perceive.ts`'s `ingestMap` copies `c.trap` into `ag.trap` on every
+  perceive, and `src/flow/flow.ts` checks `ag.trap` **before** it checks
+  `ag.feat === FEAT.CLOSED`. So the door is disarmed rather than opened.
+- The engine's `disarm` requires a **visible player trap**. A door lock is not
+  one, so it answers "You see nothing there to disarm." and returns zero energy.
+- `flow.ts` clears `ag.trap` optimistically, but the next perceive sets it back
+  from the view, and no turn has elapsed. Nothing breaks the cycle.
+
+Upstream's borg never hits this, and the reason names the defect: its `ag->trap`
+comes from a trap GLYPH on the screen, which a locked door does not draw. The
+port swapped that for a wider signal without narrowing it. Two things need
+deciding rather than patching: whether the frozen view should offer a
+"disarmable" answer that matches what `disarm` will accept, and whether this port
+needs a general guard against a command that is refused for free - because a
+zero-energy refusal in a loop is a hang, not a bad decision, whatever issues it.
+
+**2. It does not explore a dungeon level. THIS REPOSITORY.** With the first stall
+avoided, run 2 spent nine minutes moving between two squares of the corridor it
+arrived in, standing on the up staircase. Game time passed, so this is a decision
+loop rather than a freeze: the flow either finds no dark target or re-targets the
+stairs it is on. The revealed map never grew past a bare corridor. Upstream's
+`borg_flow_dark` is what should be carrying it, and something in that path is
+not.
+
+**3. A blocking prompt parks the autoplayer, and only a human can free it. THE
+GAME'S REPOSITORY.** Descending prints "You enter a maze of down staircases."
+behind a `-more-`, inside a modal, and the host's autoplayer clock skips every
+tick while a modal is open. Nothing answers the prompt, so the Borg waits for a
+keypress that will never come; a human pressing any key frees it and it resumes.
+Upstream's borg answers that prompt itself through `inkey_hack`, which this port
+has no equivalent of - a controller returns a `PlayerCommand`, and "dismiss the
+message" is not one.
+
+Turning the game's own `auto_more` option on clears this one and the multi-page
+message variant, and that is what run 2 did. It is not a fix and should not be
+written up as a workaround: the same shape parks the Borg on the floor-item
+screen (any step onto two or more objects) and on the store screen (any step onto
+a shop door), and `auto_more` reaches neither. The option is also stored per
+character, so it reverts every time the Borg reincarnates - which makes it
+useless for exactly the unattended run this item is about.
 
 ## Progress
 
@@ -284,11 +372,23 @@ just prior art:
   whether this looks like "Core + Borg indistinguishable from the original game
   running its own borg," which is the bar for this item.
 
-### 4. Watch it, several times, and write down what happened
+### 4. Watch it, several times, and write down what happened - ATTEMPTED 2026-08-21, AND IT FAILED
 
 Driven in the installed desktop build over CDP, because that is the only
 instrument here that proves pixels and a running game rather than a populated data
 structure. The main repository's `CLAUDE.md` has the procedure and the four traps.
+
+**Done, and the answer was no.** See "Watched playing" above for the two runs and
+the three stalls. Two of the three are in this repository and are the work that
+now stands between the mod and this item:
+
+1. The `disarm` loop against a locked door, which is a hang rather than a bad
+   decision, because the refusal costs no energy.
+2. No exploration of a dungeon level: it oscillates where it arrives.
+
+The third is the host's and cannot be fixed here. Until 1 and 2 are closed there
+is no point running this again - the Borg cannot reach a death, so it cannot
+demonstrate the restart loop, which is the half of this item that matters most.
 
 ## What is deliberately NOT here
 
