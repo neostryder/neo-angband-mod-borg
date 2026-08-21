@@ -8,6 +8,30 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.6.1
+
+### Fixed
+
+- The README said the Borg "does not flag your save". Handing the keyboard over
+  sets the save's `NOSCORE_BORG` flag, which keeps the character off the
+  high-score table for the rest of its life, so the sentence was answering a
+  narrower question (determinism) with a wider claim. Both facts are now stated
+  separately: the Borg costs nothing in reproducibility, and it does mark the
+  character. That mark is upstream's own behaviour and it cannot be cleared, which
+  is exactly the sort of thing a player should not discover from the score screen.
+- The README said the Borg does not start a new character when it dies. It does,
+  on engine 0.25.0 or newer.
+
+### Changed
+
+- `plugin.js` is byte-identical to 0.6.0, so an installed copy plays identically.
+  **The restart-on-death loop is entirely the engine's**, and needed no code here:
+  a controller can only return a `PlayerCommand`, and birth has no representation
+  in that set, so there is nothing this mod could return that means "roll me a new
+  character". The game's own death handler reincarnates the player in place
+  whenever a mod holds the keyboard - same session, same save slot, a rolled race
+  and class each time. On an engine older than 0.25.0 a death still ends the run.
+
 ## 0.6.0
 
 ### Added

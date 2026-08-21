@@ -1,6 +1,6 @@
 {
   "name": "neo-angband-mod-borg",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "The Borg: Angband 4.2.6's automatic player, ported faithfully and shipped as a mod",
   "license": "GPL-2.0-only",
