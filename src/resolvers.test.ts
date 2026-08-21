@@ -7,8 +7,9 @@
 
 import { describe, expect, it } from "vitest";
 import { RF, RSF } from "@rpgm-tools/neo-angband-core";
-import type { MonsterRace } from "@rpgm-tools/neo-angband-core";
+import type { ItemView, MonsterRace } from "@rpgm-tools/neo-angband-core";
 import { makeCoreResolvers } from "./resolvers.js";
+import type { CoreObjectLookup, CoreShopLookup } from "./resolvers.js";
 import { BorgWorld } from "./world/model.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { MONBLOW } from "./danger/tables.js";
@@ -105,5 +106,144 @@ describe("makeCoreResolvers", () => {
     });
     const facts = resolvers.resolveMonsterFacts!(ctxWithKill(), 1);
     expect(facts.hasFriends).toBe(true);
+  });
+});
+
+/** A minimal ItemView carrying only the fields the activation seam reads. */
+function fakeItem(over: Partial<ItemView> = {}): ItemView {
+  return {
+    handle: 1,
+    label: "test item",
+    tval: 30,
+    sval: 5,
+    pval: 0,
+    number: 1,
+    weight: 10,
+    ac: 0,
+    toA: 0,
+    toH: 0,
+    toD: 0,
+    dd: 0,
+    ds: 0,
+    ego: false,
+    artifact: false,
+    flags: [],
+    modifiers: [],
+    brands: [],
+    slays: [],
+    resists: [],
+    curses: [],
+    egoName: null,
+    artifactName: null,
+    activation: false,
+    timeout: 0,
+    inscription: null,
+    ...over,
+  };
+}
+
+/** A BorgContext whose view.equipment() returns the given items. */
+function ctxWithEquipment(items: ItemView[]): BorgContext {
+  return {
+    world: new BorgWorld(),
+    view: { ...makeScenarioView(), equipment: () => items },
+    act: makeFakeActions(),
+    rng: undefined as never,
+  };
+}
+
+/** A CoreObjectLookup that answers one kind, one ego and one artifact. */
+function fakeObjects(over: Partial<CoreObjectLookup> = {}): CoreObjectLookup {
+  return {
+    lookupKind: () => null,
+    findEgo: () => null,
+    findArtifact: () => null,
+    ...over,
+  };
+}
+
+describe("makeCoreResolvers: activation identity", () => {
+  it("finds a kind-level activation on an equipped item, charged", () => {
+    const objects = fakeObjects({
+      lookupKind: (tval, sval) =>
+        tval === 30 && sval === 5 ? { activation: { name: "LIGHT" } } : null,
+    });
+    const resolvers = makeCoreResolvers({ races: [], objects });
+    const ctx = ctxWithEquipment([fakeItem({ activation: true, timeout: 0 })]);
+
+    expect(resolvers.resolveActivation!(ctx, "act_light", true)).toBe(true);
+    expect(resolvers.activateHandle!(ctx, "act_light")).toBe(1);
+  });
+
+  it("an artifact's activation overrides its base kind's", () => {
+    const objects = fakeObjects({
+      lookupKind: () => ({ activation: { name: "LIGHT" } }),
+      findArtifact: (name) =>
+        name === "Foo" ? { activation: { name: "ILLUMINATION" } } : null,
+    });
+    const resolvers = makeCoreResolvers({ races: [], objects });
+    const ctx = ctxWithEquipment([
+      fakeItem({ activation: true, artifact: true, artifactName: "Foo" }),
+    ]);
+
+    expect(resolvers.resolveActivation!(ctx, "act_light", false)).toBe(false);
+    expect(resolvers.resolveActivation!(ctx, "act_illumination", false)).toBe(true);
+  });
+
+  it("falls back to the kind when an ego item carries no activation of its own", () => {
+    const objects = fakeObjects({
+      lookupKind: () => ({ activation: { name: "LIGHT" } }),
+      findEgo: (name) => (name === "of Foo" ? { activation: null } : null),
+    });
+    const resolvers = makeCoreResolvers({ races: [], objects });
+    const ctx = ctxWithEquipment([
+      fakeItem({ activation: true, ego: true, egoName: "of Foo" }),
+    ]);
+
+    expect(resolvers.resolveActivation!(ctx, "act_light", false)).toBe(true);
+  });
+
+  it("checkCharge rejects a discharged item, and activateHandle always requires a charge", () => {
+    const objects = fakeObjects({
+      lookupKind: () => ({ activation: { name: "LIGHT" } }),
+    });
+    const resolvers = makeCoreResolvers({ races: [], objects });
+    const ctx = ctxWithEquipment([fakeItem({ activation: true, timeout: 5 })]);
+
+    expect(resolvers.resolveActivation!(ctx, "act_light", true)).toBe(false);
+    expect(resolvers.resolveActivation!(ctx, "act_light", false)).toBe(true);
+    expect(resolvers.activateHandle!(ctx, "act_light")).toBeNull();
+  });
+
+  it("stays on the conservative default with no object registry", () => {
+    const resolvers = makeCoreResolvers({ races: [] });
+    const ctx = ctxWithEquipment([fakeItem({ activation: true })]);
+
+    expect(resolvers.resolveActivation!(ctx, "act_light", false)).toBe(false);
+    expect(resolvers.activateHandle!(ctx, "act_light")).toBeNull();
+  });
+});
+
+describe("makeCoreResolvers: in-shop signal", () => {
+  function fakeState(shopnum: number): CoreShopLookup {
+    return {
+      actor: { grid: { x: 5, y: 5 } },
+      chunk: { feature: () => ({ shopnum }) },
+    };
+  }
+
+  it("reports the store number (shopnum - 1) when standing on an entrance", () => {
+    const resolvers = makeCoreResolvers({ races: [], state: fakeState(3) });
+    expect(resolvers.inShop!(ctxWithEquipment([]))).toBe(2);
+  });
+
+  it("reports null off a shop entrance", () => {
+    const resolvers = makeCoreResolvers({ races: [], state: fakeState(0) });
+    expect(resolvers.inShop!(ctxWithEquipment([]))).toBeNull();
+  });
+
+  it("stays on the conservative default with no live state", () => {
+    const resolvers = makeCoreResolvers({ races: [] });
+    expect(resolvers.inShop!(ctxWithEquipment([]))).toBeNull();
   });
 });

@@ -20,25 +20,30 @@ fresh set of heuristics that merely look similar.
 > Not all of it is yet true of the mod you install, because `plugin.ts` builds
 > the Borg from host-supplied resolvers and only some of them exist.
 >
-> **Wired (2026-08-21): danger vision.** The plugin now reads the game's bound
-> monster registry from `ctx.registries` and builds the real facts resolver, so
-> `borg_danger` runs on actual blows, spell frequencies and race flags rather
-> than on zeroes. This is what makes the Borg flee. **A mod's monsters are
-> covered on exactly the same terms as core's**: the registry is bound after mods
-> compose their content, and the resolver indexes by `ridx` without consulting
-> provenance, so a creature a mod added is feared by the same arithmetic.
+> **Wired (2026-08-21): danger vision, activation identity, the in-shop signal.**
+> The plugin reads the game's bound registries from `ctx.registries` and the
+> live state from `ctx.state`, and builds real resolvers from them: `borg_danger`
+> runs on actual blows, spell frequencies and race flags rather than on zeroes,
+> the Borg can tell whether a worn item grants the activation it wants and
+> whether it is charged, and it knows which shop it is standing in. **A mod's
+> monsters and items are covered on exactly the same terms as core's**: every
+> registry is bound after mods compose their content, and each resolver reads it
+> by index (`ridx`, `tval`/`sval`, ego and artifact name) without consulting
+> provenance, so content a mod added is treated identically to core's.
 >
-> **Still on conservative defaults**, and they are not small: the Borg **never
-> enters a shop** (no in-shop signal), **never uses an item's activation** (no
-> activation identity), and **cannot value a piece of gear it has not evaluated**.
-> It also **does not start a new character when it dies**, which is the single
-> most requested behaviour.
+> **Still on the conservative default: the power of an unevaluated swap, buy or
+> sell.** The Borg still hoards, because valuing a hypothetical loadout needs the
+> engine to re-derive `PlayerView`-level facts (speed, AC, skills) for gear it is
+> not actually wearing, and the frozen view can only ever answer for the gear you
+> have on - there is no "what if" version of it to read. This is a host-and-core
+> change, not a wiring one, and it is the one seam of the four still open. The
+> Borg also **does not start a new character when it dies**, which is the single
+> most requested behaviour and a separate piece of work from the resolver seams.
 >
 > The target is full functionality watched over several runs, and the remaining
 > work is written down in [PLANNED.md](PLANNED.md). Until it is done, do not take
-> a green test suite for evidence: 174 tests pass and only three of them assert
-> that anything is wired at all. The rest cover dispatch and ladder ordering, and
-> not one of them plays a game to its end.
+> a green test suite for evidence: the suite covers dispatch, ladder ordering and
+> now the resolver wiring itself, and not one test in it plays a game to its end.
 
 It is a **mod**, not part of the engine, and that division is decided rather than
 incidental:

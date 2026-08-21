@@ -8,6 +8,28 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.5.0
+
+### Added
+
+- **Activation identity and the in-shop signal**, two of the three remaining
+  `BorgResolvers` seams from `PLANNED.md`. `makeCoreResolvers` now also takes
+  `objects` (`ctx.registries.objects`) and `state` (`ctx.state`), each
+  independently optional so an older host still gets whichever seams it can
+  supply data for.
+- The Borg can now tell whether a worn item grants a named activation and
+  whether it is charged (`borg_equips_item` / `borg_activate_item`), by walking
+  the item's artifact, ego or kind back to the `Activation` record that grants
+  it - the same precedence `obj-make.c` applies when the object was created. A
+  mod's ego or artifact is resolved by the same lookup as core's.
+- The Borg can now tell which shop it is standing in (`square_shopnum`), which
+  is what lets the town-flow ladder's shop-interaction steps actually fire.
+  Reads `ctx.state` directly; needed no new host plumbing, because a level's
+  `Chunk` already carries the bound feature registry it was generated with.
+- Still open: the power of an unevaluated swap, buy or sell, which needs a core
+  capability (hypothetical player-state simulation) that does not exist yet.
+  See `PLANNED.md`.
+
 ## 0.4.1
 
 ### Fixed

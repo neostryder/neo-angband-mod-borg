@@ -69,6 +69,19 @@ interface ControllerCtx {
    * fails this repository's build instead of surfacing as bad play.
    */
   readonly registries?: Core.CoreRegistries;
+  /**
+   * The live game state (host `ctx.state`), absent only during content
+   * composition, before any character exists to have a grid. Declared as the
+   * narrow shape resolvers.ts actually reads (player grid + level feature
+   * lookup) rather than imported, for the same reason as ControllerCtx itself:
+   * `GameState` is an internal host type, not part of the published surface.
+   */
+  readonly state?: {
+    readonly actor: { readonly grid: { readonly x: number; readonly y: number } };
+    readonly chunk: {
+      feature(grid: { x: number; y: number }): { shopnum: number };
+    };
+  };
 }
 
 /**
@@ -121,17 +134,32 @@ export default {
      * defect as the inert default, restricted to modded content, and much harder
      * to notice.
      *
-     * The other three seams (activation identity, the in-shop signal, and the
-     * force-descend option) are still on their defaults and are NOT covered by
-     * this call; see PLANNED.md. Wiring one seam and claiming four is how this
-     * mod got into this state.
+     * ACTIVATION IDENTITY AND THE IN-SHOP SIGNAL are wired the same way, from
+     * `ctx.registries.objects` and `ctx.state`. Both are independently
+     * optional in makeCoreResolvers, so a host with registries but a state
+     * built before boot (or vice versa) still gets whichever half applies -
+     * the three seams do not have to land together.
+     *
+     * The force-descend option is still on its default and is NOT covered by
+     * this call; see PLANNED.md.
      */
     const races = ctx.registries?.monsters.races;
+    const objects = ctx.registries?.objects;
+    const state = ctx.state;
     const borg = races
-      ? createBorg({ resolvers: makeCoreResolvers({ races }) })
+      ? createBorg({
+          resolvers: makeCoreResolvers({
+            races,
+            ...(objects ? { objects } : {}),
+            ...(state ? { state } : {}),
+          }),
+        })
       : createBorg();
     if (races) {
-      ctx.log(`the Borg has the keyboard, and danger vision over ${races.length} races`);
+      const parts = [`danger vision over ${races.length} races`];
+      parts.push(objects ? "activation identity" : "no activation identity");
+      parts.push(state ? "in-shop signal" : "no in-shop signal");
+      ctx.log(`the Borg has the keyboard, and ${parts.join(", ")}`);
     } else {
       /* An older host, or a context built before binding. Say which, because
        * "the Borg plays badly" and "the Borg was handed no monster data" look
