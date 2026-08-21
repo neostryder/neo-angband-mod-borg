@@ -1,15 +1,15 @@
 # neo-angband-mod-borg
 
-The Borg — Angband's automatic player — for
+The Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
-Install it from the game's **Install a mod…** row. Enabling the mod does **not**
+Install it from the game's **Install a mod...** row. Enabling the mod does **not**
 hand it your character: switch on *Let the Borg play* and it takes the keyboard
 from the next turn.
 
 ## What it is
 
-A faithful port of Angband 4.2.6's `borg/` — the same priority ladder, the same
+A faithful port of Angband 4.2.6's `borg/`: the same priority ladder, the same
 danger model, the same power scoring. It descends, fights, shops, and dies
 instructively, and it does it by the original's rules rather than by a fresh set
 of heuristics that merely look similar.
@@ -21,7 +21,7 @@ incidental:
   put an AI control surface inside the thing being kept faithful to Angband 4.2.6.
   Upstream's borg is a compile-time option precisely because it is not the game.
 - **It reaches the game through a published API**, the same one any third-party
-  automation would use — perceive through a read-only view of the game state, act
+  automation would use: perceive through a read-only view of the game state, act
   through the command queue. No private path, no test hook. If the borg could only
   be written against internals, then the modding API would not be finished, and
   that is worth finding out.
@@ -33,8 +33,8 @@ bugs rather than Borg bugs.
 
 ## Two things it does not do
 
-- **It cannot cheat.** Upstream's borg reads the game's own structures directly —
-  its comments call these "cheats" — and scrapes the terminal for the rest. This
+- **It cannot cheat.** Upstream's borg reads the game's own structures directly
+  (its comments call these "cheats") and scrapes the terminal for the rest. This
   one sees exactly what the perceive facade grants it, and acts only through
   commands a player could issue.
 - **It does not flag your save.** The Borg is deterministic: it draws only its own
@@ -48,7 +48,7 @@ has it, this one is refused by name rather than silently taking over.
 ## Layout
 
     manifest.json    what the game reads: id, engine range, capabilities, toggles
-    plugin.js        the built artefact the game fetches and hashes — committed
+    plugin.js        the built artefact the game fetches and hashes; committed
     plugin.ts        the entry point: takes ctx.core, returns a controller
     src/             the port itself
 
@@ -61,7 +61,7 @@ single rule that arrangement imposes on every other file.
     npm ci
     npm run verify     # typecheck, test, and prove plugin.js is a current build
 
-`plugin.js` is committed, because the game's catalogue pins its SHA-256 — a stale
+`plugin.js` is committed, because the game's catalogue pins its SHA-256, and a stale
 artefact would verify perfectly and be the file players actually run. `npm run
 check` is what stops that.
 
@@ -94,7 +94,7 @@ in the main repository is the complete answer.
 
 ## Licence
 
-Same dual licence as Neo Angband and Angband — GPL v2 or the Angband licence. See
+Same dual licence as Neo Angband and Angband: GPL v2 or the Angband licence. See
 [LICENSE.md](LICENSE.md).
 
 ## Credits
