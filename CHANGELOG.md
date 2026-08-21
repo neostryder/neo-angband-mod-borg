@@ -10,6 +10,31 @@ are, however small.
 
 ## 0.6.1
 
+### Changed
+
+- **This version requires Neo Angband 0.25.0 or newer.** `manifest.json`'s engine
+  range moves from `>=0.12.0` to `>=0.25.0`, and for a mod that ships code an
+  out-of-range engine is a refusal rather than a warning: an older game declines
+  to load this and says why, instead of loading a Borg with two of its parts
+  missing. Both of those parts are what make it an autoplayer rather than a
+  library. The restart-on-death loop arrived in 0.25.0, and playing itself over
+  and over is the entire point of a Borg. `AgentView.simulateLoadout` arrived in
+  0.25.0, and without it the Borg wears nothing it finds, buys nothing it needs
+  and sells nothing it is finished with. No earlier version of this mod ran a
+  working autoplayer on any engine, so a hard floor breaks no installation that
+  was playing properly.
+- The plugin no longer probes for that capability, and no longer has a degraded
+  path to fall back to. It reads `ctx.registries` and `ctx.state` as facts it is
+  entitled to, wires all four resolver seams from them unconditionally, and
+  refuses a context missing either one by name rather than playing on blind. That
+  refusal cannot be reached through the game's own loader, which rejects an
+  out-of-range engine before it imports a mod's code. It is there because the
+  alternative failure is silent: a Borg with no resolvers still issues a legal
+  command every turn and looks exactly like a Borg making bad choices.
+- `makeCoreResolvers` no longer takes a `loadout` input. The seam is installed
+  unconditionally, and the null it can still answer with is a property of the view
+  it is handed rather than of the engine version.
+
 ### Fixed
 
 - The README said the Borg "does not flag your save". Handing the keyboard over
@@ -20,17 +45,13 @@ are, however small.
   character. That mark is upstream's own behaviour and it cannot be cleared, which
   is exactly the sort of thing a player should not discover from the score screen.
 - The README said the Borg does not start a new character when it dies. It does,
-  on engine 0.25.0 or newer.
-
-### Changed
-
-- `plugin.js` is byte-identical to 0.6.0, so an installed copy plays identically.
-  **The restart-on-death loop is entirely the engine's**, and needed no code here:
-  a controller can only return a `PlayerCommand`, and birth has no representation
-  in that set, so there is nothing this mod could return that means "roll me a new
+  and from this version that is a requirement rather than a bonus. **The
+  restart-on-death loop is entirely the engine's**, and needed no code here: a
+  controller can only return a `PlayerCommand`, and birth has no representation in
+  that set, so there is nothing this mod could return that means "roll me a new
   character". The game's own death handler reincarnates the player in place
   whenever a mod holds the keyboard - same session, same save slot, a rolled race
-  and class each time. On an engine older than 0.25.0 a death still ends the run.
+  and class each time.
 
 ## 0.6.0
 

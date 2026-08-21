@@ -29,10 +29,10 @@ interface BuiltPlugin {
   readonly register?: unknown;
   controller(ctx: {
     flags: Record<string, boolean>;
-    core: typeof Core & Record<string, unknown>;
+    core: typeof Core;
     log: (m: string) => void;
-    registries?: unknown;
-    state?: unknown;
+    registries: unknown;
+    state: unknown;
   }): AgentController | undefined;
 }
 
@@ -40,38 +40,6 @@ interface BuiltPlugin {
  * is correct: `npm run check` proves it is a current build of the source, and
  * this proves the thing that check blessed actually runs. */
 const built = ((await import("./plugin.js")) as { default: BuiltPlugin }).default;
-
-function install(
-  flags: Record<string, boolean>,
-  registries?: unknown,
-  state?: unknown,
-  /**
-   * Members to add to the engine namespace the plugin receives. The hypothetical
-   * -loadout capability is a CAPABILITY of the engine rather than a fact the host
-   * passes down, so the only way to test both halves of that branch is to hand
-   * over an engine that has it and one that does not - and the engine this
-   * repository builds against does not (see package.json's //dependencies note).
-   */
-  coreExtra?: Record<string, unknown>,
-): {
-  controller: AgentController | undefined;
-  logs: string[];
-} {
-  const logs: string[] = [];
-  const controller = built.controller({
-    flags,
-    core: { ...Core, ...coreExtra } as typeof Core & Record<string, unknown>,
-    log: (m) => logs.push(m),
-    ...(registries === undefined ? {} : { registries }),
-    ...(state === undefined ? {} : { state }),
-  });
-  return { controller, logs };
-}
-
-/** An engine that carries the 0.25.0 hypothetical-loadout entry point. */
-function coreWithLoadout(): Record<string, unknown> {
-  return { simulateLoadout: () => null };
-}
 
 /**
  * A `ctx.registries`-shaped host fact carrying one core race and one a mod added.
@@ -111,6 +79,37 @@ function hostState(): unknown {
     actor: { grid: { x: 5, y: 5 } },
     chunk: { feature: () => ({ shopnum: 1 }) },
   };
+}
+
+/**
+ * Install the built plugin against a COMPLETE host context: every field the
+ * host's own `controller()` call site is guaranteed to carry. Since manifest.json
+ * declares `engine: ">=0.25.0"` that is all of them, so there is no longer a
+ * half-supplied context to parameterise over.
+ *
+ * `omit` builds a defective context on purpose, for the one test that pins what
+ * the plugin does with one.
+ */
+function install(
+  flags: Record<string, boolean>,
+  omit: readonly ("registries" | "state")[] = [],
+): {
+  controller: AgentController | undefined;
+  logs: string[];
+} {
+  const logs: string[] = [];
+  const ctx: Record<string, unknown> = {
+    flags,
+    core: Core,
+    log: (m: string) => logs.push(m),
+    registries: hostRegistries(),
+    state: hostState(),
+  };
+  for (const key of omit) delete ctx[key];
+  const controller = built.controller(
+    ctx as unknown as Parameters<BuiltPlugin["controller"]>[0],
+  );
+  return { controller, logs };
 }
 
 describe("the built plugin.js", () => {
@@ -162,83 +161,45 @@ describe("the built plugin.js", () => {
     expect(codes.every((c) => c !== null)).toBe(true);
   });
 
-  it("takes the registry when the host offers one, and says how much it saw", () => {
+  it("wires all four seams from the host context, and says what it got", () => {
     /* THE ANTI-INERT TEST. Every other test in this file passed for months while
      * the plugin built its Borg with no resolvers at all, because a Borg with no
      * danger vision still returns a command every turn. What that proves is that
      * "it decided a move" cannot detect this class of bug, so the wiring needs an
-     * assertion of its own. The count is in the message so a player's log says
-     * whether the Borg could see, not just that it started. */
-    const { controller, logs } = install({ "borg.autoplay": true }, hostRegistries());
-    expect(typeof controller).toBe("function");
-    expect(logs.join(" ")).toMatch(/danger vision over 2 races/u);
-  });
-
-  it("reports activation identity and the in-shop signal when the host offers them", () => {
-    /* The same anti-inert guard as the danger-vision test above, for the two
-     * seams landed alongside it: a Borg that received `ctx.registries.objects`
-     * and `ctx.state` but built its resolvers without them would still decide a
-     * move every turn, so the log line is the only thing that can catch it. */
-    const { controller, logs } = install(
-      { "borg.autoplay": true },
-      hostRegistries(),
-      hostState(),
-    );
-    expect(typeof controller).toBe("function");
-    expect(logs.join(" ")).toMatch(/activation identity/u);
-    expect(logs.join(" ")).toMatch(/in-shop signal/u);
-    expect(logs.join(" ")).not.toMatch(/no activation identity|no in-shop signal/u);
-  });
-
-  it("says which of activation identity and the in-shop signal it did not get", () => {
-    const { logs } = install({ "borg.autoplay": true }, hostRegistries());
-    expect(logs.join(" ")).toMatch(/no in-shop signal/u);
-    expect(logs.join(" ")).not.toMatch(/no activation identity/u);
-  });
-
-  it("reports loadout evaluation only on an engine that can derive a loadout", () => {
-    /* The fourth seam, and the one that is a capability rather than a datum: the
-     * wear / buy / sell decisions score gear the character is not wearing, which
-     * only the engine's own calc_bonuses can derive. The log line has to track the
-     * probe, because a Borg that says it can evaluate a swap and cannot is
-     * indistinguishable from one that simply never finds an upgrade. */
-    const without = install({ "borg.autoplay": true }, hostRegistries());
-    expect(without.logs.join(" ")).toMatch(/no loadout evaluation/u);
-
-    const withIt = install(
-      { "borg.autoplay": true },
-      hostRegistries(),
-      hostState(),
-      coreWithLoadout(),
-    );
-    expect(typeof withIt.controller).toBe("function");
-    expect(withIt.logs.join(" ")).toMatch(/loadout evaluation/u);
-    expect(withIt.logs.join(" ")).not.toMatch(/no loadout evaluation/u);
-  });
-
-  it("keeps playing on an engine that can derive a loadout, through the bundle", () => {
-    /* The capability probe changes which resolvers the bundle builds, so the
-     * "it still decides a move" claim has to be made again on that branch - the
-     * live bindings and the new code path have never run together otherwise. */
-    const controller = install(
-      { "borg.autoplay": true },
-      hostRegistries(),
-      hostState(),
-      coreWithLoadout(),
-    ).controller!;
-    const view = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 3 } });
-    expect(controller(view, makeFakeActions())).not.toBeNull();
-  });
-
-  it("says plainly when the host supplies no registry, instead of playing quietly", () => {
-    /* An older game, which is a real case: this mod installs into any host whose
-     * engine range it declares, and `ctx.registries` did not exist before
-     * 2026-08-21. It must still play - and it must not look the same as a wired
-     * one, because "the Borg plays badly" and "the Borg was given no monster
-     * data" have completely different fixes. */
+     * assertion of its own. The race count is in the message so a player's log
+     * says whether the Borg could see, not just that it started - an empty
+     * registry is the one remaining way to get a blind Borg. */
     const { controller, logs } = install({ "borg.autoplay": true });
     expect(typeof controller).toBe("function");
-    expect(logs.join(" ")).toMatch(/playing blind/u);
+    const said = logs.join(" ");
+    expect(said).toMatch(/danger vision over 2 races/u);
+    expect(said).toMatch(/activation identity/u);
+    expect(said).toMatch(/in-shop signal/u);
+    expect(said).toMatch(/loadout evaluation/u);
+  });
+
+  it("refuses a host context missing a required fact, and names it", () => {
+    /* The engine floor is what makes this unreachable through the game's own
+     * loader: `engine: ">=0.25.0"` in manifest.json is a hard refusal for a mod
+     * that ships code, so a game without `ctx.registries` or `ctx.state` never
+     * imports this bundle. It is asserted anyway because the loader is not the
+     * only caller a plugin ABI can have, and because the alternative failure is
+     * silent - a Borg with no resolvers plays on, badly, and looks from the
+     * outside exactly like a Borg making bad choices. */
+    expect(() => install({ "borg.autoplay": true }, ["registries"])).toThrow(
+      /ctx\.registries/u,
+    );
+    expect(() => install({ "borg.autoplay": true }, ["state"])).toThrow(/ctx\.state/u);
+    expect(() => install({ "borg.autoplay": true }, ["registries", "state"])).toThrow(
+      /ctx\.registries and no ctx\.state/u,
+    );
+  });
+
+  it("declines before it can refuse anything, when the flag is off", () => {
+    /* Order matters: the flag check runs first, so a host that never enables the
+     * Borg is never told its context is short. Otherwise browsing the mod list
+     * on a defective host would raise from a mod nobody switched on. */
+    expect(install({}, ["registries", "state"]).controller).toBeUndefined();
   });
 
   it("yields when the player is dead", () => {
