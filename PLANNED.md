@@ -61,13 +61,21 @@ Status section, which was narrowed on 2026-08-21 for exactly this reason.
 
 ## Releasing this
 
-**The version is 0.4.0 in the files and there is NO TAG yet, deliberately.** The
-game installs a mod from a TAG, pinned by digest, and a tag must never be moved -
-so tagging is the release event and the version field is not. Danger vision needs
-a host that supplies `ctx.registries`, which no released game does yet, so a 0.4.0
-tag today would ship a mod whose headline change is inert on every game a player
-can actually be running. The tag goes out with the engine release that carries the
-field, and it will pick up whatever else in this file has landed by then.
+**0.4.0 IS TAGGED, released with Neo Angband 0.23.0 (2026-08-20).** It was held
+back for a few hours first, and the reason is worth keeping: the game installs a
+mod from a TAG and a tag must never be moved, so tagging is the release event and
+the version field is not. Danger vision needs a host that supplies
+`ctx.registries`, and until 0.23.0 shipped, no released game had it - a tag before
+that would have pinned a digest on a change inert on every game a player could
+actually be running.
+
+**The engine range stays permissive (`>=0.12.0`) rather than moving to
+`>=0.23.0`,** which is a deliberate difference from how neo-linoleum 0.15.0 handled
+the same dependency. The Borg degrades: on an older host `ctx.registries` is
+absent, `createBorg()` takes its conservative defaults, and the plugin says
+"playing blind" in its own log. neo-linoleum's fill has no such fallback, so it
+refuses the older game outright. A mod that can still do most of its job should
+not refuse to load.
 
 ## The work, in order
 
