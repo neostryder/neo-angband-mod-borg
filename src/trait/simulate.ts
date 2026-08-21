@@ -39,14 +39,15 @@
  * WHY THE SHAPES ARE DECLARED HERE RATHER THAN IMPORTED
  * ------------------------------------------------------------------
  *
- * This repository builds against the PUBLISHED engine, not a sibling checkout
- * (package.json's `//dependencies` note says why), and this mod's engine range is
- * deliberately permissive: it must compile against an engine that predates the
- * capability and must RUN on one, degrading rather than throwing. So the change
- * and answer shapes are declared structurally, the same way plugin.ts declares
- * its ControllerCtx and resolvers.ts its registry lookups. They are the engine's
- * `LoadoutChange` and the three fields of its `LoadoutSimulation` this file
- * reads, and nothing else.
+ * They are NARROWER than the engine's own, on purpose, which is why they stay
+ * declared here now that the published types carry them. `LoadoutItemRef` has a
+ * third arm holding a live `GameObject`, and a mod driving the frozen view never
+ * holds one; `LoadoutSimulation` carries before / after / delta and this file
+ * reads three fields of `after`. Declaring what is actually reachable and
+ * actually read is the same choice plugin.ts makes for its ControllerCtx and
+ * resolvers.ts for its registry lookups. A test asserts the two agree, so a
+ * change to the engine's shapes fails this repository's build rather than
+ * surfacing as bad play.
  *
  * ------------------------------------------------------------------
  * WHY THE WORLD IS SHADOWED RATHER THAN SAVED AND RESTORED
@@ -114,7 +115,7 @@ export interface BorgLoadoutAnswer {
   };
 }
 
-/** The frozen view, plus the accessor an engine 0.25.0 or newer puts on it. */
+/** The frozen view, with the accessor narrowed to the shapes above. */
 type LoadoutCapableView = AgentView & {
   simulateLoadout?: (change: BorgLoadoutChange) => BorgLoadoutAnswer | null;
 };
@@ -153,9 +154,11 @@ function shadowView(view: AgentView, answer: BorgLoadoutAnswer): AgentView {
 }
 
 /**
- * borg.power for the loadout `change` would produce, or null when this engine
- * cannot describe one (a game older than 0.25.0, or a view with no live derive
- * behind it).
+ * borg.power for the loadout `change` would produce, or null when the view has
+ * no live derive behind it (a worldless harness). The agent API declares the
+ * accessor optional on the view itself, which is what that null covers; the
+ * engine version is not in question, because manifest.json requires one that
+ * carries it.
  *
  * Null rather than "the current power" on purpose: the callers already treat an
  * absent seam as "no improvement", and returning the current power here would

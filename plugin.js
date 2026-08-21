@@ -14407,16 +14407,17 @@ function makeCoreResolvers(input) {
     const shopnum = state.chunk.feature(state.actor.grid).shopnum;
     return shopnum > 0 ? shopnum - 1 : null;
   };
-  const resolvers = {
+  return {
     resolveMonsterFacts,
     resolveActivation,
     activateHandle: activateHandle2,
-    inShop
+    inShop,
+    // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
+    // which the agent API declares optional on the view itself, and answers null
+    // when there is no live derive behind it (a worldless harness) - so this is
+    // correct without asking the host anything.
+    loadoutPower: (ctx, change) => borgSimulatePower(ctx, change)
   };
-  if (input.loadout) {
-    resolvers.loadoutPower = (ctx, change) => borgSimulatePower(ctx, change);
-  }
-  return resolvers;
 }
 
 // plugin.ts
@@ -14429,27 +14430,25 @@ var plugin_default = {
     if (!coreIsBound()) {
       throw new Error("the Borg could not take the engine from ctx.core");
     }
-    const races = ctx.registries?.monsters.races;
-    const objects = ctx.registries?.objects;
-    const state = ctx.state;
-    const loadout = typeof ctx.core.simulateLoadout === "function";
-    const borg = races ? createBorg({
+    const missing = [];
+    if (!ctx.registries) missing.push("ctx.registries");
+    if (!ctx.state) missing.push("ctx.state");
+    if (missing.length > 0) {
+      throw new Error(
+        `the Borg was given no ${missing.join(" and no ")}: a host that calls controller() supplies both, and this one did not`
+      );
+    }
+    const races = ctx.registries.monsters.races;
+    const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,
-        ...objects ? { objects } : {},
-        ...state ? { state } : {},
-        ...loadout ? { loadout } : {}
+        objects: ctx.registries.objects,
+        state: ctx.state
       })
-    }) : createBorg();
-    if (races) {
-      const parts = [`danger vision over ${races.length} races`];
-      parts.push(objects ? "activation identity" : "no activation identity");
-      parts.push(state ? "in-shop signal" : "no in-shop signal");
-      parts.push(loadout ? "loadout evaluation" : "no loadout evaluation");
-      ctx.log(`the Borg has the keyboard, and ${parts.join(", ")}`);
-    } else {
-      ctx.log("the Borg has the keyboard, but this host supplies no monster registry: playing blind");
-    }
+    });
+    ctx.log(
+      `the Borg has the keyboard, and danger vision over ${races.length} races, activation identity, the in-shop signal and loadout evaluation`
+    );
     return borg.controller;
   }
 };

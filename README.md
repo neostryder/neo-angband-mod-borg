@@ -3,6 +3,9 @@
 The Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
+**Needs Neo Angband 0.25.0 or newer.** An older game refuses to load it and says
+so; the blockquote below says why that is a refusal rather than a reduced Borg.
+
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
 hand it your character: switch on *Let the Borg play* and it takes the keyboard
 from the next turn.
@@ -34,17 +37,22 @@ fresh set of heuristics that merely look similar.
 > artifact name) without consulting provenance, so content a mod added is treated
 > identically to core's.
 >
-> The fourth seam needs Neo Angband **0.25.0 or newer**, which is where the engine
-> gained `AgentView.simulateLoadout`. On an older game the Borg still plays, with
-> that one seam back on its conservative default, and its log says so.
+> **It starts a new character when it dies**, and that is the engine's own work
+> rather than this mod's: a controller can only return an in-game command, so it
+> has nothing to say that means "roll me a new character". The game's death
+> handler does it, whenever a mod holds the keyboard. It is an in-session
+> reincarnation and not a new save - same session, same slot, a rolled race and
+> class each time, exactly as upstream's borg respawns.
 >
-> **It starts a new character when it dies**, also on 0.25.0 or newer, and that is
-> the engine's own work rather than this mod's: a controller can only return an
-> in-game command, so it has nothing to say that means "roll me a new character".
-> The game's death handler does it, whenever a mod holds the keyboard. It is an
-> in-session reincarnation and not a new save - same session, same slot, a rolled
-> race and class each time, exactly as upstream's borg respawns. On an older game
-> a death ends the run at the tombstone as it always did.
+> **Those last two arrived in Neo Angband 0.25.0, and that is why this version
+> requires it rather than degrading on an older game.** Earlier versions declared
+> `>=0.12.0` and fell back: on a game without the loadout derive the Borg wore
+> nothing it found, bought nothing it needed and sold nothing it was done with,
+> and on a game without the death handler a death simply ended the run. Between
+> them that is not a Borg with a feature missing, it is a Borg that cannot do the
+> two things the word means. Nothing was preserved by loading anyway, either: no
+> earlier version of this mod ran a working autoplayer on any engine, so there is
+> no installation the floor could take away from.
 >
 > The target is full functionality watched over several runs, and the remaining
 > work is written down in [PLANNED.md](PLANNED.md). Until it is done, do not take

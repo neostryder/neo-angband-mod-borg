@@ -11,14 +11,18 @@
  *
  * The fourth seam it fills is the odd one out and worth naming. Danger vision,
  * activation identity and the in-shop signal are all facts the host READS and
- * passes down. Hypothetical-loadout power is a fact the host cannot read at all:
- * it is a derive, and only the engine can run it. So what arrives here is not
- * data but the answer to "can this engine do that" - see CoreResolverInput
- * .loadout.
+ * passes down. Hypothetical-loadout power is a derive that only the engine can
+ * run, reached through the frozen view's own `simulateLoadout` accessor, so
+ * there is nothing for the host to hand over: the seam is installed
+ * unconditionally and answers null when the view behind it cannot derive.
  *
- * This lives in the borg package (not a specific host) so web / cli / desktop
- * all wire the Borg the same faithful way. It depends only on @rpgm-tools/neo-angband-core,
- * which the package already depends on.
+ * It used to take a fourth input, `loadout`, carrying the answer to "can this
+ * engine do that" - a probe the plugin ran because the mod loaded into games
+ * that predated `simulateLoadout`. manifest.json now requires an engine that has
+ * it, so the question has one answer and the input is gone.
+ *
+ * This depends only on @rpgm-tools/neo-angband-core, which the package already
+ * depends on.
  */
 
 import { MON_RACE_FLAG_ENTRIES, MON_SPELL_ENTRIES } from "./core-api.js";
@@ -61,34 +65,17 @@ export interface CoreResolverInput {
   /** The bound monster-race registry (booted.registries...); indexed by ridx. */
   races: readonly MonsterRace[];
   /**
-   * The bound object registry (booted.registries.objects), for activation
-   * identity. Omit to leave resolveActivation/activateHandle on their
-   * conservative defaults (an older host with no registries).
+   * The bound object registry (`ctx.registries.objects`), for activation
+   * identity. The plugin always passes it; omitting it leaves
+   * resolveActivation/activateHandle on their conservative defaults, which is
+   * what lets a test exercise one resolver without building the other's fixture.
    */
   objects?: CoreObjectLookup;
   /**
-   * The live game state (ctx.state), for the in-shop signal. Omit to leave
-   * inShop on its conservative default (never in a shop).
+   * The live game state (`ctx.state`), for the in-shop signal. Optional on the
+   * same terms as `objects`.
    */
   state?: CoreShopLookup;
-  /**
-   * Whether this engine can derive a HYPOTHETICAL loadout - in practice
-   * `typeof ctx.core.simulateLoadout === "function"`, which is true from Neo
-   * Angband 0.25.0 on. Omit or pass false to leave the swap/buy/sell power seam
-   * on its conservative default.
-   *
-   * A capability answer rather than the function itself, because the evaluation
-   * does NOT go through `ctx.core`: it goes through `view.simulateLoadout`, the
-   * accessor the same engine build puts on the frozen view, so the ItemViews it
-   * returns are built with the same deps the live view's are. An ItemView priced
-   * in one read and unpriced in the other would change what the Borg decides
-   * about the same object depending on which read produced it.
-   *
-   * Passed in rather than probed here so the plugin's log line and the seam's
-   * behaviour are derived from ONE fact. Every other version of this has ended
-   * with a host reporting a capability it did not wire.
-   */
-  loadout?: boolean;
 }
 
 /** RF_* code names for the set flags in a race flag set (index == RF value). */
@@ -181,12 +168,9 @@ function findActivatedItem(
 
 /**
  * Build the resolvers that give the Borg real danger vision, activation
- * identity, the in-shop signal and hypothetical-loadout power. Each of
- * `objects`, `state` and `loadout` is independently optional: an older host that
- * supplies races but not the object registry still gets danger vision, with
- * activation identity left on its conservative default (documented in
- * BorgResolvers), and the same for a host with no live state yet or an engine
- * that cannot derive a loadout nobody is wearing.
+ * identity, the in-shop signal and hypothetical-loadout power. The first and the
+ * last are unconditional; `objects` and `state` may be omitted, which leaves
+ * their two seams on the conservative defaults documented in BorgResolvers.
  */
 export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
   const byRidx = new Map<number, MonsterRace>();
@@ -238,17 +222,15 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     return shopnum > 0 ? shopnum - 1 : null;
   };
 
-  const resolvers: BorgResolvers = {
+  return {
     resolveMonsterFacts,
     resolveActivation,
     activateHandle,
     inShop,
+    // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
+    // which the agent API declares optional on the view itself, and answers null
+    // when there is no live derive behind it (a worldless harness) - so this is
+    // correct without asking the host anything.
+    loadoutPower: (ctx, change) => borgSimulatePower(ctx, change),
   };
-  if (input.loadout) {
-    // borgSimulatePower reads view.simulateLoadout and returns null when it is
-    // absent, so this stays correct on an engine that reports the capability and
-    // hands over a view that cannot answer (a worldless harness).
-    resolvers.loadoutPower = (ctx, change) => borgSimulatePower(ctx, change);
-  }
-  return resolvers;
 }

@@ -57,36 +57,30 @@ import { makeCoreResolvers } from "./src/resolvers.js";
  */
 interface ControllerCtx {
   readonly flags: Readonly<Record<string, boolean>>;
-  /**
-   * The live engine namespace.
-   *
-   * Intersected with the ONE export that is newer than the engine version this
-   * repository compiles against (`simulateLoadout`, Neo Angband 0.25.0). Declared
-   * optional and read as a probe rather than called: this mod's engine range is
-   * permissive on purpose, so it has to compile against the published 0.24.0
-   * types and still recognise a newer game at runtime. See src/resolvers.ts's
-   * CoreResolverInput.loadout for what the probe decides.
-   */
-  readonly core: typeof Core & { readonly simulateLoadout?: unknown };
+  /** The live engine namespace, at the version manifest.json requires. */
+  readonly core: typeof Core;
   readonly log: (msg: string) => void;
   /**
-   * The bound content registries (host `ctx.registries`, added 2026-08-21).
+   * The bound content registries (host `ctx.registries`).
    *
-   * Structurally optional and read defensively, because this file has to compile
-   * and RUN against a host that predates the field: a mod installed into an older
-   * game gets `undefined` here and must degrade rather than throw. `Core.CoreRegistries`
-   * rather than a hand-written shape, so a change to the registry the Borg reads
-   * fails this repository's build instead of surfacing as bad play.
+   * Required, not optional. This is the controller seam's contract rather than
+   * the host's whole `ModPluginContext`, which declares the field optional
+   * because the same type also serves `hooks(ctx)` - and `hooks` runs before the
+   * game exists. At the one call site that invokes `controller()` the host has
+   * already latched the bound registries, so the field is always there.
+   * `Core.CoreRegistries` rather than a hand-written shape, so a change to the
+   * registry the Borg reads fails this repository's build instead of surfacing as
+   * bad play.
    */
-  readonly registries?: Core.CoreRegistries;
+  readonly registries: Core.CoreRegistries;
   /**
-   * The live game state (host `ctx.state`), absent only during content
-   * composition, before any character exists to have a grid. Declared as the
-   * narrow shape resolvers.ts actually reads (player grid + level feature
-   * lookup) rather than imported, for the same reason as ControllerCtx itself:
-   * `GameState` is an internal host type, not part of the published surface.
+   * The live game state (host `ctx.state`). Required for the same reason as
+   * `registries`: `controller()` runs after boot, so a character with a grid
+   * exists by then. Declared as the narrow shape resolvers.ts actually reads
+   * (player grid + level feature lookup) rather than imported, because
+   * `GameState` is an internal host type and not part of the published surface.
    */
-  readonly state?: {
+  readonly state: {
     readonly actor: { readonly grid: { readonly x: number; readonly y: number } };
     readonly chunk: {
       feature(grid: { x: number; y: number }): { shopnum: number };
@@ -145,49 +139,57 @@ export default {
      * to notice.
      *
      * ACTIVATION IDENTITY AND THE IN-SHOP SIGNAL are wired the same way, from
-     * `ctx.registries.objects` and `ctx.state`. Both are independently
-     * optional in makeCoreResolvers, so a host with registries but a state
-     * built before boot (or vice versa) still gets whichever half applies -
-     * the four seams do not have to land together.
+     * `ctx.registries.objects` and `ctx.state`. Both are passed unconditionally.
+     * They used to be spread in only when present, back when this mod loaded
+     * into games that predated them; the engine floor now covers that, and a
+     * half-wired Borg is not a state worth being able to reach.
      *
-     * LOADOUT EVALUATION is the fourth, and it is a capability question rather
-     * than a datum. The wear / buy / sell decisions score a loadout the
-     * character is not in, which only the engine's own calc_bonuses can derive;
-     * `ctx.core.simulateLoadout` existing is what says this engine can. The
-     * evaluation itself runs through the frozen view's own accessor, so the
-     * ItemViews it produces are the same ones the live view produces - see
-     * src/resolvers.ts. Probed rather than assumed, because this mod's engine
-     * range stays permissive and an older game must degrade rather than throw.
+     * LOADOUT EVALUATION is the fourth, and it is the odd one out: the wear /
+     * buy / sell decisions score a loadout the character is not in, which only
+     * the engine's own calc_bonuses can derive. It arrives through the frozen
+     * view's own `simulateLoadout` accessor rather than through anything read
+     * here, so the ItemViews it produces are the same ones the live view
+     * produces - see src/resolvers.ts. Nothing about it is conditional any more:
+     * manifest.json requires an engine that has it.
      *
      * The force-descend option is still on its default and is NOT covered by
      * this call; see PLANNED.md.
      */
-    const races = ctx.registries?.monsters.races;
-    const objects = ctx.registries?.objects;
-    const state = ctx.state;
-    const loadout = typeof ctx.core.simulateLoadout === "function";
-    const borg = races
-      ? createBorg({
-          resolvers: makeCoreResolvers({
-            races,
-            ...(objects ? { objects } : {}),
-            ...(state ? { state } : {}),
-            ...(loadout ? { loadout } : {}),
-          }),
-        })
-      : createBorg();
-    if (races) {
-      const parts = [`danger vision over ${races.length} races`];
-      parts.push(objects ? "activation identity" : "no activation identity");
-      parts.push(state ? "in-shop signal" : "no in-shop signal");
-      parts.push(loadout ? "loadout evaluation" : "no loadout evaluation");
-      ctx.log(`the Borg has the keyboard, and ${parts.join(", ")}`);
-    } else {
-      /* An older host, or a context built before binding. Say which, because
-       * "the Borg plays badly" and "the Borg was handed no monster data" look
-       * identical from the outside and have completely different fixes. */
-      ctx.log("the Borg has the keyboard, but this host supplies no monster registry: playing blind");
+    const missing: string[] = [];
+    if (!ctx.registries) missing.push("ctx.registries");
+    if (!ctx.state) missing.push("ctx.state");
+    if (missing.length > 0) {
+      /* Unreachable through the game's own loader. manifest.json declares
+       * `engine: ">=0.25.0"`, and for a mod that ships CODE an out-of-range
+       * engine is a hard refusal in the host: the plugin is never imported, so
+       * this function never runs on a game that predates either field. Checked
+       * anyway, because the loader is not the only thing that can call a plugin
+       * ABI, and because the failure it guards against is invisible in play - a
+       * Borg built without these resolvers still returns a legal command every
+       * turn and merely plays badly, which is the exact failure mode PLANNED.md
+       * exists to describe. Naming the missing half is the difference between a
+       * five-minute fix and a week of watching it lose. */
+      throw new Error(
+        `the Borg was given no ${missing.join(" and no ")}: a host that calls ` +
+          `controller() supplies both, and this one did not`,
+      );
     }
+
+    const races = ctx.registries.monsters.races;
+    const borg = createBorg({
+      resolvers: makeCoreResolvers({
+        races,
+        objects: ctx.registries.objects,
+        state: ctx.state,
+      }),
+    });
+    /* The race count is in the message because an empty registry is the one
+     * remaining way to get a Borg that cannot see danger, and it looks from the
+     * outside exactly like a Borg that plays badly. */
+    ctx.log(
+      `the Borg has the keyboard, and danger vision over ${races.length} races, ` +
+        `activation identity, the in-shop signal and loadout evaluation`,
+    );
     return borg.controller;
   },
 };

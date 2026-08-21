@@ -64,7 +64,7 @@ Status section, which was narrowed on 2026-08-21 for exactly this reason.
 |---|---|
 | 2026-08-21 | **Step 1 done.** The host gained `ctx.registries` (the whole bound `CoreRegistries`, latched once at boot in `main.ts` and reaching every plugin context). `plugin.ts` now calls `createBorg({ resolvers: makeCoreResolvers({ races }) })`, so `makeCoreResolvers` has a caller for the first time. The Borg has danger vision, including over monsters a mod added. Three tests assert the wiring rather than the dispatch, one of them against the built `plugin.js`. |
 | 2026-08-21 | **Step 2, three of four seams done.** `makeCoreResolvers` now also takes `objects` (`ctx.registries.objects`) and `state` (`ctx.state`), each independently optional. Activation identity walks an equipped `ItemView` back through its ego/artifact/kind to the `Activation` record that grants it (mirroring `obj-make.c`'s own artifact-then-ego-then-kind precedence) and compares `act_<name lowercased>` against the token the ported trait/item code already passes. The in-shop signal reads `state.chunk.feature(state.actor.grid).shopnum` directly - no new host plumbing needed, because `Chunk` already carries the bound `FeatureRegistry` it was built with. Both are covered on the same terms as danger vision: a mod's ego, artifact or store entrance is resolved by the same lookup, not a vanilla-only table. The fourth seam (swap/buy/sell power) is NOT wired; see the entry below it. |
-| 2026-08-21 | **Step 2 complete: all four seams wired.** The fourth needed an engine capability rather than host plumbing, and it landed with Neo Angband 0.25.0 as `AgentView.simulateLoadout`: the engine's own `calc_bonuses` over a hypothetical set of worn objects, with nothing in the live game written. `src/trait/simulate.ts` runs the ported `borg_notice` and `borg_power` over the loadout it describes, which is the wield / recompute / revert shape upstream uses, against a scratch copy of the self-model so a ladder can score a dozen candidates without disturbing the Borg's view of itself. `think-session.ts` fans that one seam out into the five questions the ported subsystems ask (`wearEval`, `buyShopEval`, `buyHomeEval`, `sellEval`, `sellHomeBadEval`); the two swap valuations are unreachable rather than pending, because this port has no swap subsystem and both contribute zero to `borg_power`. The engine range stays permissive: the plugin probes for the capability and degrades on an older game. |
+| 2026-08-21 | **Step 2 complete: all four seams wired.** The fourth needed an engine capability rather than host plumbing, and it landed with Neo Angband 0.25.0 as `AgentView.simulateLoadout`: the engine's own `calc_bonuses` over a hypothetical set of worn objects, with nothing in the live game written. `src/trait/simulate.ts` runs the ported `borg_notice` and `borg_power` over the loadout it describes, which is the wield / recompute / revert shape upstream uses, against a scratch copy of the self-model so a ladder can score a dozen candidates without disturbing the Borg's view of itself. `think-session.ts` fans that one seam out into the five questions the ported subsystems ask (`wearEval`, `buyShopEval`, `buyHomeEval`, `sellEval`, `sellHomeBadEval`); the two swap valuations are unreachable rather than pending, because this port has no swap subsystem and both contribute zero to `borg_power`. It landed behind a probe on `ctx.core.simulateLoadout`, so an older game degraded instead of throwing; the probe came out again the same day, when the engine range was pinned (see Releasing this). |
 | 2026-08-21 | **Step 3 done: the restart loop.** Not one line of it is in this repository, and that is the finding rather than an accident of scheduling - `AgentCommand` is `PlayerCommand`, so there is no value a controller could return that means "roll me a new character", and the death handler lives in the host's game loop. Neo Angband 0.25.0 gained `StartedGame.reincarnate` (upstream's `reincarnate_borg`, over this port's own `generatePlayer` / `outfitPlayer` rather than a second copy of the birth pipeline) and the host's `LOOP_STATUS.DEAD` branch calls it, ahead of every step of the human death flow, whenever a mod holds the keyboard. The gate is the one autoplayer slot the host already had, so there is no second toggle and no mod id written into the engine. `NOSCORE_BORG` is set at upstream's own activation gate and again on each respawn. |
 
 ## Releasing this
@@ -77,13 +77,34 @@ the version field is not. Danger vision needs a host that supplies
 that would have pinned a digest on a change inert on every game a player could
 actually be running.
 
-**The engine range stays permissive (`>=0.12.0`) rather than moving to
-`>=0.23.0`,** which is a deliberate difference from how neo-linoleum 0.15.0 handled
-the same dependency. The Borg degrades: on an older host `ctx.registries` is
-absent, `createBorg()` takes its conservative defaults, and the plugin says
-"playing blind" in its own log. neo-linoleum's fill has no such fallback, so it
-refuses the older game outright. A mod that can still do most of its job should
-not refuse to load.
+**The engine range is `>=0.25.0`, and 0.6.1 is where it stopped being permissive.**
+Up to 0.6.0 it was `>=0.12.0` and the mod degraded: on an older host
+`ctx.registries` was absent, `createBorg()` took its conservative defaults, and
+the plugin said "playing blind" in its own log. That was written down as a
+deliberate difference from how neo-linoleum 0.15.0 handled the same dependency,
+on the grounds that a mod which can still do most of its job should not refuse to
+load.
+
+**The reversal, and the reasoning that changed.** That argument assumed a
+partially-working Borg was worth protecting. It was not, and the evidence is this
+file: until 2026-08-21 the shipped mod had no danger vision, never shopped, never
+used an activation, could not evaluate a swap and never started a new character
+when it died. On no engine version, ever, had it been an autoplayer. So there was
+no installed base of "the Borg working acceptably on an older game" for a hard
+floor to break, and the permissive range was protecting an experience that did
+not exist.
+
+What the floor buys is that the two things the word "Borg" means are no longer
+conditional. The restart-on-death loop and `AgentView.simulateLoadout` both
+arrived in 0.25.0; without the first it plays one character and stops, and
+without the second it wears nothing it finds. A refusal names the problem and
+tells a player to update the game. A degraded load produces a Borg that walks
+around losing, which is indistinguishable from a Borg that is simply bad at
+Angband - the exact confusion this whole file was opened to end.
+
+The comparison with neo-linoleum now goes the other way: both refuse, for the
+same reason, and the difference is that neo-linoleum's floor was obvious from the
+start because its fill visibly does nothing without the seam.
 
 ## The work, in order
 
@@ -169,12 +190,17 @@ docstring says.
 
   This mod's half is `borgSimulatePower` (`src/trait/simulate.ts`): the ported
   `borg_notice` and `borg_power`, over that view, against a scratch copy of the
-  self-model. `makeCoreResolvers` takes a fourth input, `loadout`, which is a
-  capability answer rather than a datum, and `plugin.ts` probes
-  `ctx.core.simulateLoadout` for it so an older game degrades instead of
-  throwing. Five of the seven questions the ported subsystems ask are wired from
-  it; `weapon_swap_value` and `armour_swap_value` are unreachable, because this
-  port has no swap subsystem and both contribute zero to `borg_power`.
+  self-model. Five of the seven questions the ported subsystems ask are wired
+  from it; `weapon_swap_value` and `armour_swap_value` are unreachable, because
+  this port has no swap subsystem and both contribute zero to `borg_power`.
+
+  It shipped for one day behind a fourth `makeCoreResolvers` input, `loadout`,
+  which carried a capability answer rather than a datum: `plugin.ts` probed
+  `ctx.core.simulateLoadout` so an older game degraded instead of throwing. The
+  input and the probe are gone in 0.6.1 along with the permissive engine range
+  they existed for. The seam is installed unconditionally now, and the null it can
+  still return belongs to a view with no live derive behind it rather than to an
+  engine that cannot answer.
 
 **Mod items and creatures must work with the Borg the same as vanilla ones**
 (a hard requirement). Reading the registry rather than shipping a

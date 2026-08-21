@@ -7,8 +7,15 @@
 
 import { describe, expect, it } from "vitest";
 import { RF, RSF } from "@rpgm-tools/neo-angband-core";
-import type { ItemView, MonsterRace, PlayerView } from "@rpgm-tools/neo-angband-core";
+import type {
+  ItemView,
+  LoadoutChange,
+  LoadoutSimulation,
+  MonsterRace,
+  PlayerView,
+} from "@rpgm-tools/neo-angband-core";
 import { makeCoreResolvers } from "./resolvers.js";
+import type { BorgLoadoutAnswer, BorgLoadoutChange } from "./trait/simulate.js";
 import type { CoreObjectLookup, CoreShopLookup } from "./resolvers.js";
 import { BorgWorld } from "./world/model.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
@@ -256,6 +263,13 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
    * calc_bonuses; here they are stated, because what is under test is the Borg
    * half - that the ported borg_notice / borg_power run over the answer and that
    * running them leaves the live self-model alone.
+   *
+   * It answers with `after` alone, where the real `LoadoutSimulation` also
+   * carries before / delta / placements / unresolved. That is why the cast goes
+   * through `unknown`: three fields of `after` are all the ported self-model
+   * reads, and filling in the rest would be fixture nobody looks at. The claim
+   * this fixture is NOT making - that the narrowed shapes still match the
+   * engine's - is pinned by the compile-time check at the end of this file.
    */
   function viewThatSimulates(
     over: {
@@ -278,7 +292,7 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
           },
         };
       },
-    } as BorgContext["view"];
+    } as unknown as BorgContext["view"];
   }
 
   function ctxWithView(view: BorgContext["view"]): BorgContext {
@@ -290,14 +304,17 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
     };
   }
 
-  it("is absent until the host says the engine can derive a loadout", () => {
-    expect(makeCoreResolvers({ races: [] }).loadoutPower).toBeUndefined();
-    expect(makeCoreResolvers({ races: [], loadout: false }).loadoutPower).toBeUndefined();
-    expect(makeCoreResolvers({ races: [], loadout: true }).loadoutPower).toBeDefined();
+  it("is installed without the host being asked anything", () => {
+    /* It used to be conditional on a `loadout` input the plugin filled by
+       probing `ctx.core.simulateLoadout`, because the mod loaded into games that
+       predated the export. manifest.json now requires an engine that has it, and
+       the seam reads the accessor off the VIEW anyway, so there is nothing left
+       for a host to answer. */
+    expect(makeCoreResolvers({ races: [] }).loadoutPower).toBeDefined();
   });
 
   it("scores the SIMULATED loadout, not the live one", () => {
-    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const resolvers = makeCoreResolvers({ races: [] });
     const slow = ctxWithView(viewThatSimulates({ player: { speed: 110 } }));
     const fast = ctxWithView(viewThatSimulates({ player: { speed: 130 } }));
 
@@ -312,7 +329,7 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
 
   it("passes the change through to the engine verbatim", () => {
     const seen: unknown[] = [];
-    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const resolvers = makeCoreResolvers({ races: [] });
     const ctx = ctxWithView(viewThatSimulates({}, (c) => seen.push(c)));
     const change = { wield: [{ from: "gear" as const, handle: 12 }] };
     resolvers.loadoutPower!(ctx, change);
@@ -324,7 +341,7 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
        dozen candidates a turn; if scoring wrote through to the live world, the
        Borg would spend the rest of the think believing it was wearing the last
        thing it merely considered. */
-    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const resolvers = makeCoreResolvers({ races: [] });
     const ctx = ctxWithView(viewThatSimulates({ player: { speed: 130 } }));
     ctx.world.self.trait = [1, 2, 3];
     ctx.world.self.power = 4242;
@@ -343,11 +360,13 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
     expect(getDerived(ctx.world).has.get("marker")).toBe(9);
   });
 
-  it("answers null on an engine whose view cannot derive a loadout", () => {
-    /* An older game, and the case this mod's permissive engine range exists for.
-       Null rather than the current power, so "cannot answer" and "nothing would
+  it("answers null on a view with no derive behind it", () => {
+    /* Not a version case: the agent API declares `simulateLoadout` optional on
+       the view itself, and the engine answers null when there is no live derive
+       installed - a worldless harness, which is exactly the view below. Null
+       rather than the current power, so "cannot answer" and "nothing would
        change" stay distinguishable. */
-    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const resolvers = makeCoreResolvers({ races: [] });
     const ctx = ctxWithEquipment([]);
     expect(resolvers.loadoutPower!(ctx, {})).toBeNull();
   });
@@ -359,7 +378,7 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
        provenance. The two loadouts below differ only in the names and the
        namespaced id, so an equal score is the claim and the > baseline check is
        what stops it from being vacuous. */
-    const resolvers = makeCoreResolvers({ races: [], loadout: true });
+    const resolvers = makeCoreResolvers({ races: [] });
     const properties: Partial<ItemView> = {
       tval: 36 /* TV_SOFT_ARMOR */,
       ac: 12,
@@ -394,5 +413,34 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
        and not the claim here. */
     expect(score(coreItem)).not.toBe(score(null));
     expect(score(modItem)).toBe(score(coreItem));
+  });
+});
+
+describe("the narrowed loadout shapes still match the engine's own", () => {
+  /**
+   * `src/trait/simulate.ts` declares `BorgLoadoutChange` and `BorgLoadoutAnswer`
+   * structurally rather than importing `LoadoutChange` and `LoadoutSimulation`,
+   * because a mod driving the frozen view can only name a subset of the engine's
+   * shapes: `LoadoutItemRef` has a third arm holding a live `GameObject`, and the
+   * simulation carries before / after / delta where the ported self-model reads
+   * three fields of `after`.
+   *
+   * Narrower is fine; DIVERGED is not, and until 0.25.0 published these types
+   * there was nothing here to compare against. The two aliases below are the
+   * check, and they are compile-time: a field renamed or retyped in the engine
+   * fails `npm run typecheck` rather than surfacing as the Borg valuing gear
+   * wrongly, which is invisible in play.
+   */
+  type AssignableTo<Wide, Narrow extends Wide> = [Wide, Narrow];
+  /* What the Borg PASSES must be something the engine accepts. */
+  type _ChangeIsAccepted = AssignableTo<LoadoutChange, BorgLoadoutChange>;
+  /* What the engine RETURNS must be something the Borg can read. */
+  type _AnswerIsReadable = AssignableTo<BorgLoadoutAnswer, LoadoutSimulation>;
+
+  it("is checked by the compiler rather than at runtime", () => {
+    /* vitest needs a body; the claim is the two aliases above, which tsc proves.
+       Kept inside a test so a reader looking for the assertion finds it here
+       rather than deciding the block is dead. */
+    expect(true).toBe(true);
   });
 });
