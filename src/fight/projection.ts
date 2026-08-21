@@ -34,7 +34,7 @@ function killAt(ctx: BorgContext, y: number, x: number): number {
 /**
  * borg_offset_projectable (borg-projection.c:326): like projectable_pure but
  * treats every unknown grid AND rubble as an obstruction (used for the
- * offset-ball / vampire-strike targeting where we cannot afford surprises).
+ * offset-ball / vampire-strike targeting where surprises cannot be afforded).
  */
 export function borgOffsetProjectable(
   ctx: BorgContext,

@@ -5,7 +5,7 @@
  * replacing the C's borg_keypress side effects.
  *
  * The C borg_quaff_potion(sval) etc. locate the pack slot with borg_slot then
- * press the letter; here we locate the ItemView and build the verb from its
+ * press the letter; here the port locates the ItemView and builds the verb from its
  * handle. The "clear shop goals" bookkeeping the C does after each use is
  * intentionally omitted (goal management is P8.6's concern).
  */
@@ -644,7 +644,7 @@ export function borgRecharging(
       borgReadScroll(ctx, SVAL.scroll.recharging!, d) ||
       borgSpellFail(ctx, Spell.RECHARGING, 96, playerHas) ||
       borgActivateItem(ctx, "act_recharge", d);
-    /* If we can recharge, target this item; else stop (C breaks). */
+    /* If recharging is possible, target this item; else stop (C breaks). */
     if (cmd) return cmd;
     break;
   }

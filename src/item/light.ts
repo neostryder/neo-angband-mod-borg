@@ -8,7 +8,7 @@
  * (game/obj-cmd.ts). Wielding a fresh light uses act.wear.
  *
  * FIDELITY on the "should I bother lighting" scan: borg_check_light_only reads
- * the borg's own grid cache (borg_grids, BORG_LIGHT/floor/glow). We read the
+ * the borg's own grid cache (borg_grids, BORG_LIGHT/floor/glow). This reads the
  * live CellView (passable=floor, glow=perma-lit, inView) around the player, which
  * expresses the same intent through the frozen contract. The action ladder and
  * the when_call_light / when_wizard_light timers are preserved exactly.
@@ -260,7 +260,7 @@ function borgCheckDarkOnly(
 /**
  * borg_light_beam(simulation=false): light a hallway with Spear of Light / a rod
  * or wand of light (light.c:675). The full four-direction corridor geometry is a
- * navigation concern (P8.6); here we port the ability gate and, when able, emit
+ * navigation concern (P8.6); this ports the ability gate and, when able, emits
  * the light action. Returns the command (or null); with simulation the caller
  * only wants to know if it is possible - use borgLightBeamOkay for that.
  */

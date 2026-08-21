@@ -80,8 +80,8 @@ describe("makeCoreResolvers", () => {
   });
 
   it("gives a MOD'S monster the same real facts as one of core's", () => {
-    /* His requirement, 2026-08-21: modded creatures must work with the Borg the
-     * same as vanilla ones. Nothing here opts in to that - the resolver indexes
+    /* A hard requirement of this mod: modded creatures must work with the Borg
+     * the same as vanilla ones. Nothing here opts in to that - the resolver indexes
      * by ridx and never looks at `from`, so a mod's race is resolved by the same
      * line of code, and the only way to BREAK this would be to add a provenance
      * check. The test exists so that nobody adds one. */

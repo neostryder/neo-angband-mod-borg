@@ -1,7 +1,7 @@
 /**
  * P8.7 stores / shopping / home tests. Pure decision helpers are exercised
- * against hand-built StoreView / ItemView arrays (the preferred substrate per the
- * task brief), asserting the faithful thresholds, the exact home-power golden
+ * against hand-built StoreView / ItemView arrays (the preferred test
+ * substrate), asserting the faithful thresholds, the exact home-power golden
  * values derived from borg-home-power.c, and the AgentCommands emitted.
  */
 

@@ -152,8 +152,8 @@ export function deviceFail(ctx: BorgContext, lev: number): number {
   if (trait(ctx, BI.ISCONFUSED)) skill = Math.trunc((skill * 75) / 100);
   const numerator = skill - lev - (141 - 1);
   let denominator = lev - skill - (100 - 10);
-  /* borg_equips_dragon guards div-by-zero; other sites cannot hit 0 here but we
-   * guard uniformly to avoid NaN (faithful: sign of numerator decides). */
+  /* borg_equips_dragon guards div-by-zero; other sites cannot hit 0 here but this
+   * function guards uniformly to avoid NaN (faithful: sign of numerator decides). */
   if (denominator === 0) denominator = numerator > 0 ? 1 : -1;
   return Math.trunc((100 * numerator) / denominator);
 }

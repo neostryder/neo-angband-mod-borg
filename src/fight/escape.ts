@@ -412,7 +412,7 @@ function borgShootScootSafe(ctx: BorgContext, emergency: number, turns: number):
  * borg_escape (escape.c:644)
  * ---------------------------------------------------------------- */
 
-/** Reset the anti-summon timer when we escaped a corridor (escape.c:774). */
+/** Reset the anti-summon timer when a corridor escape happens (escape.c:774). */
 function resetAntisummon(ctx: BorgContext, fs: FightState): void {
   if (ctx.world.clock - fs.tAntisummon < 50) fs.tAntisummon = 0;
 }

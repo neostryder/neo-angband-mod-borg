@@ -40,7 +40,7 @@ function borgEnchantToA(
 
   let best: ItemView | null = null;
   let bestA = 99;
-  /* Worn armour slots (body..feet); on our view these are equipment items. */
+  /* Worn armour slots (body..feet); on this view these are equipment items. */
   for (const item of ctx.view.equipment()) {
     if (!item || item.number <= 0) continue;
     if (!isArmourSlot(item)) continue;

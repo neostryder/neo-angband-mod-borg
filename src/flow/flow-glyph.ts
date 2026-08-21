@@ -46,7 +46,7 @@ export function borgFlowGlyph(ctx: BorgContext, flow: FlowState): AgentCommand |
     flow.borgNeedsNewSea = true;
   }
 
-  /* We have arrived at the chosen glyph grid */
+  /* The chosen glyph grid has been reached */
   if (flow.glyphX === w.self.c.x && flow.glyphY === w.self.c.y) {
     flow.glyphX = 0;
     flow.glyphY = 0;
