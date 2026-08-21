@@ -54,10 +54,18 @@ fresh set of heuristics that merely look similar.
 > earlier version of this mod ran a working autoplayer on any engine, so there is
 > no installation the floor could take away from.
 >
-> The target is full functionality watched over several runs, and the remaining
-> work is written down in [PLANNED.md](PLANNED.md). Until it is done, do not take
-> a green test suite for evidence: the suite covers dispatch, ladder ordering and
-> now the resolver wiring itself, and not one test in it plays a game to its end.
+> **It does not yet play a whole game, and that was measured rather than
+> guessed.** Watched in the released 0.25.0 desktop build on 2026-08-21, over two
+> characters: it took the keyboard, shopped, wore what it bought, found the town's
+> down staircase and descended - and then stalled on the first dungeon level both
+> times, once repeating a command the game refuses and once shuffling between two
+> squares instead of exploring. It never died, so it never started a new
+> character. Two of the three stalls are this mod's and one is the game's; all
+> three are named, with their mechanisms, in [PLANNED.md](PLANNED.md).
+>
+> So: install it to watch it try, not to watch it win. And do not take a green
+> test suite for evidence either - the suite covers dispatch, ladder ordering and
+> the resolver wiring, and not one test in it plays a game to its end.
 
 It is a **mod**, not part of the engine, and that division is decided rather than
 incidental:
