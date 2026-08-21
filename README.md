@@ -38,9 +38,13 @@ fresh set of heuristics that merely look similar.
 > gained `AgentView.simulateLoadout`. On an older game the Borg still plays, with
 > that one seam back on its conservative default, and its log says so.
 >
-> **Still open: the Borg does not start a new character when it dies.** That is
-> the single most requested behaviour and a separate piece of work from the
-> resolver seams.
+> **It starts a new character when it dies**, also on 0.25.0 or newer, and that is
+> the engine's own work rather than this mod's: a controller can only return an
+> in-game command, so it has nothing to say that means "roll me a new character".
+> The game's death handler does it, whenever a mod holds the keyboard. It is an
+> in-session reincarnation and not a new save - same session, same slot, a rolled
+> race and class each time, exactly as upstream's borg respawns. On an older game
+> a death ends the run at the tombstone as it always did.
 >
 > The target is full functionality watched over several runs, and the remaining
 > work is written down in [PLANNED.md](PLANNED.md). Until it is done, do not take
@@ -70,10 +74,18 @@ bugs rather than Borg bugs.
   (its comments call these "cheats") and scrapes the terminal for the rest. This
   one sees exactly what the perceive facade grants it, and acts only through
   commands a player could issue.
-- **It does not flag your save.** The Borg is deterministic: it draws only its own
-  seeded generator and never the game's, so a Borg game stays replayable. An
-  autoplayer that used a wall clock or a network would trip the save's determinism
-  ratchet, and would have to declare that in its manifest.
+- **It does not cost you reproducibility.** The Borg is deterministic: it draws
+  only its own seeded generator and never the game's, so a Borg game stays
+  replayable and the save's determinism ratchet stays untripped. An autoplayer that
+  used a wall clock or a network would trip it, and would have to declare that in
+  its manifest.
+
+  It does mark the character, and that is a different thing. Handing the keyboard
+  over sets the save's `NOSCORE_BORG` flag, which keeps the character off the
+  high-score table and shows in its dump as an `[Autoplayed]` block. That is
+  upstream's own behaviour and it is one-way: a character that has run the Borg
+  for one turn carries the mark for the rest of its life. A game somebody watched
+  is not a game somebody played.
 
 Only one autoplayer can hold the keyboard at a time. If another agent mod already
 has it, this one is refused by name rather than silently taking over.

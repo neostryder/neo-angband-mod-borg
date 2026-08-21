@@ -43,7 +43,11 @@ Three claims, and the third is the one that decides it:
    fourth needed an engine capability rather than host wiring; it landed as
    `AgentView.simulateLoadout` in Neo Angband 0.25.0.
 2. There is a restart-on-death loop. Playing itself over and over is the point of
-   the mod, and no loop exists anywhere in it.
+   the mod, and no loop exists anywhere in it. **DONE 2026-08-21.** It needed no
+   code in this repository at all: the whole thing is host-side, because
+   `AgentCommand` is `PlayerCommand` and birth has no representation in it. It
+   landed as `StartedGame.reincarnate` plus the game loop's death handler in Neo
+   Angband 0.25.0.
 3. **It has been WATCHED playing, in the installed build, over several runs**, and
    what it did is written down: what depth it reached, whether it fled, whether it
    shopped, whether it used an activation, how it died, and whether it started
@@ -61,6 +65,7 @@ Status section, which was narrowed on 2026-08-21 for exactly this reason.
 | 2026-08-21 | **Step 1 done.** The host gained `ctx.registries` (the whole bound `CoreRegistries`, latched once at boot in `main.ts` and reaching every plugin context). `plugin.ts` now calls `createBorg({ resolvers: makeCoreResolvers({ races }) })`, so `makeCoreResolvers` has a caller for the first time. The Borg has danger vision, including over monsters a mod added. Three tests assert the wiring rather than the dispatch, one of them against the built `plugin.js`. |
 | 2026-08-21 | **Step 2, three of four seams done.** `makeCoreResolvers` now also takes `objects` (`ctx.registries.objects`) and `state` (`ctx.state`), each independently optional. Activation identity walks an equipped `ItemView` back through its ego/artifact/kind to the `Activation` record that grants it (mirroring `obj-make.c`'s own artifact-then-ego-then-kind precedence) and compares `act_<name lowercased>` against the token the ported trait/item code already passes. The in-shop signal reads `state.chunk.feature(state.actor.grid).shopnum` directly - no new host plumbing needed, because `Chunk` already carries the bound `FeatureRegistry` it was built with. Both are covered on the same terms as danger vision: a mod's ego, artifact or store entrance is resolved by the same lookup, not a vanilla-only table. The fourth seam (swap/buy/sell power) is NOT wired; see the entry below it. |
 | 2026-08-21 | **Step 2 complete: all four seams wired.** The fourth needed an engine capability rather than host plumbing, and it landed with Neo Angband 0.25.0 as `AgentView.simulateLoadout`: the engine's own `calc_bonuses` over a hypothetical set of worn objects, with nothing in the live game written. `src/trait/simulate.ts` runs the ported `borg_notice` and `borg_power` over the loadout it describes, which is the wield / recompute / revert shape upstream uses, against a scratch copy of the self-model so a ladder can score a dozen candidates without disturbing the Borg's view of itself. `think-session.ts` fans that one seam out into the five questions the ported subsystems ask (`wearEval`, `buyShopEval`, `buyHomeEval`, `sellEval`, `sellHomeBadEval`); the two swap valuations are unreachable rather than pending, because this port has no swap subsystem and both contribute zero to `borg_power`. The engine range stays permissive: the plugin probes for the capability and degrades on an older game. |
+| 2026-08-21 | **Step 3 done: the restart loop.** Not one line of it is in this repository, and that is the finding rather than an accident of scheduling - `AgentCommand` is `PlayerCommand`, so there is no value a controller could return that means "roll me a new character", and the death handler lives in the host's game loop. Neo Angband 0.25.0 gained `StartedGame.reincarnate` (upstream's `reincarnate_borg`, over this port's own `generatePlayer` / `outfitPlayer` rather than a second copy of the birth pipeline) and the host's `LOOP_STATUS.DEAD` branch calls it, ahead of every step of the human death flow, whenever a mod holds the keyboard. The gate is the one autoplayer slot the host already had, so there is no second toggle and no mod id written into the engine. `NOSCORE_BORG` is set at upstream's own activation gate and again on each respawn. |
 
 ## Releasing this
 
@@ -178,7 +183,46 @@ to: an activation table keyed by core's svals, or a shop check that knows only
 core's store list, would each reintroduce the inert-default bug restricted to
 modded content, where it is much harder to notice.
 
-### 3. The restart loop
+### 3. The restart loop - DONE 2026-08-21
+
+**Landed in Neo Angband 0.25.0 as `StartedGame.reincarnate`, called from the game
+loop's `LOOP_STATUS.DEAD` branch. Nothing in this repository changed.** The spec
+below was read off `borg-reincarnate.c` before any of it was built and is kept as
+written; what it got right and what it got wrong are both worth having.
+
+What it got right: the shape. An in-session reincarnation, the live player wiped
+and regenerated in place, race and class rolled, a one-way mark on the character.
+
+What it got wrong, and the correction is upstream's own code: the saved-off dungeon
+is NOT what the reincarnated character wakes up on. `reincarnate_borg` restores
+`cave` so nothing downstream of the wipe holds a null pointer, and in the same
+breath sets `player->depth = 0` and `player->upkeep->generate_level = true` - which
+`run_game_loop` (`game-world.c:1168`) consumes on its next pass by generating the
+level at depth 0. So the character starts in a freshly generated TOWN, which is
+also the only sane place to put a level-1 character whose predecessor died on
+dungeon level 30. The port saves and restores the level for the same reason
+upstream does and then asks for the town, which is one call to the level changer it
+already had.
+
+Three other corrections, recorded because each was a guess in the text below:
+
+- **`NOSCORE_BORG` already existed here**, at upstream's value, in the
+  score-invalidating mask, persisted in the savefile and read at death to print
+  "Score not registered for borgs." Nothing had ever SET it. So the work was not
+  "find or add an equivalent" - it was filling an inert seam of exactly the shape
+  this file's own header describes.
+- **The mark rides the ACTIVATION, not only the respawn.** Upstream sets it in
+  `do_cmd_try_borg` (`cmd-misc.c:140`) when the borg is switched on, and again at
+  the tail of `reincarnate_borg` because `player_generate` zeroes the field. Both
+  are needed: without the first, the character that was already alive when the mod
+  took over is never marked; without the second, only the first respawn is.
+- **Two of upstream's steps are deliberately skipped**: the `seed_flavor` reseed
+  and the `seed_randart` reroll. This port's savefile re-derives the flavour
+  assignment and the randart set FROM those seeds, so moving either mid-session
+  makes the save describe a world the game is not in. The flavour KNOWLEDGE is
+  reset instead, which is the half a player can observe.
+
+The original spec follows.
 
 A death has to start a new character. This is what turns the mod into the thing
 that was asked for on r/angband: something that plays itself over and over,
