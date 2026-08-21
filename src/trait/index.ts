@@ -7,6 +7,8 @@
  * - borgPower(ctx, opts?) - the scalar fitness (borg_power); writes self.power.
  * - borgPrepared(ctx, depth, opts?) - depth-readiness reason or null.
  * - borgRestock(ctx, depth, opts?) - crucial-supply reason or null.
+ * - borgSimulatePower(ctx, change, opts?) - the same fitness for a loadout the
+ *   Borg is NOT wearing (the wear / buy / sell decisions).
  * - config seams (BorgTraitOpts, defaults) and the derived side-state store.
  */
 
@@ -18,3 +20,4 @@ export * from "./item-util.js";
 export * from "./trait.js";
 export * from "./power.js";
 export * from "./prepared.js";
+export * from "./simulate.js";

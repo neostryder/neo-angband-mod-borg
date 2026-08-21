@@ -6177,6 +6177,42 @@ function powerInventory(t, d, R2, equip, cls) {
   return value;
 }
 
+// src/trait/simulate.ts
+function shadowWorld(world) {
+  const sim = Object.create(world);
+  Object.defineProperty(sim, "self", {
+    value: {
+      ...world.self,
+      trait: [...world.self.trait],
+      power: world.self.power
+    },
+    writable: true,
+    enumerable: true,
+    configurable: true
+  });
+  return sim;
+}
+function shadowView(view, answer) {
+  return {
+    ...view,
+    player: () => answer.after.player,
+    equipment: () => [...answer.after.equipment],
+    inventory: () => [...answer.after.inventory]
+  };
+}
+function borgSimulatePower(ctx, change, opts = {}) {
+  const view = ctx.view;
+  const answer = view.simulateLoadout?.(change);
+  if (!answer) return null;
+  const simCtx = {
+    ...ctx,
+    world: shadowWorld(ctx.world),
+    view: shadowView(ctx.view, answer)
+  };
+  borgNotice(simCtx, opts);
+  return borgPower(simCtx, opts);
+}
+
 // src/item/svals.ts
 var SVAL = {
   /* food (borg-item-val.c:263-273) */
@@ -7750,7 +7786,7 @@ function borgThinkShopBuyUseful(ctx, d) {
         continue;
       const qty = borgMinItemQuantity(ctx, item, d);
       const wields = buyWields(ctx, item, d);
-      const sim = { item, qty, wields };
+      const sim = { item, store: k, qty, wields };
       const p = d?.buyShopEval ? d.buyShopEval(ctx, sim) : ctx.world.self.power;
       const c = shopCost(item) * qty;
       if (p <= bP) continue;
@@ -7785,7 +7821,7 @@ function borgThinkHomeBuyUseful(ctx, d) {
     if (borgFirstEmptyInventorySlot(ctx, d) === -1) continue;
     const qty = borgMinItemQuantity(ctx, item, d);
     const wields = wieldSlot(item) !== null;
-    const sim = { item, qty, wields };
+    const sim = { item, store: BORG_HOME, qty, wields };
     const p = d?.buyHomeEval ? d.buyHomeEval(ctx, sim) : ctx.world.self.power;
     if (p <= bP) continue;
     bN = n;
@@ -9357,6 +9393,13 @@ function buildFlowHooks(session) {
     los: (world, y1, x1, y2, x2) => borgLos(world, y1, x1, y2, x2)
   };
 }
+function wareRef(store2, item) {
+  return { from: "store", store: store2, index: item.index };
+}
+function powerOf(session, ctx, change) {
+  const answer = session.resolvers.loadoutPower?.(ctx, change);
+  return answer ?? ctx.world.self.power;
+}
 function buildItemDeps(session) {
   const c = session.ctx;
   if (!c) throw new Error("buildItemDeps outside a think");
@@ -9375,11 +9418,62 @@ function buildItemDeps(session) {
     ...res.resolveActivation ? {
       equipsItem: (act, checkCharge) => res.resolveActivation(c, act, checkCharge)
     } : {},
-    ...res.activateHandle ? { activateItem: (act) => res.activateHandle(c, act) } : {}
+    ...res.activateHandle ? { activateItem: (act) => res.activateHandle(c, act) } : {},
+    ...res.loadoutPower ? {
+      /* borg_wear_stuff (wear.c:858): the power if this pack item were worn.
+       * The engine picks the slot, so a ring goes to the hand wield_slot
+       * would put it in rather than to a hand this code guessed at. */
+      wearEval: (item) => powerOf(session, c, {
+        wield: [{ from: "gear", handle: item.handle }]
+      })
+    } : {}
   };
 }
 function buildStoreDeps(session) {
-  return { mem: session.storeMem };
+  const res = session.resolvers;
+  if (!res.loadoutPower) return { mem: session.storeMem };
+  return {
+    mem: session.storeMem,
+    /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
+     * would WIELD is worn; anything else joins the pack. Both cost their weight,
+     * which is what makes plate armour read as the speed loss it is. */
+    buyShopEval: (ctx, sim) => {
+      const ref = wareRef(sim.store, sim.item);
+      if (!sim.wields) {
+        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
+      }
+      return powerOf(session, ctx, {
+        wield: [ref],
+        ...sim.qty > 1 ? { carry: [{ item: ref, number: sim.qty - 1 }] } : {}
+      });
+    },
+    /* borg_think_home_buy_useful: the same question about the home's shelves,
+     * which are a store like any other (index BORG_HOME in view.stores()). */
+    buyHomeEval: (ctx, sim) => {
+      const ref = wareRef(sim.store, sim.item);
+      if (!sim.wields) {
+        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
+      }
+      return powerOf(session, ctx, { wield: [ref] });
+    },
+    /* borg_think_shop_sell_useless: the power once `qty` of this stack is gone.
+     * `release` empties a body slot when the handle names worn gear, so selling
+     * the amulet the borg has on is one change rather than a remove and a sale. */
+    sellEval: (ctx, item, qty) => powerOf(session, ctx, {
+      release: [{ handle: item.handle, number: qty }]
+    }),
+    /* borg_think_home_sell_bad (borg-store-sell.c:376) asks about ONE of a
+     * stack, not the whole stack. */
+    sellHomeBadEval: (ctx, item) => powerOf(session, ctx, {
+      release: [{ handle: item.handle, number: 1 }]
+    })
+    /* weaponSwapEval / armourSwapEval are deliberately NOT wired. They value a
+     * home ware as the borg's SWAP weapon or armour, and this port has no swap
+     * subsystem: weapon_swap_value and armour_swap_value contribute 0 to
+     * borgPower (trait/power.ts), so an evaluator here would compare two numbers
+     * that are equal by construction and buy on the tiebreak. Unreachable until
+     * the swap subsystem is ported, not merely unwired. */
+  };
 }
 function buildThinkSession(resolvers = {}) {
   const session = {
@@ -14313,7 +14407,16 @@ function makeCoreResolvers(input) {
     const shopnum = state.chunk.feature(state.actor.grid).shopnum;
     return shopnum > 0 ? shopnum - 1 : null;
   };
-  return { resolveMonsterFacts, resolveActivation, activateHandle: activateHandle2, inShop };
+  const resolvers = {
+    resolveMonsterFacts,
+    resolveActivation,
+    activateHandle: activateHandle2,
+    inShop
+  };
+  if (input.loadout) {
+    resolvers.loadoutPower = (ctx, change) => borgSimulatePower(ctx, change);
+  }
+  return resolvers;
 }
 
 // plugin.ts
@@ -14329,17 +14432,20 @@ var plugin_default = {
     const races = ctx.registries?.monsters.races;
     const objects = ctx.registries?.objects;
     const state = ctx.state;
+    const loadout = typeof ctx.core.simulateLoadout === "function";
     const borg = races ? createBorg({
       resolvers: makeCoreResolvers({
         races,
         ...objects ? { objects } : {},
-        ...state ? { state } : {}
+        ...state ? { state } : {},
+        ...loadout ? { loadout } : {}
       })
     }) : createBorg();
     if (races) {
       const parts = [`danger vision over ${races.length} races`];
       parts.push(objects ? "activation identity" : "no activation identity");
       parts.push(state ? "in-shop signal" : "no in-shop signal");
+      parts.push(loadout ? "loadout evaluation" : "no loadout evaluation");
       ctx.log(`the Borg has the keyboard, and ${parts.join(", ")}`);
     } else {
       ctx.log("the Borg has the keyboard, but this host supplies no monster registry: playing blind");

@@ -57,7 +57,17 @@ import { makeCoreResolvers } from "./src/resolvers.js";
  */
 interface ControllerCtx {
   readonly flags: Readonly<Record<string, boolean>>;
-  readonly core: typeof Core;
+  /**
+   * The live engine namespace.
+   *
+   * Intersected with the ONE export that is newer than the engine version this
+   * repository compiles against (`simulateLoadout`, Neo Angband 0.25.0). Declared
+   * optional and read as a probe rather than called: this mod's engine range is
+   * permissive on purpose, so it has to compile against the published 0.24.0
+   * types and still recognise a newer game at runtime. See src/resolvers.ts's
+   * CoreResolverInput.loadout for what the probe decides.
+   */
+  readonly core: typeof Core & { readonly simulateLoadout?: unknown };
   readonly log: (msg: string) => void;
   /**
    * The bound content registries (host `ctx.registries`, added 2026-08-21).
@@ -138,7 +148,16 @@ export default {
      * `ctx.registries.objects` and `ctx.state`. Both are independently
      * optional in makeCoreResolvers, so a host with registries but a state
      * built before boot (or vice versa) still gets whichever half applies -
-     * the three seams do not have to land together.
+     * the four seams do not have to land together.
+     *
+     * LOADOUT EVALUATION is the fourth, and it is a capability question rather
+     * than a datum. The wear / buy / sell decisions score a loadout the
+     * character is not in, which only the engine's own calc_bonuses can derive;
+     * `ctx.core.simulateLoadout` existing is what says this engine can. The
+     * evaluation itself runs through the frozen view's own accessor, so the
+     * ItemViews it produces are the same ones the live view produces - see
+     * src/resolvers.ts. Probed rather than assumed, because this mod's engine
+     * range stays permissive and an older game must degrade rather than throw.
      *
      * The force-descend option is still on its default and is NOT covered by
      * this call; see PLANNED.md.
@@ -146,12 +165,14 @@ export default {
     const races = ctx.registries?.monsters.races;
     const objects = ctx.registries?.objects;
     const state = ctx.state;
+    const loadout = typeof ctx.core.simulateLoadout === "function";
     const borg = races
       ? createBorg({
           resolvers: makeCoreResolvers({
             races,
             ...(objects ? { objects } : {}),
             ...(state ? { state } : {}),
+            ...(loadout ? { loadout } : {}),
           }),
         })
       : createBorg();
@@ -159,6 +180,7 @@ export default {
       const parts = [`danger vision over ${races.length} races`];
       parts.push(objects ? "activation identity" : "no activation identity");
       parts.push(state ? "in-shop signal" : "no in-shop signal");
+      parts.push(loadout ? "loadout evaluation" : "no loadout evaluation");
       ctx.log(`the Borg has the keyboard, and ${parts.join(", ")}`);
     } else {
       /* An older host, or a context built before binding. Say which, because

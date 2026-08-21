@@ -15,30 +15,32 @@ fresh set of heuristics that merely look similar.
 
 > ### What is ported and what is CONNECTED are not the same thing
 >
-> Measured 2026-08-21, stated here rather than left for you to find, and **being
-> closed one seam at a time**. All of the above is true of the code in `src/`.
-> Not all of it is yet true of the mod you install, because `plugin.ts` builds
-> the Borg from host-supplied resolvers and only some of them exist.
+> Measured 2026-08-21, stated here rather than left for you to find. All of the
+> above is true of the code in `src/`. Whether it is true of the mod you install
+> depends on `plugin.ts`, which builds the Borg from host-supplied resolvers -
+> and for a long time most of those did not exist.
 >
-> **Wired (2026-08-21): danger vision, activation identity, the in-shop signal.**
-> The plugin reads the game's bound registries from `ctx.registries` and the
-> live state from `ctx.state`, and builds real resolvers from them: `borg_danger`
-> runs on actual blows, spell frequencies and race flags rather than on zeroes,
-> the Borg can tell whether a worn item grants the activation it wants and
-> whether it is charged, and it knows which shop it is standing in. **A mod's
-> monsters and items are covered on exactly the same terms as core's**: every
-> registry is bound after mods compose their content, and each resolver reads it
-> by index (`ridx`, `tval`/`sval`, ego and artifact name) without consulting
-> provenance, so content a mod added is treated identically to core's.
+> **All four resolver seams are now wired: danger vision, activation identity,
+> the in-shop signal, and the power of a hypothetical loadout.** The plugin reads
+> the game's bound registries from `ctx.registries` and the live state from
+> `ctx.state`, and builds real resolvers from them: `borg_danger` runs on actual
+> blows, spell frequencies and race flags rather than on zeroes, the Borg can tell
+> whether a worn item grants the activation it wants and whether it is charged, it
+> knows which shop it is standing in, and it can score gear it is not wearing - so
+> it wears what it finds, buys what it needs and sells what it is finished with
+> instead of hoarding. **A mod's monsters and items are covered on exactly the
+> same terms as core's**: every registry is bound after mods compose their
+> content, and each resolver reads it by index (`ridx`, `tval`/`sval`, ego and
+> artifact name) without consulting provenance, so content a mod added is treated
+> identically to core's.
 >
-> **Still on the conservative default: the power of an unevaluated swap, buy or
-> sell.** The Borg still hoards, because valuing a hypothetical loadout needs the
-> engine to re-derive `PlayerView`-level facts (speed, AC, skills) for gear it is
-> not actually wearing, and the frozen view can only ever answer for the gear you
-> have on - there is no "what if" version of it to read. This is a host-and-core
-> change, not a wiring one, and it is the one seam of the four still open. The
-> Borg also **does not start a new character when it dies**, which is the single
-> most requested behaviour and a separate piece of work from the resolver seams.
+> The fourth seam needs Neo Angband **0.25.0 or newer**, which is where the engine
+> gained `AgentView.simulateLoadout`. On an older game the Borg still plays, with
+> that one seam back on its conservative default, and its log says so.
+>
+> **Still open: the Borg does not start a new character when it dies.** That is
+> the single most requested behaviour and a separate piece of work from the
+> resolver seams.
 >
 > The target is full functionality watched over several runs, and the remaining
 > work is written down in [PLANNED.md](PLANNED.md). Until it is done, do not take

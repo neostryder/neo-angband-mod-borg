@@ -11,15 +11,26 @@
  * FlowHooks - whose signatures predate the per-think ctx - reach the live view
  * during a flow; the controller refreshes it at the top of every think.
  *
- * RESOLVER SEAMS (see BorgResolvers). The frozen AgentView cannot surface a
- * monster race's blow[]/freq/spell_power, an artifact's activation identity, the
- * exact "am I standing in shop N" signal, or the power of a hypothetical
- * loadout. These are injected via createBorg's options and default to faithful
+ * RESOLVER SEAMS (see BorgResolvers). Four facts the ported decision code needs
+ * that the frozen AgentView does not carry on its own: a monster race's
+ * blow[]/freq/spell_power, an artifact's activation identity, the exact "am I
+ * standing in shop N" signal, and borg.power for a loadout the character is not
+ * wearing. Each is injected via createBorg's options and defaults to faithful
  * conservative behavior (zero-magnitude danger, no activations, never in a shop,
- * no power gain from an unevaluated swap/buy/sell) so the Borg is correct-but-
- * cautious until a host wires real engine data.
+ * no gain from an unevaluated swap/buy/sell) so the Borg is correct-but-cautious
+ * until a host wires real engine data. `makeCoreResolvers` (resolvers.ts) is the
+ * host side of all four.
+ *
+ * The fourth one fans out here rather than at the seam, because ONE hypothetical
+ * -loadout evaluator answers seven different questions the ported subsystems ask
+ * in seven different shapes (wearEval, buyShopEval, buyHomeEval, sellEval,
+ * sellHomeBadEval, and the two swap valuations that this port has nothing to
+ * value). Translating each into a loadout change belongs beside the wiring, not
+ * in every host that wires it.
  */
 
+import type { ItemView } from "@rpgm-tools/neo-angband-core";
+import type { BorgLoadoutChange, BorgLoadoutRef } from "./trait/simulate.js";
 import type { BorgContext } from "./context.js";
 import type { FactsResolver } from "./danger/index.js";
 import {
@@ -30,7 +41,7 @@ import {
   getDangerState,
 } from "./danger/index.js";
 import type { Flow, FlowHooks } from "./flow/index.js";
-import type { ItemDeps } from "./item/index.js";
+import type { WearDeps } from "./item/index.js";
 import { createFlow } from "./flow/index.js";
 import { BI } from "./trait/index.js";
 import { borgPrepared } from "./trait/index.js";
@@ -80,6 +91,18 @@ export interface BorgResolvers {
    * host-supplied signal). Town flow-to-shop still works from the ladder.
    */
   inShop?: (ctx: BorgContext) => number | null;
+  /**
+   * borg.power for a loadout the borg is NOT wearing: the wear / buy / sell
+   * decisions all diff borg.power across a hypothetical change, which upstream
+   * gets by wielding the candidate and recomputing. Returns null when the engine
+   * cannot describe such a loadout, which is what "conservative default" means
+   * here - the callers then see no improvement and the borg wears, buys and sells
+   * nothing on the player-power path. See trait/simulate.ts.
+   */
+  loadoutPower?: (
+    ctx: BorgContext,
+    change: BorgLoadoutChange,
+  ) => number | null;
   /** OPT(player, birth_force_descend): the level cannot be climbed. */
   forceDescend?: boolean;
 }
@@ -146,8 +169,42 @@ function buildFlowHooks(session: ThinkSession): FlowHooks {
   };
 }
 
-/** Build the item/consumable deps for this think from ctx + danger state. */
-export function buildItemDeps(session: ThinkSession): ItemDeps {
+/**
+ * The gear reference for a store ware: the shop's index in `view.stores()` and
+ * the ware's own index in that shop's stock. A ware is NOT in the gear, so it has
+ * no handle - this is its only address (see BorgLoadoutRef).
+ */
+function wareRef(store: number, item: ItemView & { index: number }): BorgLoadoutRef {
+  return { from: "store", store, index: item.index };
+}
+
+/**
+ * borg.power for a loadout change, or the CURRENT power when this engine cannot
+ * answer. Every eval below funnels through here, because "no answer" and "no
+ * improvement" have to look the same to the ported decision code: each of those
+ * decisions compares the result against borg.power and acts only on a gain, so
+ * handing back the current power is exactly the conservative default the seam
+ * documents.
+ */
+function powerOf(
+  session: ThinkSession,
+  ctx: BorgContext,
+  change: BorgLoadoutChange,
+): number {
+  const answer = session.resolvers.loadoutPower?.(ctx, change);
+  return answer ?? ctx.world.self.power;
+}
+
+/**
+ * Build the item/consumable deps for this think from ctx + danger state.
+ *
+ * WearDeps rather than ItemDeps, because `wearEval` is declared on the wear
+ * subsystem's own extension of the bundle and this builder fills it. Typing the
+ * return as the narrower ItemDeps would leave the field present at runtime and
+ * invisible to every call site, which is the shape of the bug this whole file is
+ * closing rather than one to add.
+ */
+export function buildItemDeps(session: ThinkSession): WearDeps {
   const c = session.ctx;
   if (!c) throw new Error("buildItemDeps outside a think");
   const w = c.world;
@@ -171,12 +228,70 @@ export function buildItemDeps(session: ThinkSession): ItemDeps {
     ...(res.activateHandle
       ? { activateItem: (act: string) => res.activateHandle!(c, act) }
       : {}),
+    ...(res.loadoutPower
+      ? {
+          /* borg_wear_stuff (wear.c:858): the power if this pack item were worn.
+           * The engine picks the slot, so a ring goes to the hand wield_slot
+           * would put it in rather than to a hand this code guessed at. */
+          wearEval: (item: ItemView) =>
+            powerOf(session, c, {
+              wield: [{ from: "gear", handle: item.handle }],
+            }),
+        }
+      : {}),
   };
 }
 
 /** Build the store deps for this think (shares the anti-loop memory). */
 export function buildStoreDeps(session: ThinkSession): StoreDeps {
-  return { mem: session.storeMem };
+  const res = session.resolvers;
+  if (!res.loadoutPower) return { mem: session.storeMem };
+  return {
+    mem: session.storeMem,
+    /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
+     * would WIELD is worn; anything else joins the pack. Both cost their weight,
+     * which is what makes plate armour read as the speed loss it is. */
+    buyShopEval: (ctx, sim) => {
+      const ref = wareRef(sim.store, sim.item);
+      if (!sim.wields) {
+        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
+      }
+      return powerOf(session, ctx, {
+        wield: [ref],
+        ...(sim.qty > 1
+          ? { carry: [{ item: ref, number: sim.qty - 1 }] }
+          : {}),
+      });
+    },
+    /* borg_think_home_buy_useful: the same question about the home's shelves,
+     * which are a store like any other (index BORG_HOME in view.stores()). */
+    buyHomeEval: (ctx, sim) => {
+      const ref = wareRef(sim.store, sim.item);
+      if (!sim.wields) {
+        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
+      }
+      return powerOf(session, ctx, { wield: [ref] });
+    },
+    /* borg_think_shop_sell_useless: the power once `qty` of this stack is gone.
+     * `release` empties a body slot when the handle names worn gear, so selling
+     * the amulet the borg has on is one change rather than a remove and a sale. */
+    sellEval: (ctx, item, qty) =>
+      powerOf(session, ctx, {
+        release: [{ handle: item.handle, number: qty }],
+      }),
+    /* borg_think_home_sell_bad (borg-store-sell.c:376) asks about ONE of a
+     * stack, not the whole stack. */
+    sellHomeBadEval: (ctx, item) =>
+      powerOf(session, ctx, {
+        release: [{ handle: item.handle, number: 1 }],
+      }),
+    /* weaponSwapEval / armourSwapEval are deliberately NOT wired. They value a
+     * home ware as the borg's SWAP weapon or armour, and this port has no swap
+     * subsystem: weapon_swap_value and armour_swap_value contribute 0 to
+     * borgPower (trait/power.ts), so an evaluator here would compare two numbers
+     * that are equal by construction and buy on the tiebreak. Unreachable until
+     * the swap subsystem is ported, not merely unwired. */
+  };
 }
 
 /** Create a fresh think session with the given resolvers. */

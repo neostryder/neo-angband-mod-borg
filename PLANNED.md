@@ -13,8 +13,8 @@ naming: a capability that exists in the tree and not in the product.
 
 **Written 2026-08-21 before any of it was fixed, and kept in the past tense rather
 than deleted: the diagnosis is the useful part, and a file that erases what was
-wrong as soon as it is fixed teaches nobody the shape of the failure.** The first
-item below is now closed; see Progress.
+wrong as soon as it is fixed teaches nobody the shape of the failure.** Every
+seam described below is now wired; see Progress.
 
 `plugin.ts` called `createBorg()` with no argument. `src/controller.ts` then does
 `buildThinkSession(opts.resolvers ?? {})`, and `src/think-session.ts` says in its
@@ -39,7 +39,9 @@ all. Nothing here could have fixed it.
 Three claims, and the third is the one that decides it:
 
 1. All four resolver seams are wired from real engine data, or a seam that cannot
-   be is documented as unreachable with the reason.
+   be is documented as unreachable with the reason. **DONE 2026-08-21.** The
+   fourth needed an engine capability rather than host wiring; it landed as
+   `AgentView.simulateLoadout` in Neo Angband 0.25.0.
 2. There is a restart-on-death loop. Playing itself over and over is the point of
    the mod, and no loop exists anywhere in it.
 3. **It has been WATCHED playing, in the installed build, over several runs**, and
@@ -58,6 +60,7 @@ Status section, which was narrowed on 2026-08-21 for exactly this reason.
 |---|---|
 | 2026-08-21 | **Step 1 done.** The host gained `ctx.registries` (the whole bound `CoreRegistries`, latched once at boot in `main.ts` and reaching every plugin context). `plugin.ts` now calls `createBorg({ resolvers: makeCoreResolvers({ races }) })`, so `makeCoreResolvers` has a caller for the first time. The Borg has danger vision, including over monsters a mod added. Three tests assert the wiring rather than the dispatch, one of them against the built `plugin.js`. |
 | 2026-08-21 | **Step 2, three of four seams done.** `makeCoreResolvers` now also takes `objects` (`ctx.registries.objects`) and `state` (`ctx.state`), each independently optional. Activation identity walks an equipped `ItemView` back through its ego/artifact/kind to the `Activation` record that grants it (mirroring `obj-make.c`'s own artifact-then-ego-then-kind precedence) and compares `act_<name lowercased>` against the token the ported trait/item code already passes. The in-shop signal reads `state.chunk.feature(state.actor.grid).shopnum` directly - no new host plumbing needed, because `Chunk` already carries the bound `FeatureRegistry` it was built with. Both are covered on the same terms as danger vision: a mod's ego, artifact or store entrance is resolved by the same lookup, not a vanilla-only table. The fourth seam (swap/buy/sell power) is NOT wired; see the entry below it. |
+| 2026-08-21 | **Step 2 complete: all four seams wired.** The fourth needed an engine capability rather than host plumbing, and it landed with Neo Angband 0.25.0 as `AgentView.simulateLoadout`: the engine's own `calc_bonuses` over a hypothetical set of worn objects, with nothing in the live game written. `src/trait/simulate.ts` runs the ported `borg_notice` and `borg_power` over the loadout it describes, which is the wield / recompute / revert shape upstream uses, against a scratch copy of the self-model so a ladder can score a dozen candidates without disturbing the Borg's view of itself. `think-session.ts` fans that one seam out into the five questions the ported subsystems ask (`wearEval`, `buyShopEval`, `buyHomeEval`, `sellEval`, `sellHomeBadEval`); the two swap valuations are unreachable rather than pending, because this port has no swap subsystem and both contribute zero to `borg_power`. The engine range stays permissive: the plugin probes for the capability and degrades on an older game. |
 
 ## Releasing this
 
@@ -111,7 +114,7 @@ call site that forgot - a mod reading no monsters and reporting nothing. A test
 asserts `main.ts` actually makes the call, because every other test in this file's
 history passed against a seam nothing filled.
 
-### 2. Wire the four seams and say which are real
+### 2. Wire the four seams and say which are real - DONE 2026-08-21
 
 Once the registries are reachable, `plugin.ts` becomes
 `createBorg({ resolvers: makeCoreResolvers({ races }) })` - and then each of the
@@ -139,19 +142,34 @@ docstring says.
   `ctx.state` alone was enough once it existed. A mod-added store entrance is
   covered the same way, since `shopnum` is derived from the feature's `SHOP` flag
   at bind time regardless of which pack defined it.
-- **Power of an unevaluated swap/buy/sell** - still on its conservative default,
-  and NOT a wiring problem like the other three. `borg_wear_stuff` /
+- **Power of an unevaluated swap/buy/sell** - **DONE 2026-08-21**, and it was
+  never a wiring problem like the other three. `borg_wear_stuff` /
   `borg_think_shop_buy_useful` / `borg_think_shop_sell_useless` all need
   `borg.power` for a HYPOTHETICAL loadout (an item worn, bought or sold that the
   Borg is not actually carrying), which means re-running `borg_notice` on gear
   the character does not have on. `borgNotice` (`src/trait/trait.ts`) takes
   values it cannot re-derive - net speed, AC-less skills, blows/shots - straight
-  from the live `PlayerView`, which the engine computes for the REAL equipped
-  loadout only. There is no "what if I wore this instead" version of that view to
-  read, frozen or otherwise. Wiring this needs a core capability (a hypothetical
-  player-state simulation) that does not exist yet, which makes it a design
-  question for the game repository, not something this mod's plugin can close on
-  its own.
+  from the live `PlayerView`, which the engine computed for the REAL equipped
+  loadout only, so there was no "what if I wore this instead" version of that
+  view to read.
+
+  The gap was in the game repository and is closed there: `simulateLoadout`
+  (`packages/core/src/agent/loadout.ts`, Neo Angband 0.25.0) runs the engine's
+  OWN `calc_bonuses` over a hypothetical equipment array and returns the
+  `PlayerView`, the `ItemView`s and the whole derived-stat surface that loadout
+  would produce, before / after / delta, without writing anything. It reuses the
+  real derive rather than reimplementing it, which is what keeps it from drifting
+  from the loadout the character is actually in - and a test asserts the
+  simulated answer field-for-field against really equipping the item.
+
+  This mod's half is `borgSimulatePower` (`src/trait/simulate.ts`): the ported
+  `borg_notice` and `borg_power`, over that view, against a scratch copy of the
+  self-model. `makeCoreResolvers` takes a fourth input, `loadout`, which is a
+  capability answer rather than a datum, and `plugin.ts` probes
+  `ctx.core.simulateLoadout` for it so an older game degrades instead of
+  throwing. Five of the seven questions the ported subsystems ask are wired from
+  it; `weapon_swap_value` and `armour_swap_value` are unreachable, because this
+  port has no swap subsystem and both contribute zero to `borg_power`.
 
 **Mod items and creatures must work with the Borg the same as vanilla ones**
 (a hard requirement). Reading the registry rather than shipping a
@@ -164,7 +182,35 @@ modded content, where it is much harder to notice.
 
 A death has to start a new character. This is what turns the mod into the thing
 that was asked for on r/angband: something that plays itself over and over,
-fullscreen, as a screensaver.
+fullscreen, as a screensaver. **No deviation from upstream's own behaviour is
+wanted here** - reference `src/borg/borg-reincarnate.c` is the exact spec, not
+just prior art:
+
+- **It is a reincarnation, not a new save.** Upstream never exits to a menu or
+  writes a new savefile. `reincarnate_borg()` wipes the live `player` struct in
+  place (`player_init`, then `player_generate` with a freshly rolled race and
+  class), keeps the same session, restores the dungeon it saved off first, and
+  carries straight on. The host-level gap this mod hit (`AgentCommand` has no
+  birth-flow command, and death handling lives entirely in `main.ts`'s game
+  loop) is real, but the fix is an in-session reincarnation hook, not a
+  restart-the-process or a fresh-save design.
+- **Race and class are RANDOM by default, matching `borg_cfg[BORG_RESPAWN_RACE
+  /_CLASS] == -1`.** Upstream only pins a fixed race/class when its own config
+  sets one. A stacked mod (with a dependency on this one) is the right place to
+  add a pinned-race/class option later - this mod's own default follows
+  upstream's own default, which is a reroll, not a repeat.
+- **The character is marked, the same way upstream marks it.** `reincarnate_borg`
+  sets `NOSCORE_BORG` on the player so a borg-touched character can never read as
+  a legitimate high-score run. Whatever this port's equivalent of that flag is
+  (or a new one, if none exists yet) needs the same one-way, can't-be-cleared
+  property, so a save that has run the Borg is never mistaken for a save that
+  earned its result unattended.
+- Everything else upstream does around the reroll (starting gold, starting
+  gear via `borg_outfit_player`, HP rolled within the class's min/max range via
+  `borg_roll_hp`, a random name) is scenery for a screensaver and does not need
+  a byte-for-byte port - the three bullets above are the ones that decide
+  whether this looks like "Core + Borg indistinguishable from the original game
+  running its own borg," which is the bar for this item.
 
 ### 4. Watch it, several times, and write down what happened
 
