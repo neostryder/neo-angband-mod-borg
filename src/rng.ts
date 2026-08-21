@@ -4,11 +4,11 @@
  * Upstream, the borg runs its damage/attack simulations on the game's global
  * RNG but swaps in its own local seed first and restores the game's seed after
  * (reference/src/borg/borg.c ~L481-501), so its "what if I attacked" dry-runs
- * never advance the real game stream. Our engine has no global RNG - each stream
+ * never advance the real game stream. This engine has no global RNG - each stream
  * is a first-class instance (core/src/rng.ts) - so the Borg simply OWNS a
  * separate generator. This preserves both invariants at once:
  *
- *  1. Game determinism (the maintainer's #1 faithfulness concern): the Borg
+ *  1. Game determinism, the sharpest faithfulness risk in the port: the Borg
  *     never draws from or perturbs the game's RNG.
  *  2. Borg behavior: simulations use the same quick-LCRNG the C borg used, from
  *     a fixed local seed, so dry-run rolls are reproducible per decision.

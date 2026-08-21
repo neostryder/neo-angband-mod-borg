@@ -759,7 +759,7 @@ function borgLaunchBoltAuxHack(
   if (!borgCaveFloorGrid(ag)) return 0;
 
   /* ghost-in-wall checks (attack.c:1256) require RF_PASS_WALL; when the resolver
-   * supplies it we honour the "2 walls + 1 unknown" skip. */
+   * supplies it, the "2 walls + 1 unknown" skip is honoured. */
   if (rf(facts, "PASS_WALL")) {
     if (
       ag.feat !== FEAT.FLOOR &&
@@ -1369,7 +1369,7 @@ function auxSpellBoltReserve(
     break;
   }
   if (nearMonsters > 1) return 0;
-  /* Faked full-mana legality check: we can't mutate CURSP, so require legality
+  /* Faked full-mana legality check: CURSP cannot be mutated, so require legality
    * ignoring cost (borgSpellLegalFail at MAXSP is equivalent to borg_spell_okay
    * with faked mana for these low-cost spells). */
   if (!borgSpellLegalFail(ctx, spell, 25)) return 0;

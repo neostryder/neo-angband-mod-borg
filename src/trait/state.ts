@@ -1,7 +1,7 @@
 /**
  * Side state the self-model derives alongside borg.trait[] but which has no home
  * in the frozen BorgSelf shape: the has[] kind-count map (indexed in C by k_idx,
- * here keyed by role name so we need no kind registry), the stat-gain bookkeeping
+ * here keyed by role name so no kind registry is needed), the stat-gain bookkeeping
  * (borg.need_statgain / borg.amt_statgain), and the spellbook counts
  * (borg.amt_book). borg_notice fills it; borg_power / borg_prepared read it.
  *

@@ -191,7 +191,7 @@ function noticeDupe(
   all: ItemView[],
   d?: StoreDeps,
 ): void {
-  /* extra-power egos are never treated as duplicates (:294). We lack random-power
+  /* extra-power egos are never treated as duplicates (:294). This port lacks random-power
    * ego data (frozen view), so approximate: an ego that needs *ID* is skipped. */
   if (item.ego && needsIdent(item, d)) return;
   /* if it isn't identified, it isn't duplicate (:298). */

@@ -10,7 +10,7 @@
  * - The C borg's file-scope globals become a FlowState instance created once and
  *   threaded in (see createFlowState). borg_init_flow's constant borg_data_hard
  *   (all 255) and the track lists are set up in the constructor.
- * - borg_play_step emitted keypresses; our engine is command-based, so it RETURNS
+ * - borg_play_step emitted keypresses; this engine is command-based, so it RETURNS
  *   the next AgentCommand (ctx.act.move/melee/tunnel/open/disarm/close/ascend)
  *   instead. borg_flow_old therefore returns AgentCommand | null (null == "no
  *   step / goal cancelled") and every goal-flow function returns that up.

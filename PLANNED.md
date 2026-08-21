@@ -1,8 +1,7 @@
 # Planned: make the Borg actually play
 
-**Opened 2026-08-21. Owner's target, verbatim: full functionality, validated by
-several successful runs, where a successful run means it tries its best and gets
-as far as it can.**
+**Opened 2026-08-21. Target: full functionality, validated by several successful
+runs, where a successful run means it tries its best and gets as far as it can.**
 
 This file exists because the mod's tests are green, its port is faithful, and the
 thing a player installs does not play properly. Nothing below is a bug in the
@@ -41,8 +40,8 @@ Three claims, and the third is the one that decides it:
 
 1. All four resolver seams are wired from real engine data, or a seam that cannot
    be is documented as unreachable with the reason.
-2. There is a restart-on-death loop, because "plays itself over and over" is what
-   was asked for and no loop exists anywhere in the mod.
+2. There is a restart-on-death loop. Playing itself over and over is the point of
+   the mod, and no loop exists anywhere in it.
 3. **It has been WATCHED playing, in the installed build, over several runs**, and
    what it did is written down: what depth it reached, whether it fled, whether it
    shopped, whether it used an activation, how it died, and whether it started
@@ -136,7 +135,7 @@ docstring says.
   not been told the value of, so it hoards.
 
 **Mod items and creatures must work with the Borg the same as vanilla ones**
-(owner's requirement, 2026-08-21). Reading the registry rather than shipping a
+(a hard requirement). Reading the registry rather than shipping a
 table is what makes that free, and it is the standard every remaining seam is held
 to: an activation table keyed by core's svals, or a shop check that knows only
 core's store list, would each reintroduce the inert-default bug restricted to

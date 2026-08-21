@@ -100,7 +100,7 @@ describe("controller cycle", () => {
 
   // The foundation stub's fixed melee/step/hold policy was replaced by the
   // faithful borg_think_dungeon ladder in P8.6; its priority behavior is
-  // covered in think.test.ts. Here we only assert the controller keeps driving
+  // covered in think.test.ts. This test only asserts the controller keeps driving
   // the game (always yields a command on a live level, never stalls).
   it("always produces a command on a live level (drives the game)", () => {
     const { controller } = createBorg();
@@ -168,7 +168,7 @@ describe("borg RNG isolation + reproducibility", () => {
 
   it("reseeds each think so simulations are a pure function of inputs", () => {
     const { rng } = createBorg({ rngSeed: BORG_LOCAL_SEED });
-    // The controller reseeds internally; here we just prove the seed is stable.
+    // The controller reseeds internally; this test just proves the seed is stable.
     const x = rng.randint0(500);
     reseedBorgRng(rng, BORG_LOCAL_SEED);
     expect(rng.randint0(500)).toBe(x);

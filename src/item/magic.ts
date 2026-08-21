@@ -11,8 +11,8 @@
  * SPELL IDENTITY. The C addresses spells by the borg_spells enum and maps it to
  * a class-wide spell index (sidx) via borg_get_spell_number, using the per-class
  * borg_spell_ratings[] arrays which are ordered by sidx (borg_init_spell asserts
- * ratings[sidx].name == spell_by_index(player,sidx).name, magic.c:747). We
- * reproduce that mapping exactly: ratings position == sidx, so a Spell enum maps
+ * ratings[sidx].name == spell_by_index(player,sidx).name, magic.c:747). This
+ * reproduces that mapping exactly: ratings position == sidx, so a Spell enum maps
  * to the SpellView whose sidx equals its position in the class ratings array. No
  * name matching (avoids locale/diacritic issues in Priest spells).
  */

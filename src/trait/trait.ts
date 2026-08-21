@@ -4,7 +4,7 @@
  * reference/src/borg/borg-trait.c:2185-3137.
  *
  * FIDELITY BOUNDARY. The C borg "cheats" by reading struct player and the body
- * slots directly. Our equivalent is ctx.view (PlayerView / ItemView). Two kinds
+ * slots directly. This port's equivalent is ctx.view (PlayerView / ItemView). Two kinds
  * of value are handled differently, both faithfully:
  *
  *  1. Values the C re-derives only to reproduce a number the game already knows

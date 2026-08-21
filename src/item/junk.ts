@@ -101,7 +101,7 @@ export function borgCrushJunk(
       )
         value += 2000;
 
-      /* Keep our ammo (junk.c:333). */
+      /* Keep the borg's ammo (junk.c:333). */
       if (item.tval === ammoTval && value > 0) value += 5000;
 
       /* Keep known-useful consumables (junk.c:338). */

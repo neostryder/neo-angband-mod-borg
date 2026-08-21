@@ -343,7 +343,7 @@ export function borgGoodSell(
   /* Must be a shop that buys this (:833). */
   if (!borgStoreBuys(item, who, d)) return false;
 
-  /* Never sell valuable non-IDd items unless we have a stack (:838). */
+  /* Never sell valuable non-IDd items unless there is a stack (:838). */
   if (noteNeedsId(item, d)) {
     multiple = borgHasMultiple(ctx, item, d);
     if (!multiple) return false;

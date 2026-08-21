@@ -2,7 +2,7 @@
  * Perception: fold what the Borg can see (the frozen AgentView) into its own
  * world model (BorgWorld). This is the port of borg_update / borg_update_map
  * (reference/src/borg/borg-update.c) adapted from the C borg's screen-scrape to
- * our clean perceive facade.
+ * a clean perceive facade.
  *
  * FIDELITY MODEL. The C borg re-derives monster/object identity from on-screen
  * symbols (observe_kill_move / borg_locate_kill) because it only sees glyphs;
@@ -33,7 +33,7 @@ import { borgReactMessages } from "./perceive-messages.js";
 /** borg_update expires a tracked record after this many borg-turns unseen. */
 export const BORG_EXPIRE_TURNS = 2000;
 
-/** Track the depth we last perceived, to detect level changes. */
+/** Track the depth last perceived, to detect level changes. */
 interface PerceiveMemo {
   lastDepth: number;
   initialized: boolean;
@@ -130,7 +130,7 @@ function ingestMonsters(world: BorgWorld, view: AgentView): Set<number> {
     k.used = false;
   }
 
-  // Index existing records by game m_idx so we update in place (preserving the
+  // Index existing records by game m_idx so updates land in place (preserving the
   // Borg's accumulated belief) rather than churning slots.
   const byMidx = new Map<number, number>();
   for (const [i, k] of world.kills.entries()) {
@@ -186,7 +186,7 @@ function ingestMonsters(world: BorgWorld, view: AgentView): Set<number> {
  * so unseen objects persist and expire on the 2000-turn clock, and deleting
  * objects under the borg (or its previous grid) as the C does
  * (borg-update.c:1569-1601). Identity resolution to a real k_idx and want/junk
- * valuation happen in the item subsystem (P8.5); here we record presence, tval,
+ * valuation happen in the item subsystem (P8.5); this records presence, tval,
  * and position so flow-to-item (P8.1) has targets.
  */
 function ingestFloor(

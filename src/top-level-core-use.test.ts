@@ -61,7 +61,7 @@ function topLevelReads(text: string): string[] {
    *   ];
    *
    * A top-level initialiser executes across every line it spans, so once one
-   * opens we keep looking until it closes. */
+   * opens, scanning continues until it closes. */
   let inInitialiser = false;
   for (const raw of text.split("\n")) {
     const line = raw.trim();
