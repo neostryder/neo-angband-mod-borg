@@ -87,9 +87,9 @@ single rule that arrangement imposes on every other file.
     npm ci
     npm run verify     # typecheck, test, and prove plugin.js is a current build
 
-`plugin.js` is committed, because the game's catalogue pins its SHA-256, and a stale
-artefact would verify perfectly and be the file players actually run. `npm run
-check` is what stops that.
+`plugin.js` is committed, because an install fetches it from a pinned tag and runs it
+as it is; nothing rebuilds it on the way in. So a stale artefact passes every other
+check and is the file players actually run. `npm run check` is what stops that.
 
 The suite runs the port **and** drives the built `plugin.js`, which is a different
 artefact: the engine arrives through ESM live bindings, and whether those survive
