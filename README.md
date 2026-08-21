@@ -10,9 +10,28 @@ from the next turn.
 ## What it is
 
 A faithful port of Angband 4.2.6's `borg/`: the same priority ladder, the same
-danger model, the same power scoring. It descends, fights, shops, and dies
-instructively, and it does it by the original's rules rather than by a fresh set
-of heuristics that merely look similar.
+danger model, the same power scoring, by the original's rules rather than by a
+fresh set of heuristics that merely look similar.
+
+> ### What is ported and what is CONNECTED are not the same thing
+>
+> Measured 2026-08-21, and stated here rather than left for you to find. All of
+> the above is true of the code in `src/`. It is **not yet true of the mod you
+> install**, because `plugin.ts` builds the Borg without handing it any host
+> resolvers, so four seams fall back to what their own header calls the
+> conservative defaults: zero-magnitude danger, no activations, never in a shop,
+> and no power gained from an item it has not been told the value of.
+>
+> In play that means it takes the keyboard and moves, and it does so **without
+> danger perception and without shopping**, which is not the ported Borg's
+> behaviour. It also does not start a new character when it dies.
+>
+> This is being fixed to a stated target - full functionality, watched over
+> several runs - and the work is written down in [PLANNED.md](PLANNED.md),
+> including why the first step is a change in the game rather than here. Until
+> that is done, treat this mod as a faithful port that is not yet wired, and do
+> not take a green test suite for evidence otherwise: the tests cover dispatch and
+> ladder ordering, and not one of them plays a turn.
 
 It is a **mod**, not part of the engine, and that division is decided rather than
 incidental:
