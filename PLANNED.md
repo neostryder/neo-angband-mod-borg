@@ -57,6 +57,7 @@ Status section, which was narrowed on 2026-08-21 for exactly this reason.
 | Date | What landed |
 |---|---|
 | 2026-08-21 | **Step 1 done.** The host gained `ctx.registries` (the whole bound `CoreRegistries`, latched once at boot in `main.ts` and reaching every plugin context). `plugin.ts` now calls `createBorg({ resolvers: makeCoreResolvers({ races }) })`, so `makeCoreResolvers` has a caller for the first time. The Borg has danger vision, including over monsters a mod added. Three tests assert the wiring rather than the dispatch, one of them against the built `plugin.js`. |
+| 2026-08-21 | **Step 2, three of four seams done.** `makeCoreResolvers` now also takes `objects` (`ctx.registries.objects`) and `state` (`ctx.state`), each independently optional. Activation identity walks an equipped `ItemView` back through its ego/artifact/kind to the `Activation` record that grants it (mirroring `obj-make.c`'s own artifact-then-ego-then-kind precedence) and compares `act_<name lowercased>` against the token the ported trait/item code already passes. The in-shop signal reads `state.chunk.feature(state.actor.grid).shopnum` directly - no new host plumbing needed, because `Chunk` already carries the bound `FeatureRegistry` it was built with. Both are covered on the same terms as danger vision: a mod's ego, artifact or store entrance is resolved by the same lookup, not a vanilla-only table. The fourth seam (swap/buy/sell power) is NOT wired; see the entry below it. |
 
 ## Releasing this
 
@@ -124,15 +125,33 @@ docstring says.
   covered by the same code path: binding runs after composition, so it is a
   `MonsterRace` at a real `ridx`, and the resolver never consults `from`. A test
   pins that, so that nobody adds a provenance check later.
-- **Activation identity** - the Borg cannot use an activation it cannot name.
-  `ctx.registries.objects` now reaches the object kinds, so the data is in hand;
-  what is not yet decided is how `borg_equips_item(act, checkCharge)` maps a named
-  activation onto the gear the Borg is wearing.
-- **In a shop** - the Borg never shops while this answers "no". Needs the player's
-  grid against the town's store entrance features, which is `ctx.state` plus
-  `ctx.registries.features`, so this is now also unblocked.
-- **Power of an unevaluated swap/buy/sell** - the Borg cannot judge an item it has
-  not been told the value of, so it hoards.
+- **Activation identity** - **DONE 2026-08-21.** `borg_equips_item(act, checkCharge)`
+  and `borg_activate_item(act)` both resolve `act` (the port's `"act_<name>"`
+  token, e.g. `"act_light"`) by walking an equipped item's `artifactName` /
+  `egoName` / `tval`+`sval` back through `ctx.registries.objects` to the
+  `Activation` record that grants it, mirroring `obj-make.c`'s own precedence
+  (an artifact's or ego's activation overrides its base kind's). `ItemView` only
+  exposes "has an activation" as a boolean, not which one, which is why this
+  needed the registry rather than the frozen view alone.
+- **In a shop** - **DONE 2026-08-21.** `Chunk` already carries the
+  `FeatureRegistry` it was bound with, so `state.chunk.feature(state.actor.grid)
+  .shopnum` (`square_shopnum`, cave-square.c:1512) needed no new host plumbing -
+  `ctx.state` alone was enough once it existed. A mod-added store entrance is
+  covered the same way, since `shopnum` is derived from the feature's `SHOP` flag
+  at bind time regardless of which pack defined it.
+- **Power of an unevaluated swap/buy/sell** - still on its conservative default,
+  and NOT a wiring problem like the other three. `borg_wear_stuff` /
+  `borg_think_shop_buy_useful` / `borg_think_shop_sell_useless` all need
+  `borg.power` for a HYPOTHETICAL loadout (an item worn, bought or sold that the
+  Borg is not actually carrying), which means re-running `borg_notice` on gear
+  the character does not have on. `borgNotice` (`src/trait/trait.ts`) takes
+  values it cannot re-derive - net speed, AC-less skills, blows/shots - straight
+  from the live `PlayerView`, which the engine computes for the REAL equipped
+  loadout only. There is no "what if I wore this instead" version of that view to
+  read, frozen or otherwise. Wiring this needs a core capability (a hypothetical
+  player-state simulation) that does not exist yet, which makes it a design
+  question for the game repository, not something this mod's plugin can close on
+  its own.
 
 **Mod items and creatures must work with the Borg the same as vanilla ones**
 (a hard requirement). Reading the registry rather than shipping a

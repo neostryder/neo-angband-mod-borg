@@ -32,6 +32,7 @@ interface BuiltPlugin {
     core: typeof Core;
     log: (m: string) => void;
     registries?: unknown;
+    state?: unknown;
   }): AgentController | undefined;
 }
 
@@ -43,6 +44,7 @@ const built = ((await import("./plugin.js")) as { default: BuiltPlugin }).defaul
 function install(
   flags: Record<string, boolean>,
   registries?: unknown,
+  state?: unknown,
 ): {
   controller: AgentController | undefined;
   logs: string[];
@@ -53,6 +55,7 @@ function install(
     core: Core,
     log: (m) => logs.push(m),
     ...(registries === undefined ? {} : { registries }),
+    ...(state === undefined ? {} : { state }),
   });
   return { controller, logs };
 }
@@ -81,6 +84,19 @@ function hostRegistries(): unknown {
         },
       ],
     },
+    objects: {
+      lookupKind: () => null,
+      findEgo: () => null,
+      findArtifact: () => null,
+    },
+  };
+}
+
+/** A `ctx.state`-shaped host fact: the player standing on the general store. */
+function hostState(): unknown {
+  return {
+    actor: { grid: { x: 5, y: 5 } },
+    chunk: { feature: () => ({ shopnum: 1 }) },
   };
 }
 
@@ -143,6 +159,28 @@ describe("the built plugin.js", () => {
     const { controller, logs } = install({ "borg.autoplay": true }, hostRegistries());
     expect(typeof controller).toBe("function");
     expect(logs.join(" ")).toMatch(/danger vision over 2 races/u);
+  });
+
+  it("reports activation identity and the in-shop signal when the host offers them", () => {
+    /* The same anti-inert guard as the danger-vision test above, for the two
+     * seams landed alongside it: a Borg that received `ctx.registries.objects`
+     * and `ctx.state` but built its resolvers without them would still decide a
+     * move every turn, so the log line is the only thing that can catch it. */
+    const { controller, logs } = install(
+      { "borg.autoplay": true },
+      hostRegistries(),
+      hostState(),
+    );
+    expect(typeof controller).toBe("function");
+    expect(logs.join(" ")).toMatch(/activation identity/u);
+    expect(logs.join(" ")).toMatch(/in-shop signal/u);
+    expect(logs.join(" ")).not.toMatch(/no activation identity|no in-shop signal/u);
+  });
+
+  it("says which of activation identity and the in-shop signal it did not get", () => {
+    const { logs } = install({ "borg.autoplay": true }, hostRegistries());
+    expect(logs.join(" ")).toMatch(/no in-shop signal/u);
+    expect(logs.join(" ")).not.toMatch(/no activation identity/u);
   });
 
   it("says plainly when the host supplies no registry, instead of playing quietly", () => {

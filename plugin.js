@@ -14252,6 +14252,31 @@ function raceBlows(race) {
     };
   });
 }
+function actToken(activation) {
+  return `act_${activation.name.toLowerCase()}`;
+}
+function equippedActivation(item, objects) {
+  if (!item.activation) return null;
+  if (item.artifact && item.artifactName) {
+    const art = objects.findArtifact(item.artifactName);
+    if (art?.activation) return art.activation;
+  }
+  if (item.ego && item.egoName) {
+    const ego = objects.findEgo(item.egoName);
+    if (ego?.activation) return ego.activation;
+  }
+  return objects.lookupKind(item.tval, item.sval)?.activation ?? null;
+}
+function findActivatedItem(ctx, act, checkCharge, objects) {
+  for (const item of ctx.view.equipment()) {
+    if (!item) continue;
+    const record = equippedActivation(item, objects);
+    if (!record || actToken(record) !== act) continue;
+    if (checkCharge && item.timeout >= 1) continue;
+    return item;
+  }
+  return null;
+}
 function makeCoreResolvers(input) {
   const byRidx = /* @__PURE__ */ new Map();
   for (const r of input.races) byRidx.set(r.ridx, r);
@@ -14272,7 +14297,23 @@ function makeCoreResolvers(input) {
       spells: raceSpellOrdinals(race)
     };
   };
-  return { resolveMonsterFacts };
+  const objects = input.objects;
+  const resolveActivation = (ctx, act, checkCharge) => {
+    if (!objects) return false;
+    return findActivatedItem(ctx, act, checkCharge, objects) !== null;
+  };
+  const activateHandle2 = (ctx, act) => {
+    if (!objects) return null;
+    const item = findActivatedItem(ctx, act, true, objects);
+    return item ? item.handle : null;
+  };
+  const state = input.state;
+  const inShop = (_ctx) => {
+    if (!state) return null;
+    const shopnum = state.chunk.feature(state.actor.grid).shopnum;
+    return shopnum > 0 ? shopnum - 1 : null;
+  };
+  return { resolveMonsterFacts, resolveActivation, activateHandle: activateHandle2, inShop };
 }
 
 // plugin.ts
@@ -14286,9 +14327,20 @@ var plugin_default = {
       throw new Error("the Borg could not take the engine from ctx.core");
     }
     const races = ctx.registries?.monsters.races;
-    const borg = races ? createBorg({ resolvers: makeCoreResolvers({ races }) }) : createBorg();
+    const objects = ctx.registries?.objects;
+    const state = ctx.state;
+    const borg = races ? createBorg({
+      resolvers: makeCoreResolvers({
+        races,
+        ...objects ? { objects } : {},
+        ...state ? { state } : {}
+      })
+    }) : createBorg();
     if (races) {
-      ctx.log(`the Borg has the keyboard, and danger vision over ${races.length} races`);
+      const parts = [`danger vision over ${races.length} races`];
+      parts.push(objects ? "activation identity" : "no activation identity");
+      parts.push(state ? "in-shop signal" : "no in-shop signal");
+      ctx.log(`the Borg has the keyboard, and ${parts.join(", ")}`);
     } else {
       ctx.log("the Borg has the keyboard, but this host supplies no monster registry: playing blind");
     }
