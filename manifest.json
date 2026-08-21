@@ -1,7 +1,7 @@
 {
   "id": "borg",
   "name": "The Borg",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "shape": "plugin",
   "facets": [
     "plugin"
@@ -12,7 +12,16 @@
     "core": "*"
   },
   "capabilities": [
-    "command:add"
+    "command:add",
+    "state:player.read",
+    "state:monsters.read",
+    "state:map.read",
+    "state:inventory.read",
+    "state:floor.read",
+    "state:messages.read",
+    "state:stores.read",
+    "state:spells.read",
+    "state:constants.read"
   ],
   "author": "neostryder",
   "license": "GPL-2.0-only",

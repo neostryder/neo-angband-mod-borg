@@ -8,6 +8,37 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.6.2
+
+### Fixed
+
+- **The Borg threw on its first perceived turn, and the game blamed itself.** The
+  manifest declared one capability, `command:add`, and the frozen `AgentView` is
+  gated per DOMAIN: reading the player without `state:player.read` raises
+  `AgentCapabilityError`. So the mod installed cleanly, logged that it had the
+  keyboard and all four resolver seams, and then threw the moment it looked at
+  the character. The manifest now declares the nine read domains the port
+  actually uses: player, monsters, map, inventory, floor, messages, stores,
+  spells and constants. It asks for no `state:*.read` wildcard, so the consent
+  screen still names what it reads.
+
+  Three things made this survive to a release, and all three are worth knowing.
+  The install-time check wants `command:add` alone, so nothing refused it. The
+  throw unwound out of the game loop, which reports a fault with no mod attached
+  to it, so a player was told the GAME had hit a bug and pointed at the game's
+  issue tracker; the session also stopped saving, and the autoplayer's own clock
+  kept ticking and re-throwing behind a notice that is shown once. And no test
+  here could see it: every test drives the port through a fake view with no
+  capability gate, so the suite was green.
+
+  `src/manifest-capabilities.test.ts` now derives the required set from the
+  source - it scans for the accessors the port calls, maps each to the domain the
+  engine gates it on, and requires the manifest to declare exactly that set. It
+  also fails when a newer engine adds an accessor nothing has classified.
+
+- Found by installing 0.6.1 from its tag into the released 0.25.0 desktop build
+  and watching it, which is the only instrument that could have found it.
+
 ## 0.6.1
 
 ### Changed
