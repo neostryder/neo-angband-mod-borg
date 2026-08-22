@@ -10,14 +10,15 @@ are, however small.
 
 ## 0.7.0
 
-**Needs Neo Angband 0.26.0 or newer**, up from 0.25.0. Two of the fixes below are
-in the game rather than here - the trap predicate a locked door used to fail, and
-the host answering a blocking prompt for an autoplayer - and both shipped in
-0.26.0. A Borg that needs them and loads on a game without them is a Borg that
-wedges against the first locked door, so `manifest.json` refuses instead.
-`src/play.test.ts` measures whether the engine on disk has the trap fix, and skips
-itself rather than failing when it does not, so a red suite here always means a
-fault here.
+**Needs Neo Angband 0.27.0 or newer**, up from 0.25.0. Several of the fixes
+below are in the game rather than here - the trap predicate a locked door used
+to fail, the host answering a blocking prompt for an autoplayer (both 0.26.0),
+and the real multi-turn `rest` command plus the `shop-buy` / `shop-sell` /
+`shop-exit` command handlers (both 0.27.0). A Borg that needs them and loads
+on a game without them is a Borg that wedges against the first locked door or
+heals at half rate, so `manifest.json` refuses instead. `src/play.test.ts`
+measures whether the engine on disk has the trap fix, and skips itself rather
+than failing when it does not, so a red suite here always means a fault here.
 
 The entries divide into two halves. The first five stopped the Borg PLAYING: it
 wedged, shuttled or swapped forever. The rest stopped it playing WELL, and they
