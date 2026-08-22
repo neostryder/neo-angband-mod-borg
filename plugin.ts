@@ -132,21 +132,35 @@ const AUTOPLAY_FLAG = "borg.autoplay";
  *
  * ONLY SETTINGS THE PORT READS ARE LISTED. A toggle for something no ported line
  * consults is worse than an absent one: it reads as a feature, it survives every
- * test, and the only way to find out is to watch a Borg ignore it. Three of
- * upstream's booleans are held back on exactly that ground, and each is a
+ * test, and the only way to find out is to watch a Borg ignore it. Four of
+ * upstream's settings are held back on exactly that ground, and each is a
  * different distance from working:
  *
  *   - `borg_kills_uniques` has no reader at all. Its branch needs the live-unique
- *     census (`borg_numb_live_unique`, `borg_depth_hunted_unique`), which this
- *     port does not keep.
- *   - `borg_uses_swaps` has a reader that gates two functions which return early
- *     because the swap valuation seams are unwired - and they are unwired because
- *     a swap contributes zero to `borg_power` here, so the comparison they would
- *     make is between two equal numbers.
- *   - `borg_munchkin_start` moves gear valuation but not diving: the stair-scum
- *     mode it is meant to switch on (`borg_think_dungeon_munchkin`) is not
- *     ported, so `world.self.munchkinMode` is never written. Half a setting is
- *     the worst of the three, because it would look like it worked.
+ *     census (`borg_numb_live_unique`, `borg_depth_hunted_unique`), built upstream
+ *     by scanning the whole race table for unique population counts
+ *     (borg-update.c) - state this port does not keep.
+ *   - `borg_uses_dynamic_calcs` switches the power/depth/restock math from the
+ *     internal calculations to a formula language upstream parses out of
+ *     `borg.txt`'s own FORMULA SECTION (borg-formulas.c). That is a second
+ *     calculation engine, not a flag on this one, and porting it is its own
+ *     project.
+ *   - `borg_uses_swaps` has a reader (`borgUsesSwaps`, store.ts) that gates two
+ *     store functions which return early regardless of its value, because the
+ *     swap valuation seams (`weaponSwapEval`/`armourSwapEval`) are deliberately
+ *     unwired - see think-session.ts. A swap also contributes zero to
+ *     `borg_power` here, so the toggle would tick and the Borg would play
+ *     identically either way.
+ *   - The numeric settings (`borg_no_deeper`, `borg_munchkin_level`,
+ *     `borg_enchant_limit`) have no yes-or-no shape, and the host's manifest rule
+ *     schema (`PackRule` in `@rpgm-tools/neo-angband-mod-sdk`) carries only a
+ *     boolean `default` - there is no numeric or range rule type to ask for one
+ *     with. See PLANNED.md for what a host-side fix would need.
+ *
+ * `borg_munchkin_start` is NOT on this list any more: it moves real gear
+ * valuation (`trait/power.ts`) even though the stair-scum diving mode it is
+ * named for is not ported, and that is enough of a working setting to ship - the
+ * manifest rule's own description says exactly which half it is.
  */
 /**
  * The settings a rule can carry: the yes-or-no half of `BorgCfg`.
@@ -168,6 +182,7 @@ const RULE_CFG: Readonly<Record<string, BoolCfgKey>> = {
   "borg.worshipsAc": "worshipsAc",
   "borg.worshipsGold": "worshipsGold",
   "borg.selfScum": "selfScum",
+  "borg.munchkinStart": "munchkinStart",
 };
 
 /**

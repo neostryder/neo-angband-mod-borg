@@ -158,6 +158,7 @@ you already have translates row by row.
     Value armour class             borg_worships_ac
     Value gold                     borg_worships_gold
     Save up for something it wants  borg_self_scum
+    Skimp on stockpiles for an early munchkin run borg_munchkin_start
 
 Every default is upstream's own, so leaving all of them alone gets the Borg
 Angband ships. *Save up for something it wants* is the one that starts on,
@@ -175,17 +176,33 @@ what it becomes. There is no separate setting for stat priorities, and there is
 none upstream either - `borg.txt` describes one in a comment, but no setting
 backs it and the reincarnation code just takes the game's default point-buy.
 
+**Skimp on stockpiles for an early munchkin run** moves how the Borg values
+consumables at a low character level, on the assumption that a young character
+is cashing out for gold rather than settling in. It does not make the Borg
+stair-scum for loot the way `borg_munchkin_start` also does upstream - that
+half needs a diving mode this port has not built.
+
 A changed toggle takes effect on the next reload, the same as any other mod
 setting. The log line the Borg writes when it takes the keyboard names every
 setting that is not on its stock value, so the record of an unattended run says
 what it was told to do.
 
-Three of upstream's booleans are deliberately absent rather than merely
-unimplemented: `borg_kills_uniques`, `borg_uses_swaps` and
-`borg_munchkin_start` each gate code this port does not have, so a toggle for
-them would tick and change nothing. The numeric settings - depth ceilings, the
-enchant limit, a pinned race or class to respawn as - have no yes-or-no shape and
-are not here yet.
+Three of upstream's settings are deliberately absent rather than merely
+unimplemented: `borg_kills_uniques` and `borg_uses_dynamic_calcs` each need a
+subsystem this port does not have (a live census of which uniques are still
+alive, and a whole second formula-driven calculation engine), and
+`borg_uses_swaps` has a reader but nothing downstream of it - the swap items it
+would value are not ported either, so the toggle would tick and the Borg would
+play identically either way. The numeric settings - depth ceilings, the enchant
+limit, a pinned race or class to respawn as - have no yes-or-no shape, and the
+host's mod-manager toggle is boolean only, so there is no rule type to carry one
+yet. See PLANNED.md for what each of these still needs.
+
+Since Neo Angband 0.27.2 the mod manager also shows an **Autoplayer speed**
+row next to *Let the Borg play*, with Fast/Normal/Slow tiers (40/120/400
+milliseconds a turn). That control is the host's, not this mod's: any mod that
+returns a controller gets the row for free, with no manifest change here. It
+has no tier faster than 40ms today; PLANNED.md tracks the request for one.
 
 ## Two things it does not do
 

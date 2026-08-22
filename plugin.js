@@ -15255,7 +15255,8 @@ var RULE_CFG = {
   "borg.worshipsMana": "worshipsMana",
   "borg.worshipsAc": "worshipsAc",
   "borg.worshipsGold": "worshipsGold",
-  "borg.selfScum": "selfScum"
+  "borg.selfScum": "selfScum",
+  "borg.munchkinStart": "munchkinStart"
 };
 function cfgFromFlags(flags) {
   const cfg = {};
