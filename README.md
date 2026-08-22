@@ -54,18 +54,37 @@ fresh set of heuristics that merely look similar.
 > earlier version of this mod ran a working autoplayer on any engine, so there is
 > no installation the floor could take away from.
 >
-> **It does not yet play a whole game, and that was measured rather than
-> guessed.** Watched in the released 0.25.0 desktop build on 2026-08-21, over two
-> characters: it took the keyboard, shopped, wore what it bought, found the town's
-> down staircase and descended - and then stalled on the first dungeon level both
-> times, once repeating a command the game refuses and once shuffling between two
-> squares instead of exploring. It never died, so it never started a new
-> character. Two of the three stalls are this mod's and one is the game's; all
-> three are named, with their mechanisms, in [PLANNED.md](PLANNED.md).
+> **The three stalls that stopped it playing are fixed, and there is now a test
+> that plays.** Watched in the released 0.25.0 desktop build on 2026-08-21, over
+> two characters, it took the keyboard, shopped, wore what it bought, found the
+> town's down staircase and descended - and then stalled on the first dungeon
+> level both times without dying. Five separate causes came out of that, four of
+> them one-line facts:
 >
-> So: install it to watch it try, not to watch it win. And do not take a green
-> test suite for evidence either - the suite covers dispatch, ladder ordering and
-> the resolver wiring, and not one test in it plays a game to its end.
+> - a locked door arrived as a trap to disarm, and `disarm` refuses one for free;
+> - nothing in the port ever used a staircase it was standing on;
+> - a readiness flag was initialised to "never asked" and never asked;
+> - arriving on a level did not clear "use the next staircase", so town and level
+>   one became a shuttle;
+> - and a hypothetical loadout's score was compared against a live one derived a
+>   different way, which in a daytime town differed by 14000 points, made every
+>   wearable item an upgrade, and turned two identical torches into an endless
+>   swap.
+>
+> Four of those are in this repository. The first is in the game's, as is the
+> sixth: an autoplayer used to park on every prompt that blocks for a keypress, so
+> going downstairs needed a human. `src/play.test.ts`
+> is the instrument that found the last four and now guards all five: it boots a
+> real game, hands it to the Borg, and drives 1500 decisions per seed, checking
+> that no single command ran away with the session and that the character covered
+> ground. Over four seeds it now explores hundreds of squares, opens doors,
+> disarms real traps, changes level under its own steam, and dies - which is the
+> ending upstream's borg reaches too, and the half the restart loop needs.
+>
+> So: install it to watch it try, not to watch it win. And do not take the rest of
+> the suite for evidence - the other seventeen files cover dispatch, ladder
+> ordering and resolver wiring, and not one of them plays a turn. That was exactly
+> the gap; `play.test.ts` is the answer to it.
 
 It is a **mod**, not part of the engine, and that division is decided rather than
 incidental:

@@ -514,7 +514,7 @@ export function borgThinkDungeon(
 
   /* Try not to die (:1540). */
   {
-    const cmd = borgCaution(ctx);
+    const cmd = borgCaution(ctx, st);
     if (cmd) return cmd;
   }
 

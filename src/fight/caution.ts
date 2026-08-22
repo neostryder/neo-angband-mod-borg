@@ -24,6 +24,9 @@ import { BI, CLASS_MAGE, CLASS_PRIEST, CLASS_PALADIN } from "../trait/trait-inde
 import { trait } from "../item/deps.js";
 import { borgDanger, getDangerGlobals } from "../danger/index.js";
 import { FEAT, ddx_ddd, ddy_ddd } from "../flow/flow-consts.js";
+import type { FlowState } from "../flow/flow.js";
+import { borgPrepLeaveLevelSpells } from "../flow/flow-stairs.js";
+import { borgRestock } from "../trait/prepared.js";
 import { TV, SVAL } from "../item/svals.js";
 import { Spell, borgSpell, borgSpellFail } from "../item/magic.js";
 import {
@@ -373,11 +376,18 @@ function leastAdjacentDanger(ctx: BorgContext, fallback: number): number {
 
 /**
  * borgCaution (caution.c:799): the "prevent death" step. Returns a heal/defend/
- * escape/emergency command, or null (yield to the think ladder's movement/flow
- * stages, which own stair-taking and retreat). Pure fleeing/leaving goal flags
- * are set exactly as the C does.
+ * stair/escape/emergency command, or null (yield to the think ladder's flow
+ * stages, which own the retreat tail). Pure fleeing/leaving goal flags are set
+ * exactly as the C does.
+ *
+ * `flow` is the live FlowState, needed by the *** Stairs *** section: the
+ * track_less list decides whether going DOWN is allowed, and the force-descend
+ * option, borg_prepared and borg_count_sell all already ride FlowHooks.
  */
-export function borgCaution(ctx: BorgContext): AgentCommand | null {
+export function borgCaution(
+  ctx: BorgContext,
+  flow: FlowState,
+): AgentCommand | null {
   const fs = getFightState(ctx.world);
   const g = getDangerGlobals(ctx.world);
 
@@ -438,8 +448,35 @@ export function borgCaution(ctx: BorgContext): AgentCommand | null {
     }
   }
 
+  /* Impending doom: out of crucial supplies (caution.c:1064). FIRST arm of the
+   * chain the two branches below complete, and it is what makes the borg go home
+   * when it runs out of food, fuel or cures. Not taken mid-fight with a unique,
+   * and not in the first 200 turns off the town, because restocking straight
+   * back out is the level-bouncing borg_restock's own header warns about.
+   *
+   * IT ALSO NORMALISES readyMorgoth. borgRestock turns the -1 "not looked at
+   * yet" into 0 (borg-prepared.c:697), and the *** Stairs *** section below
+   * asks whether it is 0 before it will climb. Upstream gets that ordering from
+   * this very call site; while this block was missing, readyMorgoth stayed -1
+   * for the whole session and the borg would never take an up staircase. */
+  if (
+    !fs.fightingUnique &&
+    fs.timeTown + (ctx.world.clock - fs.began) > 200 &&
+    borgRestock(ctx, trait(ctx, BI.CDEPTH))
+  ) {
+    ctx.world.self.goal.leaving = true;
+    if (
+      !ctx.world.self.goal.fleeing &&
+      trait(ctx, BI.ACCW) < 2 &&
+      trait(ctx, BI.FOOD) > 3 &&
+      trait(ctx, BI.AFUEL) > 2 &&
+      ctx.world.clock - fs.began > 400
+    ) {
+      ctx.world.self.goal.fleeing = true;
+    }
+  }
   /* Excessive danger / town near-death flee flags (caution.c:1087). */
-  if (posDanger > trait(ctx, BI.CURHP) * 2) {
+  else if (posDanger > trait(ctx, BI.CURHP) * 2) {
     if (
       !ctx.world.self.goal.fleeing &&
       !fs.fightingUnique &&
@@ -451,6 +488,84 @@ export function borgCaution(ctx: BorgContext): AgentCommand | null {
       ctx.world.self.goal.fleeing = true;
   } else if (!trait(ctx, BI.CDEPTH) && posDanger > trait(ctx, BI.CURHP) && trait(ctx, BI.CLEVEL) < 50) {
     ctx.world.self.goal.leaving = true;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * *** Stairs *** (caution.c:1113)
+   *
+   * THE ONLY PLACE THE BORG USES A STAIRCASE IT IS STANDING ON. Everything
+   * else in the ladder flows TOWARD stairs and sets `stairLess` / `stairMore`
+   * on the way; this is what reads them. Without it the borg walks onto an up
+   * staircase, finds nothing left to flow to, falls through to the explore
+   * stage, steps back off, and is pulled onto the stair again next turn -- a
+   * two-square oscillation that never ends and never leaves the level.
+   *
+   * `on_upstair` and `on_dnstair` are dropped: upstream declares both false at
+   * the top of borg_caution and the only assignments to either set them false
+   * again, so both disjuncts they appear in are unreachable in 4.2.6.
+   * ---------------------------------------------------------------- */
+  const self = ctx.world.self;
+  if (
+    self.goal.leaving ||
+    self.goal.fleeing ||
+    ctx.world.facts.scaryGuyOnLevel ||
+    self.goal.fleeingLunal ||
+    self.goal.fleeingMunchkin
+  ) {
+    if (self.readyMorgoth === 0 && !trait(ctx, BI.KING) && !flow.hooks.forceDescend) {
+      self.stairLess = true;
+    }
+    if (ctx.world.facts.scaryGuyOnLevel && !flow.hooks.forceDescend) self.stairLess = true;
+
+    /* Only go down if fleeing or prepared. */
+    if (self.goal.fleeing || self.goal.fleeingLunal || self.goal.fleeingMunchkin) {
+      self.stairMore = true;
+    }
+    if (flow.hooks.preparedToDescend(ctx.world)) self.stairMore = true;
+
+    /* Do not go down if we can go up and are hungry. */
+    if (
+      flow.less.num &&
+      (trait(ctx, BI.LIGHT) === 0 ||
+        trait(ctx, BI.ISHUNGRY) ||
+        trait(ctx, BI.ISWEAK) ||
+        trait(ctx, BI.FOOD) < 2)
+    ) {
+      self.stairMore = false;
+    }
+
+    /* If there is crap to sell, do not go down while up is available. */
+    if (
+      flow.less.num &&
+      trait(ctx, BI.CDEPTH) &&
+      trait(ctx, BI.CLEVEL) < 25 &&
+      trait(ctx, BI.GOLD) < 25000 &&
+      flow.hooks.countSell(ctx.world) >= 13
+    ) {
+      self.stairMore = false;
+    }
+
+    /* One level deeper is fine when evading a scary guy, and fleeing town dives. */
+    if (ctx.world.facts.scaryGuyOnLevel) self.stairMore = true;
+    if (!trait(ctx, BI.CDEPTH)) self.stairMore = true;
+  }
+
+  /* Take stairs up (caution.c:1169). */
+  if (self.stairLess && !flow.hooks.forceDescend) {
+    if (ctx.world.map.at(self.c.x, self.c.y).feat === FEAT.LESS) {
+      return ctx.act.ascend();
+    }
+  }
+
+  /* Take stairs down (caution.c:1188). */
+  if (self.stairMore && !self.goal.recalling) {
+    if (ctx.world.map.at(self.c.x, self.c.y).feat === FEAT.MORE) {
+      if (!self.goal.fleeingLunal && !self.goal.fleeingMunchkin) {
+        const prep = borgPrepLeaveLevelSpells(ctx);
+        if (prep) return prep;
+      }
+      return ctx.act.descend();
+    }
   }
 
   /* Prevent starvation (caution.c:1230): eat / cast / restore-mana. */

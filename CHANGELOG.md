@@ -8,6 +8,84 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## Unreleased
+
+**This one waits for an engine release, and the reason is the point.** Two of the
+five fixes below are in the game rather than here, and the mod cannot be tagged
+until they ship: a released Borg that needs an unreleased engine is a Borg that
+refuses to load. Raise `engine` in `manifest.json` to the version that carries them
+before tagging. `src/play.test.ts` measures whether the engine on disk has the trap
+fix and skips itself rather than failing when it does not, so a red suite here
+always means a fault here.
+
+### Fixed
+
+- **It walked onto an up staircase and then walked off it again, for as long as
+  you left it running.** `borg_caution`'s "take the stairs you are standing on"
+  block (`borg-caution.c:1169-1204`) had never been ported. `stairLess` and
+  `stairMore` were written in twelve places and read in none, so every ladder rung
+  that flows toward a staircase got the Borg there and nothing spent the turn: the
+  flow ran out, the explore rung stepped one square off, and the flee rung pulled
+  it back. Ported at its upstream position, which is why `borgCaution` now takes
+  the flow state - the up-stair list decides whether going down is allowed.
+
+- **A readiness flag was initialised to "never asked" and nothing ever asked.**
+  `readyMorgoth` starts at -1, and upstream turns that into 0 on the first look, at
+  the head of `borg_prepared_aux` and `borg_restock`. Neither normalisation was
+  ported, and three readers test for exactly 0 - including the stair choice above,
+  so it would have stayed switched off even once the block existed. The missing
+  call site was `borg_caution`'s own restock arm (`caution.c:1064`), which is also
+  what makes the Borg go home when it runs out of food, fuel or cures; that is
+  ported too.
+
+- **Arriving on a level did not clear "use the next staircase".** Upstream's
+  `borg_update` sets `stair_less` and `stair_more` false on every level change
+  (`borg-update.c:2135`). Without it, arriving in town with `stairMore` still set
+  walked straight back down and arriving on level one with `stairLess` still set
+  climbed straight back up: 215 descend/ascend pairs and nothing else. Two intents
+  are journeys across several levels and upstream keeps them, so the level wipe no
+  longer resets everything: `rising` survives every arrival but the town's, and
+  `fleeingToTown` survives depth one.
+
+- **It swapped one wooden torch for an identical one, 3964 times in 4000
+  decisions.** `borg_wear_stuff` was missing three guards: the two "been sitting
+  on this level forever" returns (`wear.c:779`) and, the one that matters,
+  `if (p <= b_p + 50) continue` (`wear.c:913`). The margin is the anti-loop -
+  without it two near-identical items are each the better choice in turn, forever.
+
+  The margin was necessary and not sufficient, because the difference being
+  measured was 14000 points rather than noise, and the cause was the COMPARISON.
+  A candidate loadout's score came out of the engine's hypothetical derive and was
+  compared against the live self-model's score, which comes out of the live derive
+  - and those two do not answer identically. Angband's own `calc_light` skips a
+  daytime town's light only on the live pass (`player-calcs.c:1607`), so in town
+  the hypothetical side counted a torch's radius the character does not have.
+  Faithfully, because the port keeps that wart.
+
+  Upstream never meets this, because it compares two numbers from one code path:
+  it wields the candidate for real, scores it, and puts it back. That property is
+  restored here. A candidate's score is now applied as a DELTA against the
+  character as it stands, derived through the same hypothetical path, so any
+  systematic difference between the two derives cancels instead of reading as a
+  gain on every candidate. One extra derive per decision, memoised per think.
+
+- **`borg_prep_leave_level_spells` is ported** (`borg-flow-stairs.c:252`), because
+  the stair block above is its only caller: a caster with mana to spare hastes,
+  resists and buffs before it takes a staircase, in upstream's order, each one
+  setting the no-rest timer that stops it resting the buff away.
+
+### Added
+
+- **A test that plays the game.** `src/play.test.ts` boots a real game against the
+  engine, installs the Borg as its command provider, and drives 1500 decisions on
+  each of four seeds. It does not check that the Borg plays well - a level-one
+  character dying on depth two is upstream's own outcome - it checks that the Borg
+  is still playing: that no single command has run away with the session, that the
+  character covered ground, and that game time passed. Every loop above is
+  individually a correct decision and collectively a hang, which is precisely what
+  seventeen files of unit tests could not see. It skips, loudly, when the game's
+  checkout is not beside this one.
+
 ## 0.6.3
 
 ### Fixed
