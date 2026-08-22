@@ -477,10 +477,18 @@ needed"); the one call that wanted exactly one tactical turn
 the `src/play.test.ts` health harness (6 tests) both pass against the real
 published package rather than a local build - `npm install` pulled it from the
 registry, not a workspace link. A fixed-point unit test already proves the x2
-regen bonus applies after five turns of the new `restAction`. The mechanism is
-shipped and unit-tested; what is not yet confirmed is that the Borg's own
-decision ladder chooses an extended rest and reaches the doubled regen rate in
-an unscripted, unattended run against the real engine. Tracked as issue #3.
+regen bonus applies after five turns of the new `restAction`.
+
+**Confirmed against the real engine, 2026-08-22, and issue #3 is closed.**
+`src/rest-and-store-verification.test.ts` starts a level-one character in a
+safe town below max HP - the ordinary post-fight state, nothing else about it
+scripted - and drives the Borg's own ladder. Seven of ten seeds chose an
+extended rest, every one of them `REST_COMPLETE`, with a single command
+producing 390 to 480 game turns rather than the ten a normal move costs -
+direct proof the multi-turn continuation fired rather than a single-turn hold.
+The other three seeds happened to spawn standing on the town's staircase, and
+`borgCaution`'s own "take the stairs I am standing on" rung outranks recovery -
+a different, correctly-functioning decision, not a failure to rest.
 
 **10. "Base delay seems low, movement was not swift" is not a defect, and the
 numbers are worth writing down.** The host drives a mod autoplayer on a fixed
@@ -814,7 +822,7 @@ artifacts. `src/play.test.ts` measures the engine on disk for the trap fix and
 skips itself rather than failing when it is absent, so a red suite here always
 means a fault here.
 
-### 5. The store ladder has no engine to trade through - OPEN, found 2026-08-21
+### 5. The store ladder has no engine to trade through - DONE 2026-08-22, found 2026-08-21
 
 `src/store/` is ported and reachable: the in-shop resolver reports which shop the
 Borg is standing in, and the ladder returns `shopBuy` / `shopSell` / `shopExit` on
@@ -846,9 +854,27 @@ object, re-check the player is standing in the right store, and commit through
 the same buy/sell path the interactive shop screen uses - verified in
 neo-angband's own suite by a real `startGame` town, a queued command and
 `runGameLoop`, both a free purchase and a paid sale. Neo Angband 0.27.0
-published this, and `manifest.json`'s floor moved to `>=0.27.0`. The binding is
-proven; what is not yet confirmed is that the Borg's own store ladder issues
-those commands and spends gold in an unscripted run. Tracked as issue #4.
+published this, and `manifest.json`'s floor moved to `>=0.27.0`. The binding
+was proven; whether the Borg's own store ladder ever issued those commands was
+not.
+
+**Confirmed against the real engine, 2026-08-22, and issue #4 is closed.**
+`src/rest-and-store-verification.test.ts` places the Borg physically on a real
+shop door - the game's own `state.stores[].feat`, not a synthetic terrain
+write, because a synthetic door satisfies the Borg's in-shop resolver without
+satisfying the engine's own `store_at` lookup the command handlers use, and the
+two disagreeing was itself found by hand before this test existed. Across ten
+seeds, every one sold something with a real inventory change (`shop-sell`,
+handle and quantity chosen by the ladder itself), and three of ten also bought
+something with gold actually decreasing (`shop-buy`, e.g. 5000 to 4998). This
+game's own birth options default `birth_no_selling` to true, so a sale
+correctly nets zero gold here - upstream's own "You had X" rather than "You
+sold X for N gold" - which is why the buy result, not the sell result, is what
+answers "does gold change hands". Reachability (walking to a shop through
+town's own explore/leave-level ordering) is a separate, already-documented
+shape - a fresh level-one character heads straight to the dungeon stairs before
+the late "deal with shops" rung is ever reached, in every seed tried - and is
+not what this issue asked.
 
 ## What is deliberately NOT here
 
