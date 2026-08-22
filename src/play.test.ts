@@ -230,13 +230,20 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
     }
   }
 
-  /* Resting is EXCLUDED, and the exclusion is the whole reason this number means
-   * anything. The engine has no "rest until done" command - `rest` maps to a
-   * single-turn hold - so a character healing up spends sixty decisions standing
-   * on one square, which is upstream's `R&` rendered one decision at a time and
-   * not a loop. What is left is the Borg deciding, over and over, to go
-   * somewhere it has just been, with nothing in sight to hold it there. */
-  const moving = trail.filter((t) => t.cmd !== "rest");
+  /* Resting and dropping are EXCLUDED, and the exclusions are the whole reason
+   * this number means anything. Both keep a character on one square while
+   * making real progress, so counting them turns patience into a false alarm.
+   *
+   * `rest` maps to a single-turn hold in this engine, so a character healing up
+   * spends sixty decisions standing still - upstream's `R&` rendered one
+   * decision at a time, not a loop. `drop` discards one item from a stack per
+   * command in the C too (borg-junk.c:472-475), so emptying a stack of forty
+   * arrows is forty decisions on one grid, and that is upstream's own pace.
+   *
+   * What is left is the Borg deciding, over and over, to go somewhere it has
+   * just been with nothing in sight to hold it there. A genuine runaway drop is
+   * still caught, by the single-command cap above. */
+  const moving = trail.filter((t) => t.cmd !== "rest" && t.cmd !== "drop");
   const WINDOW = 60;
   let jitter = 999;
   for (let i = 0; i + WINDOW <= moving.length; i++) {
@@ -369,7 +376,7 @@ suite("the Borg plays a real game", () => {
        * squares, with no monster visible for any of them, is that report. */
       expect(
         r.jitter,
-        `the tightest stretch of 60 monster-free decisions that were not rests ` +
+        `the tightest stretch of 60 monster-free decisions that were not rests or drops ` +
           `covered ${String(r.jitter)} squares`,
       ).toBeGreaterThan(3);
 

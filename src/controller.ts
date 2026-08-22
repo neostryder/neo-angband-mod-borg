@@ -94,11 +94,61 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     world.clock += 1;
     world.self.timeThisPanel += 1;
 
+    /* 1b. Handle new levels (borg-update.c:2009-2190). This runs BEFORE
+     * perception, because everything perception writes is stamped with the
+     * clock and the clock is one of the things a new level resets. */
+    const depth = view.player().depth;
+    if (depth !== lastDepth) {
+      const fs = getFightState(world);
+      /* borg_time_town: time since the last visit to town, accumulated across
+       * every level in between (:2011-2014). Leaving town zeroes it. Nothing
+       * had ever written it, so the two arms that read it - the restock grace
+       * in borg_caution and the bravery boost in borg_attack - were measuring
+       * time on the current level instead. */
+      if (lastDepth <= 0) fs.timeTown = 0;
+      else fs.timeTown += world.clock - fs.began;
+
+      /* Restart the clock (:2017). Upstream's borg_t is a PER-LEVEL counter,
+       * and every absolute test against it is written for that: the 12000 and
+       * 25000 message-flush hacks, the 20000 monster-record purge, and
+       * borg_think_dungeon's own "clock overflow" panic at 30000, which hands
+       * the game back to a human. A clock that only ever climbs turns the last
+       * of those into a Borg that stops deciding for good after 30000
+       * decisions, and the others into events that fire once and never again. */
+      world.clock = 1000;
+      session.flow.state.borgTAntisummon = 0;
+      fs.tAntisummon = 0;
+      fs.began = world.clock;
+      session.flow.state.borgBegan = world.clock;
+
+      /* Nothing is known about this level yet (:2165-2183). The location
+       * tracks live on the flow rather than on the world, so wipeLevel cannot
+       * reach them; left standing they hold the PREVIOUS level's coordinates,
+       * and the short-leash rung measures the distance from the character to a
+       * staircase on a level it is no longer on. At character level one that
+       * leash is seventeen grids, so the Borg decided it had wandered too far
+       * on its first think of every level and turned straight back. */
+      const st = session.flow.state;
+      st.less.wipe();
+      st.more.wipe();
+      st.step.wipe();
+      st.door.wipe();
+      st.closed.wipe();
+      st.glyph.wipe();
+      st.vein.wipe();
+      session.junked.clear();
+
+      lastDepth = depth;
+    }
+
     /* 2. Fill the self-model traits (borg_notice, :453). */
     borgNotice(ctx);
 
     /* 3. Fold the view (map/monsters/objects/messages) into the world (:456). */
-    perceive(world, view, memo, tables);
+    perceive(world, view, memo, tables, {
+      kindCost: session.resolvers.kindCost,
+      junked: session.junked,
+    });
 
     /* 3b. The tail of borg_update, in its own order. The wiring session is
      * primed first because both steps need the host's monster-race resolver;
@@ -114,19 +164,26 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     /* 4. Score the world (borg_power, :459). */
     world.self.power = borgPower(ctx);
 
-    /* 5. Running maxima + per-level "began" clock (:438, borg_update). */
+    /* 5. Running maxima (:438, borg_update). The per-level clocks are reset in
+     * step 1b, before perception stamps anything with them. */
     const t = world.self.trait;
     if ((t[BI.CLEVEL] ?? 0) > (t[BI.MAXCLEVEL] ?? 0)) t[BI.MAXCLEVEL] = t[BI.CLEVEL]!;
     if ((t[BI.CDEPTH] ?? 0) > (t[BI.MAXDEPTH] ?? 0)) t[BI.MAXDEPTH] = t[BI.CDEPTH]!;
-    if (world.facts.depth !== lastDepth) {
-      session.flow.state.borgBegan = world.clock;
-      getFightState(world).began = world.clock;
-      world.self.timeThisPanel = 1;
-      lastDepth = world.facts.depth;
+
+    /* 5b. The arrival latch the pickup rung rides on (see borgPickUpHere).
+     * Stepping somewhere new opens it; any command other than a pickup closes
+     * it, so collecting can only ever happen on arrival, which is the one thing
+     * upstream's pickup_always guarantees and a standing rung does not. */
+    const at = `${String(world.facts.depth)}:${String(world.self.c.x)},${String(world.self.c.y)}`;
+    if (at !== session.lastGrid) {
+      session.lastGrid = at;
+      session.arrivalPickup = true;
     }
 
     /* 6. Decide (store or dungeon ladder). */
-    return think(ctx);
+    const cmd = think(ctx);
+    if (cmd?.code !== "pickup") session.arrivalPickup = false;
+    return cmd;
   };
 
   return { world, rng, controller };

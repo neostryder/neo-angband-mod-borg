@@ -30,7 +30,7 @@
  * All randomness draws from ctx.rng (determinism ratchet).
  */
 
-import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
+import type { AgentCommand, ItemView } from "@rpgm-tools/neo-angband-core";
 import { FEAT } from "./core-api.js";
 import type { BorgContext } from "./context.js";
 import { distance } from "./think.js";
@@ -93,8 +93,92 @@ import {
   type ThinkSession,
 } from "./think-session.js";
 import { borgNearMonsterType } from "./perceive-facts.js";
+import { junkKey, takeValue } from "./perceive.js";
 
 /* ------------------------------------------------------------------ helpers */
+
+/**
+ * Pick up a floor object the Borg is standing on.
+ *
+ * UPSTREAM HAS NO EQUIVALENT RUNG, and that is the whole reason this one is
+ * here. The C borg never presses the pickup key: `borg_reinit_options`
+ * (borg-init.c:415) turns on `pickup_always` when the borg takes over, so
+ * stepping onto an object collects it as part of the move. This engine is
+ * command-driven and the option belongs to the human's saved settings, so a mod
+ * that flipped it would be changing the player's game behind their back and
+ * leaving it changed after the Borg was switched off. Asking for the object is
+ * the same outcome through a command the engine already accepts.
+ *
+ * Without this the flow-to-object rungs are worse than useless: the Borg walks
+ * across the level to a bow, stands on it, and walks away again. Gold is the
+ * exception and always worked, because the engine collects gold on the step
+ * whatever the option says, which is why a Borg that has never picked anything
+ * up still comes home richer.
+ *
+ * ONLY ON ARRIVAL, and that restriction is the whole difference between this
+ * and a hang. `pickup_always` fires as part of a MOVE and can never fire while
+ * standing still; a rung that fires whenever there is something underfoot picks
+ * up the very item borg_drop_junk has just dropped, which drops it again, which
+ * picks it up again. Measured over 1500 decisions: fifty-five drops and five
+ * pickups on one square with nothing else in sight. Upstream's own comment on
+ * the -10 valuation names this loop as the thing it exists to prevent.
+ *
+ * The value test is `borg_new_take`'s, from the live view rather than the take
+ * list: the record for an object underfoot is deleted by perception before any
+ * rung runs (borg-update.c:1583, and upstream deletes it for the same reason).
+ */
+function borgPickUpHere(
+  ctx: BorgContext,
+  session: ThinkSession,
+): AgentCommand | null {
+  const w = ctx.world;
+  if (!session.arrivalPickup) return null;
+  if (session.flow.state.hooks.packFull(w)) return null;
+
+  const items = ctx.view.floorItems(w.self.c.x, w.self.c.y);
+  if (items.length === 0) return null;
+
+  /* Grid AND pile size. A pile takes one press per object, so repeating is
+   * correct for as long as the pile is shrinking; the same pile still there
+   * after a press means the engine declined - the player's ignore rules hide
+   * it, the pack cannot take it - and asking again costs no game time, so it
+   * would spend every remaining decision on it. */
+  const here =
+    `${String(w.facts.depth)}:${String(w.self.c.x)},${String(w.self.c.y)}` +
+    `:${String(items.length)}`;
+  if (session.pickupTried === here) return null;
+
+  let worth = false;
+  for (const item of items) {
+    if (
+      takeValue(item, {
+        kindCost: session.resolvers.kindCost,
+        junked: session.junked,
+      }) > 0
+    ) {
+      worth = true;
+      break;
+    }
+  }
+  if (!worth) return null;
+
+  session.pickupTried = here;
+  return ctx.act.pickup();
+}
+
+/** The gear handle an item command carries, or undefined (agent/act.ts:64). */
+function handleOf(cmd: AgentCommand): number | undefined {
+  const args = (cmd as { args?: Record<string, unknown> }).args;
+  const h = args?.["handle"];
+  return typeof h === "number" ? h : undefined;
+}
+
+/** The carried item with this gear handle, or null. */
+function findByHandle(ctx: BorgContext, handle: number | undefined): ItemView | null {
+  if (handle === undefined) return null;
+  for (const item of ctx.view.inventory()) if (item.handle === handle) return item;
+  return null;
+}
 
 /** trait[BI_X] with a 0 default (borg.trait[BI_X]). */
 function T(ctx: BorgContext, i: BI): number {
@@ -121,8 +205,21 @@ function nearestTrackDist(
   return best;
 }
 
-/** borg_must_return_to_town approximation (borg-prepared.c:828 via restock). */
-function mustReturnToTown(ctx: BorgContext): string | null {
+/**
+ * borg_must_return_to_town (borg-prepared.c:828). Both of its guards are
+ * load-bearing and both were missing, which made this the single biggest reason
+ * the Borg turned round almost as soon as it arrived anywhere.
+ *
+ * Upstream never asks the question in town, and never asks it in the first 100
+ * borg turns on a level ("Always spend time on a level unless 100"), so a
+ * character that is short of something walks the level it is on before deciding
+ * to go home. Without the guards the two call sites - the rising flag, and the
+ * "go to town without delay" rung that outranks attacking, wearing, collecting
+ * and exploring - could both fire on the FIRST think after arriving.
+ */
+function mustReturnToTown(ctx: BorgContext, began: number): string | null {
+  if (T(ctx, BI.CDEPTH) === 0) return null;
+  if (ctx.world.clock - began < 100 && T(ctx, BI.CDEPTH) !== 100) return null;
   return borgRestock(ctx, T(ctx, BI.CDEPTH));
 }
 
@@ -232,7 +329,7 @@ export function borgLeaveLevel(
         dir = -1;
       }
     }
-    if (mustReturnToTown(ctx) !== null) g.rising = true;
+    if (mustReturnToTown(ctx, session.flow.state.borgBegan) !== null) g.rising = true;
   }
 
   /* Playing too shallow -> town to recall deeper (util:796). */
@@ -394,9 +491,16 @@ export function borgThinkDungeon(
   }
 
   /* if standing on something valueless, destroy it (:1205). Not ported (needs
-   * floor-item valuation); yields. */
+   * the ignore subsystem); yields. */
   {
     const cmd = NOT_PORTED();
+    if (cmd) return cmd;
+  }
+
+  /* Take what is under my feet. Upstream has no rung here at all; see
+   * borgPickUpHere for why this port needs one. */
+  {
+    const cmd = borgPickUpHere(ctx, session);
     if (cmd) return cmd;
   }
 
@@ -468,7 +572,11 @@ export function borgThinkDungeon(
     const bj = nearestTrackDist(ctx, st.less);
     const leash = T(ctx, BI.CLEVEL) * 3 + 14;
     if (!g.less && bj > leash) g.less = true;
-    else if (g.less && bj !== -1 && bj < 3) {
+    /* No `bj !== -1` guard, deliberately. An empty track list gives -1, and
+     * upstream lets -1 satisfy `b_j < 3` and clear the flag (:1455); a Borg
+     * that has arrived somewhere with no stairs recorded is not "too far from
+     * the stairs", and guarding the case latches goal.less permanently. */
+    else if (g.less && bj < 3) {
       g.less = false;
       g.type = 0;
     }
@@ -541,7 +649,7 @@ export function borgThinkDungeon(
   }
 
   /* if I must go to town without delay (:1573). */
-  if (mustReturnToTown(ctx) !== null) {
+  if (mustReturnToTown(ctx, st.borgBegan) !== null) {
     const cmd = borgLeaveLevel(ctx, session, false);
     if (cmd) return cmd;
   }
@@ -773,7 +881,16 @@ export function borgThinkDungeon(
   /* Drop junk (:1858) -> ported borgCrushJunk. */
   {
     const cmd = borgCrushJunk(ctx, itemDeps);
-    if (cmd) return cmd;
+    if (cmd) {
+      /* Remember the kind. Upstream inscribes the item "borg ignore" one
+       * keypress before it drops it (borg-junk.c:464-467), which prices it at
+       * -10 for borg_new_take and is the only thing stopping the Borg from
+       * collecting its own discards on the way past. The frozen action surface
+       * has no inscribe command, so the memory lives here instead. */
+      const dropped = findByHandle(ctx, handleOf(cmd));
+      if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
+      return cmd;
+    }
   }
   /* Drop items to make space / if slow (:1862, :1866): not ported. */
 

@@ -221,6 +221,74 @@ and let a squint-eyed rogue kill it.
   monster" flag latches on the first bad direction and then applies to all of
   them, which in practice makes backing away a corridor manoeuvre.
 
+- **It never picked anything up, and it was two separate faults.** Every rung
+  that walks to a floor object gates on that object's estimated value, and
+  `borg_new_take`'s valuation (`borg-flow-take.c:251-271`) had never been
+  ported: the field it writes was initialised to "worthless" and no code path
+  ever set it otherwise, so every object on every floor scored zero and the Borg
+  walked past all of it. Gold was the exception and hid the rest, because the
+  engine collects gold on the step whatever the character has decided.
+
+  Fixing the valuation alone would have made it worse. Upstream never presses a
+  pickup key: it turns on `pickup_always` when it takes over
+  (`borg-init.c:415`), so stepping onto an object collects it. A mod cannot flip
+  that option without changing the human's saved settings and leaving them
+  changed, so the Borg now asks for what is under its feet with the ordinary
+  pickup command, on arrival only. On arrival only is not a detail: a rung that
+  collects while standing still picks up whatever the junk-dropping rung has
+  just put down, and puts it down again. Measured at fifty-five drops against
+  five pickups on one square before that was gated.
+
+  Pricing needs the shop value of an object kind and whether the character knows
+  the flavour, both of which the frozen view leaves out; they now arrive through
+  the same host seam that already carries danger vision, so a mod's own object
+  is priced by the same lookup as one of the game's.
+
+  Upstream also inscribes an item "borg ignore" one keypress before it drops it
+  as junk, which prices it at -10 and is the only thing that stops the Borg
+  collecting its own discards on the way past. There is no inscribe command on
+  the frozen action surface, so the Borg remembers what it has thrown away on
+  this level instead.
+
+- **It turned round almost as soon as it arrived.** `borg_must_return_to_town`
+  (`borg-prepared.c:828`) has two guards and the port had neither: upstream
+  never asks the question in town, and never asks it in the first hundred turns
+  on a level, so a character short of supplies walks the level it is on before
+  deciding to go home. Without them, the "go to town without delay" rung - which
+  outranks attacking, collecting and exploring - could fire on the first think
+  after arriving anywhere.
+
+- **The Borg's clock never restarted, and after thirty thousand decisions it
+  stopped playing for good.** `borg_t` is a PER-LEVEL counter upstream, reset to
+  1000 on every arrival (`borg-update.c:2017`), and every absolute test written
+  against it assumes that. Here it only ever climbed, so the message-flush hacks
+  at twelve and twenty-five thousand fired once and never again, the monster
+  purge at twenty thousand became permanent, and `borg_think_dungeon`'s own
+  overflow panic at thirty thousand - which hands the game back to a human -
+  became a fixed end to every long session rather than something no character
+  ever reaches. The same arrival now also zeroes the anti-summon timer and
+  accumulates the time-since-town counter, which nothing had ever written, so
+  the two arms that read it were measuring time on the current level instead.
+
+- **Arriving somewhere new left the old level's staircases on the map.** The
+  location tracks - stairs, doors, glyphs, rubble veins - are wiped on arrival
+  upstream (`borg-update.c:2165-2183`) and were not wiped here, because they
+  live beside the pathfinder rather than in the world model. The rung that keeps
+  a weak character near an escape route then measured the distance from the
+  character to a staircase on a level it was no longer on. At character level
+  one that leash is seventeen grids, so it decided it had wandered too far on
+  its first think of every new level, and turned back. A companion fault kept it
+  turned back: the flag only clears when the Borg is within three grids of a
+  known up staircase, and the port had added a guard that skipped the clear when
+  no staircase was known at all, so on a level with none the flag never came off.
+
+- **A readiness flag was being written by a routine that upstream leaves alone.**
+  `borg_prepared`'s shallow branch (`borg-prepared.c:627`) returns without
+  touching `ready_morgoth`; this port set it to "unknown" on the way out
+  regardless. `borg_caution` will only set the flag that actually spends a turn
+  on a staircase while that reads zero, so whether the Borg would climb depended
+  on which subsystem had asked a question last.
+
 ### Added
 
 - **A test that plays the game.** `src/play.test.ts` boots a real game against the

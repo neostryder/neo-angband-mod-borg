@@ -45,7 +45,10 @@ interface ActivationLike {
  * instead of building a real pack.
  */
 export interface CoreObjectLookup {
-  lookupKind(tval: number, sval: number): { activation: ActivationLike | null } | null;
+  lookupKind(
+    tval: number,
+    sval: number,
+  ): { activation: ActivationLike | null; cost?: number } | null;
   findEgo(name: string): { activation: ActivationLike | null } | null;
   findArtifact(name: string): { activation: ActivationLike | null } | null;
 }
@@ -58,6 +61,8 @@ export interface CoreObjectLookup {
 export interface CoreShopLookup {
   actor: { grid: { x: number; y: number } };
   chunk: { feature(grid: { x: number; y: number }): { shopnum: number } };
+  /** state.isAware (obj-knowledge): does the character know this flavour? */
+  isAware?: (kind: unknown) => boolean;
 }
 
 /** What the host supplies to build real resolvers. */
@@ -239,11 +244,23 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     for (const msg of method.messages) blowActions.push(msg);
   }
 
+  /* borg_new_take's price (borg-flow-take.c:251-258): kind->cost when the kind
+   * is aware, and awareness is the character's, not the engine's. Both halves
+   * come from data the host already passes for other seams, so this adds no new
+   * plumbing - it just asks the questions nothing had asked. */
+  const kindCost: BorgResolvers["kindCost"] = (tval, sval) => {
+    if (!objects) return null;
+    const kind = objects.lookupKind(tval, sval);
+    if (!kind) return null;
+    return { cost: kind.cost ?? 0, aware: state?.isAware?.(kind) ?? false };
+  };
+
   return {
     resolveMonsterFacts,
     resolveActivation,
     activateHandle,
     inShop,
+    kindCost,
     blowActions,
     // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
     // which the agent API declares optional on the view itself, and answers null

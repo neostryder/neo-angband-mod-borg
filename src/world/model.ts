@@ -294,7 +294,8 @@ export class BorgWorld {
     this.self.stairLess = false;
     this.self.stairMore = false;
 
-    this.self.timeThisPanel = 0;
+    /* borg-update.c:2021 sets the panel clock to 1, not 0. */
+    this.self.timeThisPanel = 1;
     this.self.timesTwitch = 0;
     this.self.escapes = 0;
   }

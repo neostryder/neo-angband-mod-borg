@@ -85,6 +85,11 @@ interface ControllerCtx {
     readonly chunk: {
       feature(grid: { x: number; y: number }): { shopnum: number };
     };
+    /* Flavour awareness, for pricing a floor object the way borg_new_take
+     * does. Optional in the declared shape because it is optional on the host's
+     * own state; absent, every kind reads as unaware, which is upstream's
+     * "worth 1, pick it up and find out". */
+    readonly isAware?: (kind: unknown) => boolean;
   };
 }
 

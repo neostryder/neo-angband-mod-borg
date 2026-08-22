@@ -409,6 +409,81 @@ is the instrument the shape below says a harness cannot replace.
   direction: symptom 5 was the Borg not knowing it was under attack, and this is
   the Borg knowing and having nowhere to put that knowledge.
 
+### Four more from watching it play, 2026-08-22
+
+Reported after the three above were fixed: "Base delay seems low. Movement was
+not swift like upstream. A level-1 character did not seem interested in picking
+up ammo that could be sold. Did not seem to think to use the rest function,
+instead passing time one turn at a time in town to heal. Still dies earlier than
+one would expect. Seems extremely reluctant to go more than a few turns in the
+dungeon before going back, even with no apparent dangers around. Also ignored a
+bow and a scroll on the ground."
+
+Four complaints, and they resolve into two real defects, one engine gap, and one
+thing that is not a defect at all.
+
+**7. "Not interested in any loot" was exactly right, and it was two faults.**
+Every floor-object rung reads an estimated value, `borg_new_take`'s valuation
+was never ported, and the field it writes started at zero - so every object
+scored worthless. Gold hid it, because the engine collects gold on the step
+regardless. And nothing would have picked anything up even once the valuation
+worked, because upstream collects by turning on `pickup_always` rather than by
+pressing a key. Both are fixed; see the changelog for the shape, including why
+the pickup only fires on arrival and how the Borg now remembers what it threw
+away in place of upstream's "borg ignore" inscription.
+
+**8. "Extremely reluctant to go more than a few turns in the dungeon" was four
+faults stacked, and none of them was `borg_restock`.** Checked first, because it
+is the obvious suspect: on depth 1 the only condition upstream can reach is
+"light radius below 1", and light has a real producer, so restock is innocent
+for a fresh character. What was actually happening: `borg_must_return_to_town`
+had lost both of its guards, so the highest-priority "go home" rung could fire
+on the first think after arriving; the location tracks were never wiped on a
+level change, so the short-leash rung measured against the previous level's
+staircases and latched "return to the stairs" immediately; the flag it latched
+could not clear on a level with no known staircase; and the per-level clock
+never restarted, so every absolute timing test in the ladder was measuring the
+whole session. All four are fixed.
+
+Worth stating for the record: a character at level one genuinely does stay only
+about fifty borg turns on a level before considering the stairs
+(`borg-think-dungeon-util.c:571`, `clevel * 50`). That part reads as impatience
+and is upstream's own number.
+
+**9. "Did not seem to use the rest function" is real, is measurable, and cannot
+be fixed in this repository.** Upstream rests in blocks - `R` then 100, or `*`
+for "until healed", or 9 while waiting for recall - at fourteen call sites. The
+frozen action surface has one `rest()` and the engine maps it to a single-turn
+hold, so the Borg necessarily passes time one turn at a time. That is not
+cosmetic: five consecutive turns of a real rest DOUBLE hit-point and mana
+regeneration (`player-util.c:459`, gated on `REST_REQUIRED_FOR_REGEN`), and a
+hold never starts a rest, so this Borg heals at half the rate upstream's does.
+It is a plausible contributor to "still dies earlier than one would expect",
+since it spends twice as long standing still to recover and re-enters the
+dungeon less healed when it gives up waiting.
+
+The fix is an engine seam - an agent-visible rest that takes a turn count and
+starts a real rest - and it is deliberately NOT bundled here. The mod's engine
+floor is already a version that has not been published; raising it again would
+tag a mod that no player could load. Named here as the next engine change this
+mod needs.
+
+**10. "Base delay seems low, movement was not swift" is not a defect, and the
+numbers are worth writing down.** The host drives a mod autoplayer on a fixed
+120 ms timer, hard-coded, one decision per tick. Upstream deliberately PAUSES
+the borg so a human can watch: `borg_think_dungeon` waits
+`delay_factor^2 + borg_delay_factor^2` milliseconds every think
+(`borg-think-dungeon.c:1161,1237`), and the shipped `delay_factor` is 40
+(`option.c:160`), which is 1600 ms. So this Borg already runs about thirteen
+times faster than upstream's default, and the only thing upstream offers that
+this does not is a control to make it SLOWER. What is genuinely missing is a
+player-visible speed control, which is the game's to add and is already recorded
+in its own PLANNED.md.
+
+One thing that looked like a defect and is not: the light modifier on a worn
+item is added twice (`trait.ts:325` and `:329`). Upstream adds it twice too
+(`borg-trait.c:1518` and `:1533`). Core keeps the wart.
+
 **The shape all of these share is worth naming, because it is the fourth time
 this repository has met it.** Not one was a mistake in the ported arithmetic. Each
 was a value the ported decision code READS and nothing in the mod ever WROTE, and
@@ -452,6 +527,7 @@ implemented" but "who writes it".
 | 2026-08-21 | **Step 2 complete: all four seams wired.** The fourth needed an engine capability rather than host plumbing, and it landed with Neo Angband 0.25.0 as `AgentView.simulateLoadout`: the engine's own `calc_bonuses` over a hypothetical set of worn objects, with nothing in the live game written. `src/trait/simulate.ts` runs the ported `borg_notice` and `borg_power` over the loadout it describes, which is the wield / recompute / revert shape upstream uses, against a scratch copy of the self-model so a ladder can score a dozen candidates without disturbing the Borg's view of itself. `think-session.ts` fans that one seam out into the five questions the ported subsystems ask (`wearEval`, `buyShopEval`, `buyHomeEval`, `sellEval`, `sellHomeBadEval`); the two swap valuations are unreachable rather than pending, because this port has no swap subsystem and both contribute zero to `borg_power`. It landed behind a probe on `ctx.core.simulateLoadout`, so an older game degraded instead of throwing; the probe came out again the same day, when the engine range was pinned (see Releasing this). |
 | 2026-08-21 | **Step 3 done: the restart loop.** Not one line of it is in this repository, and that is the finding rather than an accident of scheduling - `AgentCommand` is `PlayerCommand`, so there is no value a controller could return that means "roll me a new character", and the death handler lives in the host's game loop. Neo Angband 0.25.0 gained `StartedGame.reincarnate` (upstream's `reincarnate_borg`, over this port's own `generatePlayer` / `outfitPlayer` rather than a second copy of the birth pipeline) and the host's `LOOP_STATUS.DEAD` branch calls it, ahead of every step of the human death flow, whenever a mod holds the keyboard. The gate is the one autoplayer slot the host already had, so there is no second toggle and no mod id written into the engine. `NOSCORE_BORG` is set at upstream's own activation gate and again on each respawn. |
 
+| 2026-08-22 | **Four more from a second field report, described as symptoms 7 to 10 above.** Floor objects were never priced and never picked up, which is the whole of "not interested in any loot"; `borg_must_return_to_town` had lost both of its guards; the location tracks survived a level change so the short-leash rung measured against the previous level's staircases; and the per-level clock never restarted, which among other things stopped the Borg deciding at all after thirty thousand decisions. Two things were checked and found faithful rather than fixed: the doubled light modifier, and the decision rate, which is already thirteen times upstream's default. One is named as the next ENGINE seam this mod needs: an agent-visible rest that takes a turn count, without which the Borg regenerates at half upstream's rate. |
 | 2026-08-22 | **Three defects from a read-the-C-beside-the-port pass, described as symptom 6 above.** The Borg's private RNG was restarted every think instead of carried, so every draw at a fixed point in the decision was a constant; `borg_escape` was handed the least-dangerous neighbouring square's danger instead of the danger of the square the Borg stands on, which can only suppress an escape; and `borg_caution`'s *** Back away *** block was not ported, leaving no tactical retreat at all between "use an escape item" and "attack". All three are fixed, with `src/fight/fight.test.ts` covering the retreat and its refusals, `src/foundation.test.ts` covering the stream advancing while staying replayable from a seed, and `src/play.test.ts` now varying the Borg's seed with the run so the harness can see this class of bug at all. |
 | 2026-08-21 | **Step 4 started, and found the defect the whole file predicts.** 0.6.1 installed from its tag into the released 0.25.0 desktop build, enabled, keyboard handed over - and it threw on the first perceived turn, because the manifest declared `command:add` and nothing else while the frozen view is gated per read DOMAIN. It had logged success first: `the Borg has the keyboard, and danger vision over 624 races, activation identity, the in-shop signal and loadout evaluation`. Fixed in 0.6.2 by declaring the nine domains the port reads, with a test that derives the set from the source instead of restating it. This is the same shape as everything above - a seam that looked wired from every angle except the one that plays a turn - and it is exactly what a green suite could not see. |
 

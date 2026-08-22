@@ -167,7 +167,7 @@ function makeBorgTake() {
     kIdx: 0,
     tval: 0,
     known: false,
-    wanted: false,
+    value: 0,
     pos: { x: 0, y: 0 },
     when: 0,
     oIdx: 0
@@ -358,7 +358,7 @@ var BorgWorld = class {
     this.self.goal.fleeingToTown = depth === 0 || depth >= 2 ? false : fleeingToTown;
     this.self.stairLess = false;
     this.self.stairMore = false;
-    this.self.timeThisPanel = 0;
+    this.self.timeThisPanel = 1;
     this.self.timesTwitch = 0;
     this.self.escapes = 0;
   }
@@ -4325,7 +4325,7 @@ function borgFlowTake(ctx, flow, viewable, nearness) {
       const j = distance2(flow.less.x[bStair], flow.less.y[bStair], x, y);
       if (j !== 255 && bJ <= leash && j >= leash) continue;
     }
-    if (!take.wanted) continue;
+    if (take.value <= 0) continue;
     const ag = w.map.at(x, y);
     if (viewable && !(ag.info & BORG_VIEW)) continue;
     if (take.tval === trait(w, 152 /* AMMO_TVAL */) && trait(w, 155 /* AMISSILES */) >= fullQuiver)
@@ -4357,7 +4357,7 @@ function borgFlowTakeScum(ctx, flow, viewable, nearness) {
     const x = take.pos.x;
     const y = take.pos.y;
     const ag = w.map.at(x, y);
-    if (!take.wanted) continue;
+    if (take.value <= 0) continue;
     if (viewable && !(ag.info & BORG_VIEW)) continue;
     if (borgFlowFarFromStairs(ctx, flow, x, y, bStair)) continue;
     flow.tempX[flow.tempN] = x;
@@ -6411,8 +6411,10 @@ function borgPrepared(ctx, depth, opts = {}) {
       return `Collect from house (${R2.home.numEzhealTrue + R2.home.numLifeTrue} potions).`;
     }
   }
-  ctx.world.self.readyMorgoth = -1;
-  if (depth >= 99) ctx.world.self.readyMorgoth = 1;
+  if ((t[106 /* MAXDEPTH */] ?? 0) >= 98 && depth >= 98) {
+    ctx.world.self.readyMorgoth = -1;
+    if (depth >= 99) ctx.world.self.readyMorgoth = 1;
+  }
   return null;
 }
 function borgPreparedAux(t, d, R2, depth) {
@@ -9800,7 +9802,11 @@ function buildThinkSession(resolvers = {}) {
     flow: void 0,
     storeMem: createStoreMemory(),
     resolvers,
-    ctx: null
+    ctx: null,
+    arrivalPickup: false,
+    lastGrid: "",
+    junked: /* @__PURE__ */ new Set(),
+    pickupTried: ""
   };
   session.flow = createFlow(buildFlowHooks(session));
   return session;
@@ -13734,6 +13740,38 @@ function borgNearMonsterType(ctx, dist4) {
 }
 
 // src/think-ladder.ts
+function borgPickUpHere(ctx, session) {
+  const w = ctx.world;
+  if (!session.arrivalPickup) return null;
+  if (session.flow.state.hooks.packFull(w)) return null;
+  const items = ctx.view.floorItems(w.self.c.x, w.self.c.y);
+  if (items.length === 0) return null;
+  const here = `${String(w.facts.depth)}:${String(w.self.c.x)},${String(w.self.c.y)}:${String(items.length)}`;
+  if (session.pickupTried === here) return null;
+  let worth = false;
+  for (const item of items) {
+    if (takeValue(item, {
+      kindCost: session.resolvers.kindCost,
+      junked: session.junked
+    }) > 0) {
+      worth = true;
+      break;
+    }
+  }
+  if (!worth) return null;
+  session.pickupTried = here;
+  return ctx.act.pickup();
+}
+function handleOf(cmd) {
+  const args = cmd.args;
+  const h = args?.["handle"];
+  return typeof h === "number" ? h : void 0;
+}
+function findByHandle(ctx, handle) {
+  if (handle === void 0) return null;
+  for (const item of ctx.view.inventory()) if (item.handle === handle) return item;
+  return null;
+}
 function T(ctx, i) {
   return ctx.world.self.trait[i] ?? 0;
 }
@@ -13750,7 +13788,9 @@ function nearestTrackDist(ctx, track) {
   }
   return best;
 }
-function mustReturnToTown(ctx) {
+function mustReturnToTown(ctx, began) {
+  if (T(ctx, 105 /* CDEPTH */) === 0) return null;
+  if (ctx.world.clock - began < 100 && T(ctx, 105 /* CDEPTH */) !== 100) return null;
   return borgRestock(ctx, T(ctx, 105 /* CDEPTH */));
 }
 var NOT_PORTED = () => null;
@@ -13807,7 +13847,7 @@ function borgLeaveLevel(ctx, session, bored) {
         dir = -1;
       }
     }
-    if (mustReturnToTown(ctx) !== null) g.rising = true;
+    if (mustReturnToTown(ctx, session.flow.state.borgBegan) !== null) g.rising = true;
   }
   if (borgPrepared(ctx, T(ctx, 105 /* CDEPTH */) + 20) === null && borgPrepared(ctx, Math.trunc(T(ctx, 106 /* MAXDEPTH */) * 6 / 10)) === null && T(ctx, 106 /* MAXDEPTH */) > T(ctx, 105 /* CDEPTH */) + 20 && (T(ctx, 38 /* RECALL */) >= 3 || T(ctx, 45 /* GOLD */) > 2e3)) {
     g.rising = true;
@@ -13893,6 +13933,10 @@ function borgThinkDungeon(ctx, session) {
     const cmd = NOT_PORTED();
     if (cmd) return cmd;
   }
+  {
+    const cmd = borgPickUpHere(ctx, session);
+    if (cmd) return cmd;
+  }
   if (w.clock >= 3e4) return null;
   if (w.clock - st2.borgBegan >= 1e4) {
     g.leaving = true;
@@ -13937,7 +13981,7 @@ function borgThinkDungeon(ctx, session) {
     const bj = nearestTrackDist(ctx, st2.less);
     const leash = T(ctx, 35 /* CLEVEL */) * 3 + 14;
     if (!g.less && bj > leash) g.less = true;
-    else if (g.less && bj !== -1 && bj < 3) {
+    else if (g.less && bj < 3) {
       g.less = false;
       g.type = 0;
     }
@@ -13977,7 +14021,7 @@ function borgThinkDungeon(ctx, session) {
       if (shop) return shop;
     }
   }
-  if (mustReturnToTown(ctx) !== null) {
+  if (mustReturnToTown(ctx, st2.borgBegan) !== null) {
     const cmd = borgLeaveLevel(ctx, session, false);
     if (cmd) return cmd;
   }
@@ -14143,7 +14187,11 @@ function borgThinkDungeon(ctx, session) {
   }
   {
     const cmd = borgCrushJunk(ctx, itemDeps);
-    if (cmd) return cmd;
+    if (cmd) {
+      const dropped = findByHandle(ctx, handleOf(cmd));
+      if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
+      return cmd;
+    }
   }
   {
     const cmd = borgFlowOld(ctx, st2, GOAL_TAKE);
@@ -14722,7 +14770,7 @@ var BORG_EXPIRE_TURNS = 2e3;
 function makePerceiveMemo() {
   return { lastDepth: -1, initialized: false };
 }
-function perceive(world, view, memo, tables = emptyMessageTables()) {
+function perceive(world, view, memo, tables = emptyMessageTables(), valuation = {}) {
   const p = view.player();
   const oldX = world.self.c.x;
   const oldY = world.self.c.y;
@@ -14741,7 +14789,7 @@ function perceive(world, view, memo, tables = emptyMessageTables()) {
   ingestMap(world, view);
   borgUpdateLight(world);
   const seen = ingestMonsters(world, view);
-  ingestFloor(world, view, oldX, oldY);
+  ingestFloor(world, view, oldX, oldY, valuation);
   borgReactMessages(world, view.messages(), seen.ids, seen.names, tables);
   world.seeded = true;
 }
@@ -14935,7 +14983,24 @@ function clearLocalRegionFear(world) {
   zero(y2, x1);
   zero(y2, x2);
 }
-function ingestFloor(world, view, oldX, oldY) {
+function junkKey(tval, sval) {
+  return `${String(tval)}:${String(sval)}`;
+}
+var TV_GOLD = 35;
+function takeValue(item, valuation) {
+  let value;
+  if (item.tval === TV_GOLD) {
+    value = 30;
+  } else {
+    const kind = valuation.kindCost?.(item.tval, item.sval) ?? null;
+    value = kind?.aware ? kind.cost : 1;
+  }
+  if (item.toA < 0 || item.toD < 0 || item.toH < 0) value = -10;
+  if (item.inscription?.startsWith("borg ignore")) value = -10;
+  if (valuation.junked?.has(junkKey(item.tval, item.sval))) value = -10;
+  return value;
+}
+function ingestFloor(world, view, oldX, oldY, valuation) {
   for (const [, t] of world.takes.entries()) {
     if (world.map.inBounds(t.pos.x, t.pos.y)) {
       world.map.at(t.pos.x, t.pos.y).take = 0;
@@ -14968,6 +15033,7 @@ function ingestFloor(world, view, oldX, oldY) {
       t.pos.x = x;
       t.pos.y = y;
       t.when = world.clock;
+      t.value = takeValue(head, valuation);
     }
   }
   for (const [i, t] of world.takes.entries()) {
@@ -14999,8 +15065,32 @@ function createBorg(opts = {}) {
     const ctx = { world, view, act, rng };
     world.clock += 1;
     world.self.timeThisPanel += 1;
+    const depth = view.player().depth;
+    if (depth !== lastDepth) {
+      const fs = getFightState(world);
+      if (lastDepth <= 0) fs.timeTown = 0;
+      else fs.timeTown += world.clock - fs.began;
+      world.clock = 1e3;
+      session.flow.state.borgTAntisummon = 0;
+      fs.tAntisummon = 0;
+      fs.began = world.clock;
+      session.flow.state.borgBegan = world.clock;
+      const st2 = session.flow.state;
+      st2.less.wipe();
+      st2.more.wipe();
+      st2.step.wipe();
+      st2.door.wipe();
+      st2.closed.wipe();
+      st2.glyph.wipe();
+      st2.vein.wipe();
+      session.junked.clear();
+      lastDepth = depth;
+    }
     borgNotice(ctx);
-    perceive(world, view, memo, tables);
+    perceive(world, view, memo, tables, {
+      kindCost: session.resolvers.kindCost,
+      junked: session.junked
+    });
     primeSession(session, ctx);
     borgFollowMissingKills(ctx, session.flow.state);
     borgUpdateMonsterFear(ctx);
@@ -15008,13 +15098,14 @@ function createBorg(opts = {}) {
     const t = world.self.trait;
     if ((t[35 /* CLEVEL */] ?? 0) > (t[36 /* MAXCLEVEL */] ?? 0)) t[36 /* MAXCLEVEL */] = t[35 /* CLEVEL */];
     if ((t[105 /* CDEPTH */] ?? 0) > (t[106 /* MAXDEPTH */] ?? 0)) t[106 /* MAXDEPTH */] = t[105 /* CDEPTH */];
-    if (world.facts.depth !== lastDepth) {
-      session.flow.state.borgBegan = world.clock;
-      getFightState(world).began = world.clock;
-      world.self.timeThisPanel = 1;
-      lastDepth = world.facts.depth;
+    const at = `${String(world.facts.depth)}:${String(world.self.c.x)},${String(world.self.c.y)}`;
+    if (at !== session.lastGrid) {
+      session.lastGrid = at;
+      session.arrivalPickup = true;
     }
-    return think(ctx);
+    const cmd = think(ctx);
+    if (cmd?.code !== "pickup") session.arrivalPickup = false;
+    return cmd;
   };
   return { world, rng, controller };
 }
@@ -15111,11 +15202,18 @@ function makeCoreResolvers(input) {
   for (const method of input.blowMethods ?? []) {
     for (const msg of method.messages) blowActions.push(msg);
   }
+  const kindCost = (tval, sval) => {
+    if (!objects) return null;
+    const kind = objects.lookupKind(tval, sval);
+    if (!kind) return null;
+    return { cost: kind.cost ?? 0, aware: state?.isAware?.(kind) ?? false };
+  };
   return {
     resolveMonsterFacts,
     resolveActivation,
     activateHandle: activateHandle2,
     inShop,
+    kindCost,
     blowActions,
     // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
     // which the agent API declares optional on the view itself, and answers null
