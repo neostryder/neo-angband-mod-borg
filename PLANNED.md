@@ -53,7 +53,12 @@ Three claims, and the third is the one that decides it:
    shopped, whether it used an activation, how it died, and whether it started
    again. A green test suite is not this claim and cannot become it.
 
-   **NOT DONE. First attempted 2026-08-21, and it failed.** The watching happened
+   **DONE 2026-08-22.** See "Watched playing, 2026-08-22" below for both runs and
+   all six answers. The short version: it plays, it fights, it flees, it dies and
+   it starts again on its own; it does not shop, and that is the reason it is
+   still dying at character level one.
+
+   **First attempted 2026-08-21, and that attempt failed.** The watching happened
    and is written down below; what it showed is that the Borg does not yet get far
    enough for this claim to be answerable. It reached 50 feet twice and stalled
    both times without dying, so the restart loop was never exercised at all. Three
@@ -239,6 +244,81 @@ Two honest limits, both reviewed rather than assumed:
   command registry handles those three codes today - a separate gap, recorded
   below, and the reason the shopping seen in the watched runs cannot be credited
   to the ladder.
+
+## Watched playing, 2026-08-22
+
+Two instruments, both driven over CDP, each with its own `NEO_ANGBAND_DATA` so
+neither touches a real install:
+
+- the **development Electron build** at engine 0.26.0, with the mod loaded as a
+  folder from this checkout's `master` (no tag needed for a folder load);
+- the **v0.26.0 release artifact** (`Neo.Angband-0.26.0-win.zip`, read out of the
+  unpublished draft), unpacked to a short path and run against its own data dir.
+  It confirms the packaged bytes behave the same as the development build, and
+  `window.__neo` is absent in it, which is how a release build is told from a
+  development one.
+
+Both were seeded the way the mod manager writes its own state (third-party mods
+allowed, `borg` enabled, its ten capabilities granted, `borg.autoplay` on), then
+handed a character rolled with the birth screen's own random-everything key.
+
+| | Development build, 13 min | Release artifact, 4 min |
+|---|---|---|
+| Mod loaded | yes: `danger vision over 624 races, activation identity, the in-shop signal and loadout evaluation` | same line, same numbers |
+| Mod faults / console errors | **0** | **0** |
+| Characters played | 4 | 2 |
+| Depth reached | **50 ft (L1)** | **50 ft (L1)** |
+| Levels visited | 25 down / 24 up staircases in the 9-minute sample | 44 down / 43 up |
+| Fought | 2 slain, several fights lost | **13 slain**, 53 blows landed |
+| Fled | **yes** | **yes** |
+| Shopped | **no** | **no** |
+| Used an activation | no - owned nothing with one | no |
+| How it died | a giant yellow centipede; Grip, Farmer Maggot's Dog; once while confused | Fang, Farmer Maggot's Dog, with a wild dog |
+| Started again | **yes, 3 times, unattended** | **yes, unattended** |
+
+### What was actually seen, message by message
+
+**It answers its own prompts and keeps going.** 37 `answered a blocking prompt`
+events in the 9-minute sample, including the forced `-more-` in front of every
+level change. Nothing ever waited for a human.
+
+**A locked door is opened rather than disarmed forever.** Four locks picked in the
+sample, each preceded by two to five `You failed to pick the lock.`, one per
+second - failures that SPEND A TURN, where the old refusal loop spent none and
+froze game time. This is the 2026-08-21 stall, gone, in the shell.
+
+**It explores.** Four secret doors found by searching, rubble tunnelled through
+with its weapon, two piles of copper picked up, and screenshots showing whole
+rooms and corridor networks revealed. Nothing resembling the reported three-cell
+shuffle appeared in either run.
+
+**It flees, and the cleanest example is unambiguous.** In the artifact run a crow
+traded blows with it, the low-hitpoint warning fired, it landed one more hit that
+routed the crow, and it left by the up staircase on the next decision. In the
+development run a fruit bat bit it nine times without a single blow in reply, the
+warning fired, and three seconds later it took the stairs. Nine low-hitpoint
+episodes in the artifact run produced one death and eight survivals.
+
+**And it rests to recover, which is what the seam wired to a constant `true` had
+been preventing.** After that fruit-bat retreat it arrived in town at 6 of 11 hit
+points, stood on the down staircase, and was at 10 of 11 four seconds later.
+
+### The one thing it does not do, and what that costs
+
+**It never enters a shop.** Both runs revealed the whole town, all eight shop
+entrances included, and walked past every one of them. Gold only ever went UP
+(204 to 314 in one character, from finds), so nothing was bought - which is item
+5 below, exactly as written: `shop-buy`, `shop-sell` and `shop-exit` have no
+handler in the engine's command registry, so the ported store ladder's decisions
+are inert.
+
+That is now the largest single thing standing between this Borg and a deeper run.
+It fights with birth gear, has no cure potions and no armour to buy, so it dies at
+character level one and cycles between the town and 50 feet. The town-and-L1
+shuttle itself is faithful rather than a stall - `borg-think-dungeon.c:984` forces
+`stair_less` while `ready_morgoth == 0`, and a level-one character is scared off a
+level by almost any monster on it (`borg-flow-kill.c:2727` onward) - but upstream's
+borg breaks out of that cycle by shopping, and this one cannot.
 
 ### The two symptoms that came back from a real game, 2026-08-21
 
@@ -577,7 +657,7 @@ just prior art:
   whether this looks like "Core + Borg indistinguishable from the original game
   running its own borg," which is the bar for this item.
 
-### 4. Watch it, several times, and write down what happened - ATTEMPTED 2026-08-21, AND IT FAILED
+### 4. Watch it, several times, and write down what happened - DONE 2026-08-22
 
 Driven in the installed desktop build over CDP, because that is the only
 instrument here that proves pixels and a running game rather than a populated data
@@ -595,20 +675,18 @@ watching was somebody else's, it took minutes, and it found two defects a green
 suite and a 1500-decision harness had both passed over. The harness could see them
 once it was asked the right questions, which are now permanent assertions.
 
-**Second attempt, still owed: watch it again in the installed build.** Every stall
-above was found and closed with a headless instrument (`src/play.test.ts`), which
-drives a real game and a real Borg but paints nothing and runs no shell. What it
-proves is that the DECISIONS have stopped looping, over four seeds and 1500
-decisions each: the Borg now explores hundreds of squares, opens doors, disarms
-real traps, changes level under its own steam, and dies. What it cannot prove is
-anything about the shell - and the prompt seam is entirely shell-side, so the one
-claim this item exists to make still needs the desktop build over CDP.
+**Second attempt, 2026-08-22: the answer was yes.** Recorded in full under
+"Watched playing, 2026-08-22" above, against two instruments - the development
+Electron build and the packaged v0.26.0 release artifact - each on its own
+isolated data directory. All six questions this item asks are answered there,
+including the two that had never been reachable: it died, and it started again by
+itself, four times across the two runs.
 
-What remains to record, once run: what depth it reached, whether it fled, whether
-it shopped, whether it used an activation, how it died, and whether it started
-again. The last of those is the one the first attempt could never reach, because
-nothing died; four seeds now die headlessly, so the restart loop is finally
-reachable.
+The headless instrument (`src/play.test.ts`) found and closed every stall, and it
+could not have answered this item: it paints nothing and runs no shell, and the
+prompt seam is entirely shell-side. The shell run is what showed 37 prompts
+answered, locked doors picked one turn at a time, and a retreat to town followed
+by a rest.
 
 **And the mod cannot be tagged before the game's RELEASE is published**, which is
 a later event than the version bump. Both game-side fixes are in Neo Angband
@@ -635,6 +713,14 @@ was spent, however plausible it looked.
 This is the game's to close, not this repository's: three command handlers, on the
 same terms as every other verb. Until then a step onto a shop door has the screen
 dismissed by the prompt seam, which keeps the run going and buys nothing.
+
+**Watching it confirmed the cost, 2026-08-22.** Across two runs the Borg revealed
+the whole town, all eight shop entrances included, walked past every one of them,
+and never spent a coin - gold only ever rose, from finds. So it fights with birth
+gear, carries no cure potions, and dies at character level one; the town-and-L1
+cycle it then sits in is upstream's own behaviour, but upstream's borg leaves that
+cycle by shopping. This is now the largest single thing between this Borg and a
+deep run, and it is not fixable here.
 
 ## What is deliberately NOT here
 
