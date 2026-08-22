@@ -477,13 +477,10 @@ needed"); the one call that wanted exactly one tactical turn
 the `src/play.test.ts` health harness (6 tests) both pass against the real
 published package rather than a local build - `npm install` pulled it from the
 registry, not a workspace link. A fixed-point unit test already proves the x2
-regen bonus applies after five turns of the new `restAction`. What is still
-missing is the thing only a longer or a watched run can show: this
-repository's own environment cannot currently sustain an unattended visual
-watch of a live game window (a Chromium background-tab timer-throttling limit,
-not a game defect), so nobody has watched a live character rest in one block
-rather than one hold at a time. The mechanism is proven; the experience is
-not yet witnessed.
+regen bonus applies after five turns of the new `restAction`. The mechanism is
+shipped and unit-tested; what is not yet confirmed is that the Borg's own
+decision ladder chooses an extended rest and reaches the doubled regen rate in
+an unscripted, unattended run against the real engine. Tracked as issue #3.
 
 **10. "Base delay seems low, movement was not swift" is not a defect, and the
 numbers are worth writing down.** The host drives a mod autoplayer on a fixed
@@ -512,28 +509,24 @@ implemented" but "who writes it".
 
 ### What is still not ported, named rather than left to be rediscovered
 
-- **The detection scheduler.** `borg_check_light` (`borg-light.c:250-539`) is the
+- **The detection scheduler.** `borg_check_light` (`borg-light.c:250-539`), the
   routine that casts Find Traps/Doors/Stairs, Detect Evil, Magic Mapping and
-  Detect Objects on a cadence and keeps the per-panel `borg_detect_*` arrays that
-  say which parts of the level have been swept. None of it is here, and the port
-  has no panel concept to hang the arrays on. A caster therefore explores the way
-  a warrior does. It does not touch the symptoms above - a level-one character has
-  none of those spells - but it is the largest single behavioural difference left.
+  Detect Objects on a cadence, is not ported, and the port has no panel concept
+  to hang its `borg_detect_*` arrays on, so a caster explores the way a warrior
+  does. Tracked as issue #1.
 - **Regional fear from a spell cast by something unseen.** The message half is
-  ported for blows; `borg_fear_spell` (`borg-update.c:745`) and the monster-spell
-  message tables it keys off are not, so an invisible caster raises no fear where
-  an invisible biter does.
+  ported for blows but not for spells, so an invisible caster raises no fear
+  where an invisible biter does. Tracked as issue #2.
 - **`when_last_kill_mult`.** Upstream refuses to rest for four turns after killing
   a breeder, which needs the race flag at the moment a record is deleted; the
-  message pass that deletes it has no resolver.
-- **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag.
-  `PlayerView` carries object flags and derived skills but no class flags, so this
-  needs an engine seam rather than wiring.
-- **The buff-timer safety net** (`borg-trait.c:3010`). Upstream cross-checks its
-  own guesses about recall, haste, protection and resistances against
-  `player->timed[]` every notice. `PlayerStatusView` carries the eight afflictions
-  and none of the buffs, so the port relies on its own bookkeeping alone. The
-  bookkeeping is correct now that it decays; the net is still missing.
+  message pass that deletes it has no resolver. Tracked as issue #5.
+- **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag
+  that `PlayerView` does not carry, so this needs an engine seam rather than
+  wiring. Tracked as issue #6.
+- **The buff-timer safety net** (`borg-trait.c:3010`). `PlayerStatusView` carries
+  no buff timers, so the port's own bookkeeping about recall, haste, protection
+  and resistances has no cross-check against the engine's real timers. Tracked
+  as issue #7.
 
 ## Progress
 
@@ -853,18 +846,9 @@ object, re-check the player is standing in the right store, and commit through
 the same buy/sell path the interactive shop screen uses - verified in
 neo-angband's own suite by a real `startGame` town, a queued command and
 `runGameLoop`, both a free purchase and a paid sale. Neo Angband 0.27.0
-published this, and `manifest.json`'s floor moved to `>=0.27.0`.
-
-This item stays OPEN rather than CLOSED, for the same reason as the rest item
-above: what is proven is that the engine now honours the command when the
-ladder issues it, not that the ladder issues it in an unscripted run. Neither
-`play.test.ts` nor a quick ad-hoc sample against the real 0.27.0 package
-caught a shop visit in the runs attempted 2026-08-22, but that sample was too
-small and too roughly instrumented to stand as evidence either way - it is not
-recorded as a finding, only as a reason this item is not yet CLOSED. Closing
-it for real needs a properly built automated case that specifically drives the
-Borg to a shop door and asserts gold changes hands, or a watched run
-(unavailable in this environment, see above) confirming it.
+published this, and `manifest.json`'s floor moved to `>=0.27.0`. The binding is
+proven; what is not yet confirmed is that the Borg's own store ladder issues
+those commands and spends gold in an unscripted run. Tracked as issue #4.
 
 ## What is deliberately NOT here
 
