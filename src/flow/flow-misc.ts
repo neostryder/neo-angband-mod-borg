@@ -17,6 +17,7 @@
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
+import { REST_COMPLETE } from "../core-api.js";
 import type { BorgContext } from "../context.js";
 import { distance } from "../think.js";
 import {
@@ -699,7 +700,9 @@ export function borgTwitchy(ctx: BorgContext, flow: FlowState): AgentCommand | n
       break;
     }
     if (allWalls) {
-      return ctx.act.rest();
+      /* Boxed in with nowhere to go: rest as needed rather than one idle turn
+       * at a time, so a walled-in borg at least regenerates while stuck. */
+      return ctx.act.rest(REST_COMPLETE);
     }
   }
 

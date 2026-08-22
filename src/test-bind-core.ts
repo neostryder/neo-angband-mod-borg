@@ -1,7 +1,7 @@
 /**
  * Bind the engine before any test runs, the way the host does at load time.
  *
- * The port takes its six runtime engine symbols through core-api.ts, which the
+ * The port takes its seven runtime engine symbols through core-api.ts, which the
  * plugin fills from `ctx.core`. In a test there is no host, so something has to
  * play that part - and it has to happen before the first test module is
  * evaluated, which is why this is a vitest `setupFiles` entry rather than a

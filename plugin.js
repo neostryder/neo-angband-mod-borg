@@ -8,6 +8,7 @@ var RSF;
 var Rng;
 var MON_RACE_FLAG_ENTRIES;
 var MON_SPELL_ENTRIES;
+var REST_COMPLETE;
 var bound = false;
 function bindCore(core) {
   FEAT = core.FEAT;
@@ -16,6 +17,7 @@ function bindCore(core) {
   Rng = core.Rng;
   MON_RACE_FLAG_ENTRIES = core.MON_RACE_FLAG_ENTRIES;
   MON_SPELL_ENTRIES = core.MON_SPELL_ENTRIES;
+  REST_COMPLETE = core.REST_COMPLETE;
   bound = true;
 }
 function coreIsBound() {
@@ -4296,7 +4298,7 @@ function borgTwitchy(ctx, flow) {
       break;
     }
     if (allWalls) {
-      return ctx.act.rest();
+      return ctx.act.rest(REST_COMPLETE);
     }
   }
   if (trait(w, 113 /* ISAFRAID */)) return ctx.act.tunnel(dir);
@@ -9462,7 +9464,7 @@ function borgRecover(ctx, d, playerHas) {
     if (needCharge) {
       if (!trait3(ctx, 108 /* ISWEAK */) && !trait3(ctx, 116 /* ISCUT */) && !trait3(ctx, 109 /* ISHUNGRY */) && !trait3(ctx, 115 /* ISPOISONED */) && canRest(d) && !borgSpellOkay(ctx, 7 /* RECHARGING */)) {
         ctx.world.self.timeThisPanel = 0;
-        return ctx.act.rest();
+        return ctx.act.rest(REST_COMPLETE);
       }
     }
   }
@@ -9474,12 +9476,12 @@ function borgRecover(ctx, d, playerHas) {
       if (lightCmd) return lightCmd;
       ctx.world.self.timeThisPanel = 0;
       ctx.world.self.temp.needSeeInvis = clockOf(ctx, d) - 50;
-      return ctx.act.rest();
+      return ctx.act.rest(REST_COMPLETE);
     }
   }
   if (trait3(ctx, 31 /* MAXSP */) && (trait3(ctx, 35 /* CLEVEL */) <= 40 || trait3(ctx, 105 /* CDEPTH */) >= 85) && trait3(ctx, 30 /* CURSP */) < Math.trunc(trait3(ctx, 31 /* MAXSP */) * 8 / 10) && p < Math.trunc(avoidance(d) * 1 / 10) && canRest(d)) {
     if (!trait3(ctx, 108 /* ISWEAK */) && !trait3(ctx, 116 /* ISCUT */) && !trait3(ctx, 109 /* ISHUNGRY */) && !trait3(ctx, 115 /* ISPOISONED */) && trait3(ctx, 39 /* FOOD */) > 2 && !ctx.world.self.munchkinMode) {
-      return ctx.act.rest();
+      return ctx.act.rest(REST_COMPLETE);
     }
   }
   return null;
@@ -10738,7 +10740,7 @@ function auxRest(ctx, fs) {
   }
   if (!found) return 0;
   if (fs.simulate) return 1;
-  fs.pending = ctx.act.rest();
+  fs.pending = ctx.act.hold();
   ctx.world.self.goal.waiting = true;
   return 1;
 }
@@ -13890,7 +13892,7 @@ function borgThinkDungeonLight(ctx, session) {
   }
   const noLight = !T(ctx, 26 /* LIGHT */);
   if (noLight && T(ctx, 105 /* CDEPTH */) >= 1) {
-    if (w.self.goal.recalling) return ctx.act.rest();
+    if (w.self.goal.recalling) return ctx.act.rest(REST_COMPLETE);
     const wear = borgWearStuff(ctx, deps);
     if (wear) return wear;
     const light = borgMaintainLight(ctx, deps);
@@ -14079,7 +14081,7 @@ function borgThinkDungeon(ctx, session) {
       if (self.c.y === track.y[i] && self.c.x === track.x[i]) {
         if (T(ctx, 105 /* CDEPTH */)) g.less = false;
         if (borgDanger(ctx, self.c.y, self.c.x, 1, true, false) === 0) {
-          return ctx.act.rest();
+          return ctx.act.rest(REST_COMPLETE);
         }
       }
     }
@@ -14303,7 +14305,7 @@ function borgThinkDungeon(ctx, session) {
     if (cmd) return cmd;
   }
   if (g.recalling && borgDanger(ctx, self.c.y, self.c.x, 1, true, false) <= 0) {
-    return ctx.act.rest();
+    return ctx.act.rest(REST_COMPLETE);
   }
   self.noRetreat = 5;
   if (dg.avoidance < T(ctx, 27 /* CURHP */) * 2) {
