@@ -242,3 +242,81 @@ describe("borgCaution (caution.c:799)", () => {
     expect(borgCaution(ctx, makeFlowState())).toBeNull();
   });
 });
+
+/*
+ * *** Back away *** (caution.c:1664). The Borg's entire short-range tactical
+ * retreat, and for a long stretch it was not ported at all: caution ran, found
+ * no escape item, and returned null, after which the ladder went straight to
+ * attack. A first-level character with an adjacent monster and no phase door
+ * therefore had exactly one move available, and made it every time, which is
+ * how a fresh character dies to an ordinary town rogue.
+ *
+ * The corridor is not incidental to the scenario. Upstream latches
+ * adjacent_monster once and never clears it, so a single candidate square that
+ * sits next to the monster kills the whole search - and in open floor next to
+ * an adjacent monster, the first candidate always does. Backing away is a
+ * corridor manoeuvre in practice. That is upstream 4.2.6, warts kept.
+ */
+describe("borgBackAway (caution.c:1664)", () => {
+  /** Borg at (10,3) in a one-square-high corridor, a monster at (11,3). */
+  function corridor(): BorgContext {
+    const cells: Record<string, { feat: number }> = {};
+    for (let x = 1; x < 19; x++) cells[`${String(x)},3`] = { feat: FEAT.FLOOR };
+    const ctx = makeCtx(
+      {
+        width: 20,
+        height: 7,
+        floorFeat: FEAT.GRANITE,
+        cells,
+        player: { grid: { x: 10, y: 3 } },
+        monsters: [{ grid: { x: 11, y: 3 } }],
+      },
+      /* LIGHT matters: an unlit borg is "nasty" (caution.c:810) and nasty
+       * refuses to give up a square, so a scenario without it tests nothing. */
+      { CURHP: 20, MAXHP: 20, CLEVEL: 1, MAXCLEVEL: 1, CDEPTH: 1, SPEED: 110, LIGHT: 1 },
+    );
+    ctx.world.self.c = { x: 10, y: 3 };
+    /* Past the anti-summon quiet period (caution.c:1676) and short of the
+     * 200-turn restock grace (caution.c:1064). */
+    ctx.world.clock = 100;
+    const k = ctx.world.kills.at(1);
+    k.power = 30;
+    k.awake = true;
+    k.speed = 110;
+    k.when = ctx.world.clock;
+    ctx.world.map.at(11, 3).info |= 0x08 | 0x20; /* BORG_OKAY | BORG_VIEW */
+    getDangerGlobals(ctx.world).avoidance = 20;
+    getDangerGlobals(ctx.world).resolveFacts = () =>
+      facts({ blows: [{ dice: 3, sides: 6, effect: MONBLOW.HURT }] });
+    return ctx;
+  }
+
+  it("steps away from an adjacent monster down a corridor", () => {
+    const ctx = corridor();
+    const cmd = borgCaution(ctx, makeFlowState());
+    expect(cmd?.code).toBe("walk");
+    /* Away from the monster, which is east: keypad 4 is west. */
+    expect(cmd?.dir).toBe(4);
+    expect(ctx.world.self.goal.g).toEqual({ x: 9, y: 3 });
+  });
+
+  it("stands its ground when the danger is not worth a step", () => {
+    const ctx = corridor();
+    /* caution.c:1670 - a nasty situation is no time to give up a square. */
+    ctx.world.self.trait[BI.ISBLIND] = 1;
+    expect(borgCaution(ctx, makeFlowState())).toBeNull();
+  });
+
+  it("stays put while the anti-summon corridor timer is running", () => {
+    const ctx = corridor();
+    /* caution.c:1676 - the Borg fought its way into this spot on purpose. */
+    getFightState(ctx.world).tAntisummon = ctx.world.clock - 10;
+    expect(borgCaution(ctx, makeFlowState())).toBeNull();
+  });
+
+  it("cannot predict where a step lands while confused", () => {
+    const ctx = corridor();
+    ctx.world.self.trait[BI.ISCONFUSED] = 1;
+    expect(borgCaution(ctx, makeFlowState())).toBeNull();
+  });
+});

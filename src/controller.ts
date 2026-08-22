@@ -15,14 +15,16 @@
  *   6. prime the wiring session (danger globals, flow avoidance) and think:
  *      run the store or dungeon ladder, returning one command (or null).
  *
- * The controller is deterministic: it draws only its private RNG (reseeded per
- * think), so a host installs it WITHOUT nondeterministic:true and the save's
- * determinism ratchet stays untripped - a faithful, replayable autoplayer.
+ * The controller is deterministic: it draws only its own private RNG, so a host
+ * installs it WITHOUT nondeterministic:true and the save's determinism ratchet
+ * stays untripped - a faithful, replayable autoplayer. Determinism comes from
+ * the stream being private and seeded, not from restarting it: the stream runs
+ * continuously across thinks, exactly as borg_rand_local does (see rng.ts).
  */
 
 import type { AgentController, Rng } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "./world/model.js";
-import { makeBorgRng, reseedBorgRng } from "./rng.js";
+import { makeBorgRng } from "./rng.js";
 import { perceive, makePerceiveMemo } from "./perceive.js";
 import { buildHitByTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";
@@ -40,15 +42,12 @@ import {
 
 /** Options for building a Borg. */
 export interface BorgOptions {
-  /** Seed for the Borg's private simulation RNG (default BORG_LOCAL_SEED). */
-  rngSeed?: number;
   /**
-   * Reseed the private RNG at the start of every think so a decision's
-   * simulations are a pure function of its inputs (matches the C borg's per-
-   * think seed swap). Default true. Set false to let sim rolls carry across
-   * decisions (rarely wanted).
+   * Starting seed for the Borg's private simulation RNG (default
+   * BORG_LOCAL_SEED). The stream then runs continuously for the life of the
+   * Borg, matching borg_rand_local; it is never restarted mid-session.
    */
-  reseedEachThink?: boolean;
+  rngSeed?: number;
   /**
    * Host-supplied resolver seams for engine data the frozen AgentView cannot
    * surface: the monster-race danger resolver, artifact activation identity, the
@@ -76,7 +75,6 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   const world = new BorgWorld();
   const rng = makeBorgRng(opts.rngSeed);
   const memo = makePerceiveMemo();
-  const reseedEach = opts.reseedEachThink ?? true;
 
   /* Install the wiring session carrying the host resolvers so think() picks it
    * up (getThinkSession) with real seams instead of the inert defaults. */
@@ -90,7 +88,6 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   let lastDepth = -1;
 
   const controller: AgentController = (view, act) => {
-    if (reseedEach) reseedBorgRng(rng, opts.rngSeed);
     const ctx: BorgContext = { world, view, act, rng };
 
     /* 1. Advance the clocks exactly once (borg-think.c:447). */

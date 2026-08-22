@@ -72,6 +72,12 @@ export const ddy: readonly number[] = [0, 1, 1, 1, 0, 0, 0, -1, -1, -1];
 export const ddx_ddd: readonly number[] = [0, 0, 1, -1, 1, -1, 1, -1, 0];
 export const ddy_ddd: readonly number[] = [1, -1, 0, 0, 1, 1, -1, -1, 0];
 
+/**
+ * The keypad direction for each ddx_ddd/ddy_ddd scan index, so a search that
+ * found its answer at index i can turn that back into a movement command.
+ */
+export const ddd: readonly number[] = [2, 8, 6, 4, 3, 1, 9, 7, 5];
+
 /** Keypad-direction constant used when a search grid is the borg's own grid. */
 export const DIR_NONE = 5;
 

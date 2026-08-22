@@ -147,6 +147,12 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
     playerClasses: game.players.classes,
   });
   const borg = createBorg({
+    /* Vary the Borg's private stream with the game seed. Every run used to
+     * share one starting seed, so all four "different" runs drove an identical
+     * draw sequence and the suite was structurally blind to anything that
+     * depends on the Borg's own rolls: tie-breaks, retry counters, the twitchy
+     * fallback. A regression there would have shown up on no seed at all. */
+    rngSeed: (seed * 2654435761) >>> 0 || 1,
     resolvers: makeCoreResolvers({
       races: game.booted.registries.monsters.races,
       objects: game.booted.registries.objects,

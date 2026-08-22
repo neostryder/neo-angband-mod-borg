@@ -380,6 +380,35 @@ reads that nothing ever wrote:
 All of them are closed; `src/rest.test.ts` pins the path end to end, and
 `src/play.test.ts` asserts the Borg never chooses to rest with a monster adjacent.
 
+**6. Three more came out of a second reading of the same two symptoms, and the
+third one is the other half of the town death.** These are a different shape from
+the five above: not a value nobody wrote, but a value written wrongly, an argument
+read from the wrong square, and a block of upstream that was never ported at all.
+They were found by reading the C beside the port rather than by another run, which
+is the instrument the shape below says a harness cannot replace.
+
+- The controller reseeded the Borg's private generator to a constant at the top
+  of every think, so the Nth draw of every decision was the same number forever:
+  tie-breaks frozen, low-probability branches stuck on or stuck off. Upstream
+  saves the ADVANCED seed back after each think (`borg.c:504`) and seeds once at
+  start-up (`borg-init.c:487-488`). The stream now carries. `src/play.test.ts`
+  had also given all four of its runs the same Borg seed, so the suite could not
+  have caught a regression in anything the Borg's own rolls decide; the seed now
+  varies with the run.
+- `borg_escape` was being handed the smallest danger among the surrounding
+  squares. Its parameter is named `b_q`, but it has one caller and that caller
+  passes the danger of the square the Borg occupies (`borg-caution.c:1653`).
+  Every gate inside is "is this above X", so the wrong value could only suppress
+  an escape: a character standing somewhere dangerous with a safe square beside
+  it read the safe square's number and stayed.
+- *** Back away *** (`borg-caution.c:1664-1846`) was not ported, and it is the
+  whole of the Borg's short-range tactical retreat. Nothing else in the ladder
+  does it, so caution found no escape item, returned nothing, and the next rung
+  attacked. A first-level character with a monster beside it had exactly one
+  move available and made it every time. That is the town death from the other
+  direction: symptom 5 was the Borg not knowing it was under attack, and this is
+  the Borg knowing and having nowhere to put that knowledge.
+
 **The shape all of these share is worth naming, because it is the fourth time
 this repository has met it.** Not one was a mistake in the ported arithmetic. Each
 was a value the ported decision code READS and nothing in the mod ever WROTE, and
@@ -423,6 +452,7 @@ implemented" but "who writes it".
 | 2026-08-21 | **Step 2 complete: all four seams wired.** The fourth needed an engine capability rather than host plumbing, and it landed with Neo Angband 0.25.0 as `AgentView.simulateLoadout`: the engine's own `calc_bonuses` over a hypothetical set of worn objects, with nothing in the live game written. `src/trait/simulate.ts` runs the ported `borg_notice` and `borg_power` over the loadout it describes, which is the wield / recompute / revert shape upstream uses, against a scratch copy of the self-model so a ladder can score a dozen candidates without disturbing the Borg's view of itself. `think-session.ts` fans that one seam out into the five questions the ported subsystems ask (`wearEval`, `buyShopEval`, `buyHomeEval`, `sellEval`, `sellHomeBadEval`); the two swap valuations are unreachable rather than pending, because this port has no swap subsystem and both contribute zero to `borg_power`. It landed behind a probe on `ctx.core.simulateLoadout`, so an older game degraded instead of throwing; the probe came out again the same day, when the engine range was pinned (see Releasing this). |
 | 2026-08-21 | **Step 3 done: the restart loop.** Not one line of it is in this repository, and that is the finding rather than an accident of scheduling - `AgentCommand` is `PlayerCommand`, so there is no value a controller could return that means "roll me a new character", and the death handler lives in the host's game loop. Neo Angband 0.25.0 gained `StartedGame.reincarnate` (upstream's `reincarnate_borg`, over this port's own `generatePlayer` / `outfitPlayer` rather than a second copy of the birth pipeline) and the host's `LOOP_STATUS.DEAD` branch calls it, ahead of every step of the human death flow, whenever a mod holds the keyboard. The gate is the one autoplayer slot the host already had, so there is no second toggle and no mod id written into the engine. `NOSCORE_BORG` is set at upstream's own activation gate and again on each respawn. |
 
+| 2026-08-22 | **Three defects from a read-the-C-beside-the-port pass, described as symptom 6 above.** The Borg's private RNG was restarted every think instead of carried, so every draw at a fixed point in the decision was a constant; `borg_escape` was handed the least-dangerous neighbouring square's danger instead of the danger of the square the Borg stands on, which can only suppress an escape; and `borg_caution`'s *** Back away *** block was not ported, leaving no tactical retreat at all between "use an escape item" and "attack". All three are fixed, with `src/fight/fight.test.ts` covering the retreat and its refusals, `src/foundation.test.ts` covering the stream advancing while staying replayable from a seed, and `src/play.test.ts` now varying the Borg's seed with the run so the harness can see this class of bug at all. |
 | 2026-08-21 | **Step 4 started, and found the defect the whole file predicts.** 0.6.1 installed from its tag into the released 0.25.0 desktop build, enabled, keyboard handed over - and it threw on the first perceived turn, because the manifest declared `command:add` and nothing else while the frozen view is gated per read DOMAIN. It had logged success first: `the Borg has the keyboard, and danger vision over 624 races, activation identity, the in-shop signal and loadout evaluation`. Fixed in 0.6.2 by declaring the nine domains the port reads, with a test that derives the set from the source instead of restating it. This is the same shape as everything above - a seam that looked wired from every angle except the one that plays a turn - and it is exactly what a green suite could not see. |
 
 ## Releasing this

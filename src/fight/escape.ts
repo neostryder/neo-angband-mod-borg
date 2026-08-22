@@ -418,9 +418,19 @@ function resetAntisummon(ctx: BorgContext, fs: FightState): void {
 }
 
 /**
- * borgEscape (escape.c:644): try to phase/teleport away. b_q is the danger of
- * the least-dangerous adjacent square. Returns the escape command, or null.
- * The full Danger-Level 1..8 threshold ladder is preserved verbatim.
+ * borgEscape (escape.c:644): try to phase/teleport away. Returns the escape
+ * command, or null. The full Danger-Level 1..8 threshold ladder is preserved
+ * verbatim.
+ *
+ * `bQ` is the danger of the grid the Borg is STANDING ON. The parameter name is
+ * upstream's (`b_q`) and it is misleading: escape.c has one caller, and
+ * borg-caution.c:1653 passes `pos_danger`, the own-square figure computed at
+ * borg-caution.c:925. Reading the name as "best adjacent danger" and passing a
+ * minimum over the neighbours instead is one-directionally wrong - every gate
+ * below is `bQ > threshold`, so a smaller value can only ever SUPPRESS an
+ * escape. That is a first-level character standing on a danger-11 square with a
+ * clear danger-0 square beside it, declining to phase because it read the wrong
+ * square's number, and then dying where it stood.
  */
 export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
   const fs = getFightState(ctx.world);

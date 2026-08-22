@@ -369,9 +369,6 @@ var BORG_LOCAL_SEED = 12648430;
 function makeBorgRng(seed = BORG_LOCAL_SEED) {
   return new Rng(seed >>> 0, { quick: true });
 }
-function reseedBorgRng(rng, seed = BORG_LOCAL_SEED) {
-  rng.reseed(seed);
-}
 
 // src/trait/trait-index.ts
 var BI_MAX = 265 /* MAX */;
@@ -890,6 +887,7 @@ var ddx = [0, -1, 0, 1, -1, 0, 1, -1, 0, 1];
 var ddy = [0, 1, 1, 1, 0, 0, 0, -1, -1, -1];
 var ddx_ddd = [0, 0, 1, -1, 1, -1, 1, -1, 0];
 var ddy_ddd = [1, -1, 0, 0, 1, 1, -1, -1, 0];
+var ddd = [2, 8, 6, 4, 3, 1, 9, 7, 5];
 function borgCaveFloorGrid(ag) {
   return ag.feat === FEAT.NONE || ag.feat === FEAT.FLOOR || ag.feat === FEAT.OPEN || ag.feat === FEAT.MORE || ag.feat === FEAT.LESS || ag.feat === FEAT.BROKEN || ag.feat === FEAT.PASS_RUBBLE || ag.feat === FEAT.LAVA;
 }
@@ -11717,6 +11715,9 @@ function avoidance3(ctx) {
 function dist3(y1, x1, y2, x2) {
   return Math.max(iabs(y1 - y2), iabs(x1 - x2));
 }
+function doubleDistance(y1, x1, y2, x2) {
+  return Math.max(iabs(y1 * 2 - y2 * 2), iabs(x1 * 2 - x2 * 2));
+}
 function firstCmd(...cmds) {
   for (const c of cmds) if (c) return c;
   return null;
@@ -11773,6 +11774,41 @@ function isFloor(feat) {
 }
 function isShop(feat) {
   return feat >= FEAT.STORE_GENERAL && feat <= FEAT.HOME;
+}
+function nearestStair(ctx, feat) {
+  let best = null;
+  let bestD = Infinity;
+  for (let y = 0; y < AUTO_MAX_Y; y++) {
+    for (let x = 0; x < AUTO_MAX_X; x++) {
+      if (ctx.world.map.at(x, y).feat !== feat) continue;
+      const d = dist3(ctx.world.self.c.y, ctx.world.self.c.x, y, x);
+      if (d < bestD) {
+        bestD = d;
+        best = { y, x };
+      }
+    }
+  }
+  return best;
+}
+function borgFreedom(ctx, y, x) {
+  let f = 0;
+  if (!trait3(ctx, 105 /* CDEPTH */)) {
+    const s = nearestStair(ctx, FEAT.MORE);
+    if (s) {
+      const d = doubleDistance(y, x, s.y, s.x);
+      f += 1e3 - d;
+      if (d < 4) f += 2e3 - d * 500;
+    }
+  }
+  if (trait3(ctx, 105 /* CDEPTH */)) {
+    const s = nearestStair(ctx, FEAT.LESS);
+    if (s) {
+      const d = doubleDistance(y, x, s.y, s.x);
+      f += 1e3 - d;
+      if (d < 4) f += 2e3 - d * 500;
+    }
+  }
+  return f;
 }
 function borgCautionPhase(ctx, emergency, turns) {
   const dis = 10;
@@ -13419,19 +13455,6 @@ function borgHeal(ctx, danger2) {
   }
   return null;
 }
-function leastAdjacentDanger(ctx, fallback) {
-  let best = fallback;
-  for (let i = 0; i < 8; i++) {
-    const x = ctx.world.self.c.x + ddx_ddd[i];
-    const y = ctx.world.self.c.y + ddy_ddd[i];
-    if (!ctx.world.map.inBounds(x, y)) continue;
-    const ag = ctx.world.map.at(x, y);
-    if (ag.feat === FEAT.NONE || ag.kill) continue;
-    const d = borgDanger(ctx, y, x, 1, true, false);
-    if (d < best) best = d;
-  }
-  return best;
-}
 function borgCaution(ctx, flow) {
   const fs = getFightState(ctx.world);
   const g = getDangerGlobals(ctx.world);
@@ -13441,9 +13464,7 @@ function borgCaution(ctx, flow) {
   if (trait3(ctx, 112 /* ISBLIND */)) nasty = true;
   if (trait3(ctx, 114 /* ISCONFUSED */)) nasty = true;
   if (trait3(ctx, 120 /* ISIMAGE */)) nasty = true;
-  void nasty;
   const surrounded = borgSurrounded(ctx);
-  void surrounded;
   if (ctx.world.self.escapes > 3 && ctx.world.facts.uniqueOnLevel === 0 && ctx.world.self.readyMorgoth <= 0 || ctx.world.self.escapes > 55) {
     if (trait3(ctx, 105 /* CDEPTH */) <= 98) {
       ctx.world.self.goal.leaving = true;
@@ -13527,13 +13548,14 @@ function borgCaution(ctx, flow) {
       ctx.world.self.goal.fleeing = true;
     }
   }
-  const bQ = leastAdjacentDanger(ctx, posDanger);
-  const esc = borgEscape(ctx, bQ);
+  const esc = borgEscape(ctx, posDanger);
   if (esc) {
     ctx.world.self.escapes += 1;
     ctx.world.self.goal.type = 0;
     return esc;
   }
+  const backOff = borgBackAway(ctx, flow, posDanger, nasty, surrounded);
+  if (backOff) return backOff;
   if (posDanger > trait3(ctx, 27 /* CURHP */) && trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 4)) {
     const c = firstCmd2(
       borgQuaffPotion(ctx, SVAL.potion.healing),
@@ -13548,6 +13570,63 @@ function borgCaution(ctx, flow) {
     if (c) return c;
   }
   return null;
+}
+function borgBackAway(ctx, flow, posDanger, nasty, surrounded) {
+  const self = ctx.world.self;
+  const g = getDangerGlobals(ctx.world);
+  const fs = getFightState(ctx.world);
+  const wants = posDanger > idiv(av2(ctx) * 4, 10) && !nasty && self.noRetreat < 1 || surrounded && posDanger !== 0;
+  if (!wants) return null;
+  if (g.morgothPosition) return null;
+  if (ctx.world.clock - fs.tAntisummon < 50) return null;
+  if (trait3(ctx, 114 /* ISCONFUSED */)) return null;
+  if (trait3(ctx, 27 /* CURHP */) >= 500) return null;
+  let bI = -1;
+  let bF = -1;
+  let bK = surrounded ? idiv(posDanger * 12, 10) : posDanger;
+  bF = borgFreedom(ctx, self.c.y, self.c.x);
+  let adjacentMonster = false;
+  for (let i = 0; i < 8; i++) {
+    const x = self.c.x + ddx_ddd[i];
+    const y = self.c.y + ddy_ddd[i];
+    if (!ctx.world.map.inBounds(x, y)) continue;
+    const ag = ctx.world.map.at(x, y);
+    if (trait3(ctx, 114 /* ISCONFUSED */)) continue;
+    if (!borgCaveFloorGrid(ag)) continue;
+    if (ag.kill) continue;
+    if (featIsShop(ag.feat)) continue;
+    if (ag.trap && !ag.glyph) break;
+    const st2 = flow.step;
+    const bouncing = trait3(ctx, 27 /* CURHP */) >= idiv(trait3(ctx, 28 /* MAXHP */) * 7, 10) && st2.num > 2 && st2.y[st2.num - 2] === y && st2.x[st2.num - 2] === x && st2.y[st2.num - 3] === self.c.y && st2.x[st2.num - 3] === self.c.x;
+    if (bouncing || self.timeThisPanel >= 300) continue;
+    for (const [, kill] of ctx.world.kills.entries()) {
+      if (kill.when < ctx.world.clock - 2) continue;
+      const d = distance(y, x, kill.pos.y, kill.pos.x);
+      if (d <= 1 && !surrounded) adjacentMonster = true;
+      if (d <= 2 && kill.speed > trait3(ctx, 44 /* SPEED */) && !surrounded) adjacentMonster = true;
+    }
+    if (adjacentMonster) continue;
+    const k = borgDanger(ctx, y, x, 1, true, false);
+    if (k > av2(ctx)) continue;
+    if (trait3(ctx, 36 /* MAXCLEVEL */) >= 35 && k > idiv(bK * 6, 10)) continue;
+    if (trait3(ctx, 36 /* MAXCLEVEL */) < 35 && !adjacentMonster && k > idiv(bK * 8, 10)) continue;
+    if (k > bK) continue;
+    const f = borgFreedom(ctx, y, x);
+    if (bK === k) {
+      const lowAndHurt = trait3(ctx, 35 /* CLEVEL */) <= 10 && trait3(ctx, 105 /* CDEPTH */) > 0 && (trait3(ctx, 27 /* CURHP */) < trait3(ctx, 28 /* MAXHP */) || trait3(ctx, 30 /* CURSP */) < trait3(ctx, 31 /* MAXSP */));
+      if (!lowAndHurt) {
+        if (bF > f || trait3(ctx, 105 /* CDEPTH */) >= 85) continue;
+      }
+    }
+    bI = i;
+    bK = k;
+    bF = f;
+  }
+  if (bI < 0) return null;
+  self.goal.g.x = self.c.x + ddx_ddd[bI];
+  self.goal.g.y = self.c.y + ddy_ddd[bI];
+  self.goal.type = 0;
+  return ctx.act.move(ddd[bI]);
 }
 
 // src/perceive-facts.ts
@@ -14912,13 +14991,11 @@ function createBorg(opts = {}) {
   const world = new BorgWorld();
   const rng = makeBorgRng(opts.rngSeed);
   const memo = makePerceiveMemo();
-  const reseedEach = opts.reseedEachThink ?? true;
   const session = buildThinkSession(opts.resolvers ?? {});
   installThinkSession(world, session);
   const tables = buildHitByTable(session.resolvers.blowActions ?? []);
   let lastDepth = -1;
   const controller = (view, act) => {
-    if (reseedEach) reseedBorgRng(rng, opts.rngSeed);
     const ctx = { world, view, act, rng };
     world.clock += 1;
     world.self.timeThisPanel += 1;
