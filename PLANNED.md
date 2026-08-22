@@ -472,14 +472,18 @@ needed"); the one call that wanted exactly one tactical turn
 `rest(1)` means "repeat the last rest" upstream, not "one turn"
 (`cmd-cave.c:1638-1643`).
 
-This stays OPEN rather than closed: the game installs from a published
-release, not from a commit, and this repository's own tag cannot move ahead
-of one either. The call degrades gracefully on an engine without the fix -
-the old `rest(): AgentCommand` ignored every argument, so `ctx.act.rest(-2)`
-against an unpublished-fix engine is just today's single-turn hold again - so
-no `manifest.json` floor bump was needed to land the source change safely.
-Closing this for real needs a released engine version and a watched run
-showing the Borg actually resting in blocks rather than one hold at a time.
+**The released half landed 2026-08-22.** Neo Angband 0.27.0 published the fix,
+`manifest.json`'s floor moved to `>=0.27.0`, and the full suite (239 tests) and
+the `src/play.test.ts` health harness (6 tests) both pass against the real
+published package rather than a local build - `npm install` pulled it from the
+registry, not a workspace link. A fixed-point unit test already proves the x2
+regen bonus applies after five turns of the new `restAction`. What is still
+missing is the thing only a longer or a watched run can show: this
+repository's own environment cannot currently sustain an unattended visual
+watch of a live game window (a Chromium background-tab timer-throttling limit,
+not a game defect), so nobody has watched a live character rest in one block
+rather than one hold at a time. The mechanism is proven; the experience is
+not yet witnessed.
 
 **10. "Base delay seems low, movement was not swift" is not a defect, and the
 numbers are worth writing down.** The host drives a mod autoplayer on a fixed
@@ -842,18 +846,25 @@ cycle it then sits in is upstream's own behaviour, but upstream's borg leaves th
 cycle by shopping. This is now the largest single thing between this Borg and a
 deep run, and it is not fixable here.
 
-**The engine side has landed in neo-angband's tree, not yet in a release.**
-`shop-buy` / `shop-sell` / `shop-exit` now resolve to real handlers
-(`packages/core/src/store/store-cmd.ts`, `installStoreCommands`) that turn a
-stock index or a gear handle into a real object, re-check the player is standing
-in the right store, and commit through the same buy/sell path the interactive
-shop screen uses - verified by a real `startGame` town, a queued command and
-`runGameLoop`, both a free purchase and a paid sale. This item stays OPEN: the
-game installs from a published release, not from a commit, and this repository's
-own tag cannot move ahead of one either. Closing item 5 for real needs a
-released engine version this mod's `manifest.json` can require, and a watched
-run (the standard this file already holds itself to above) showing gold actually
-change hands from the ladder rather than from birth outfitting.
+**The released half landed 2026-08-22.** `shop-buy` / `shop-sell` / `shop-exit`
+now resolve to real handlers (`packages/core/src/store/store-cmd.ts`,
+`installStoreCommands`) that turn a stock index or a gear handle into a real
+object, re-check the player is standing in the right store, and commit through
+the same buy/sell path the interactive shop screen uses - verified in
+neo-angband's own suite by a real `startGame` town, a queued command and
+`runGameLoop`, both a free purchase and a paid sale. Neo Angband 0.27.0
+published this, and `manifest.json`'s floor moved to `>=0.27.0`.
+
+This item stays OPEN rather than CLOSED, for the same reason as the rest item
+above: what is proven is that the engine now honours the command when the
+ladder issues it, not that the ladder issues it in an unscripted run. Neither
+`play.test.ts` nor a quick ad-hoc sample against the real 0.27.0 package
+caught a shop visit in the runs attempted 2026-08-22, but that sample was too
+small and too roughly instrumented to stand as evidence either way - it is not
+recorded as a finding, only as a reason this item is not yet CLOSED. Closing
+it for real needs a properly built automated case that specifically drives the
+Borg to a shop door and asserts gold changes hands, or a watched run
+(unavailable in this environment, see above) confirming it.
 
 ## What is deliberately NOT here
 
