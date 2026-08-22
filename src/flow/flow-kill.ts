@@ -572,13 +572,11 @@ function killWouldBeVisible(
  * exactly what "moving frantically back and forth across three cells" looks like
  * from outside.
  *
- * ONE UPSTREAM ARM IS OMITTED and it is the 1-in-100 "prevent loops" roll
- * (borg-flow-kill.c:590). The Borg's private generator is reseeded at the top of
- * every think so its decisions are a pure function of their inputs, which makes
- * a roll taken at a fixed point in the think a CONSTANT: the arm would either
- * never fire or fire on every record, and one of those two is catastrophic. The
- * five deterministic deletions below are what actually prune, and all five are
- * here.
+ * ONE UPSTREAM ARM IS OMITTED: the "prevent loops" roll at borg-flow-kill.c:590,
+ * `if (randint1(100) < 1)`. randint1(m) returns 1..m, so that test can never be
+ * true and the arm is unreachable in 4.2.6. Porting it would add a deletion path
+ * the original does not have. The five deterministic deletions below are what
+ * actually prune, and all five are here.
  */
 function borgFollowKill(ctx: BorgContext, flow: FlowState, i: number): void {
   const w = ctx.world;

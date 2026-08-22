@@ -155,9 +155,7 @@ describe("borg RNG isolation + reproducibility", () => {
     expect(draws.filter((d) => d !== 0).length).toBeGreaterThan(30);
   });
 
-  it("survives the controller's own per-think reseed", () => {
-    // The real path: createBorg reseeds on every think, so the generator has
-    // to still work on the second decision and the two-hundredth.
+  it("keeps producing a varied stream across many thinks", () => {
     const { rng, controller } = createBorg();
     const view = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 2 } });
     controller(view, makeFakeActions());
@@ -166,12 +164,48 @@ describe("borg RNG isolation + reproducibility", () => {
     expect(new Set(draws).size).toBeGreaterThan(4);
   });
 
-  it("reseeds each think so simulations are a pure function of inputs", () => {
-    const { rng } = createBorg({ rngSeed: BORG_LOCAL_SEED });
-    // The controller reseeds internally; this test just proves the seed is stable.
-    const x = rng.randint0(500);
-    reseedBorgRng(rng, BORG_LOCAL_SEED);
-    expect(rng.randint0(500)).toBe(x);
+  /*
+   * The regression test for a frozen Borg. The controller used to reseed the
+   * private stream at the top of every think, so the Nth draw of think 1 and
+   * the Nth draw of think 50 were the same number: every equal-cost pathfinding
+   * tie-break resolved the same way forever, and every low-probability branch
+   * was either always taken or never taken. Upstream saves the ADVANCED seed
+   * back after each think (borg.c:504), so the stream carries.
+   *
+   * Asserted on the DRAW VECTOR of each think, not on a single draw, because
+   * that is the shape the bug had: repeated whole vectors, not a repeated
+   * scalar. The Borg makes many draws per think, so identical vectors over
+   * several thinks is proof the stream restarted.
+   */
+  it("advances its private stream across thinks instead of restarting it", () => {
+    const { rng, controller } = createBorg();
+    const view = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 2 } });
+    const vectors: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      controller(view, makeFakeActions());
+      vectors.push(Array.from({ length: 6 }, () => rng.randint0(1000)).join(","));
+    }
+    expect(new Set(vectors).size).toBe(8);
+  });
+
+  it("replays exactly from the same starting seed", () => {
+    const run = (): string => {
+      const { rng, controller } = createBorg({ rngSeed: 12345 });
+      const view = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 2 } });
+      for (let i = 0; i < 8; i++) controller(view, makeFakeActions());
+      return Array.from({ length: 6 }, () => rng.randint0(1000)).join(",");
+    };
+    expect(run()).toBe(run());
+  });
+
+  it("takes a different path from a different starting seed", () => {
+    const run = (seed: number): string => {
+      const { rng, controller } = createBorg({ rngSeed: seed });
+      const view = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 2 } });
+      for (let i = 0; i < 8; i++) controller(view, makeFakeActions());
+      return Array.from({ length: 6 }, () => rng.randint0(1000)).join(",");
+    };
+    expect(run(12345)).not.toBe(run(BORG_LOCAL_SEED));
   });
 });
 

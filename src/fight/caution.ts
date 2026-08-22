@@ -7,15 +7,17 @@
  * (Levels 1..10), and the poison/cut emergency cures. Every threshold, heal
  * amount and reserve rule is preserved.
  *
- * borg_caution (caution.c:799) is a ~1200-line orchestrator that also drives
- * stair-taking, level-fleeing, food/light maintenance and retreat movement -
- * those emit flow/rest commands and depend on subsystems outside the P8.4 scope
- * (borg-flow*, borg-store, borg_prepared, borg_maintain_light). This port keeps
- * the life-critical core that returns a fight/item command: nasty-situation
- * detection, the surrounded check, the class-ordered heal/defend attempt, the
- * escape attempt, and the final emergency ez-heal; it sets the pure fleeing/
- * leaving goal flags where the C does. The movement/flow tail is left to the
- * P8.6 think ladder, documented at the return points.
+ * borg_caution (caution.c:799) is a ~1200-line orchestrator. Ported here:
+ * nasty-situation detection, the surrounded check, the flee/leave goal flags,
+ * the class-ordered heal/defend attempt, the restock check, the *** Stairs ***
+ * section, starvation relief, the escape attempt, *** Back away ***, and the
+ * final emergency ez-heal. What is left to later stages of the think ladder is
+ * the cure ladder from caution.c:1846 and the food/light maintenance flows,
+ * which belong to the item and flow subsystems that own those commands.
+ *
+ * Back away is the one that matters most in ordinary play and it is the easiest
+ * to mistake for flow's business: it is not pathfinding, it is a single step
+ * away from a monster, and it is the only tactical retreat the Borg has.
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
@@ -23,7 +25,15 @@ import type { BorgContext } from "../context.js";
 import { BI, CLASS_MAGE, CLASS_PRIEST, CLASS_PALADIN } from "../trait/trait-index.js";
 import { trait } from "../item/deps.js";
 import { borgDanger, getDangerGlobals } from "../danger/index.js";
-import { FEAT, ddx_ddd, ddy_ddd } from "../flow/flow-consts.js";
+import {
+  FEAT,
+  ddd,
+  ddx_ddd,
+  ddy_ddd,
+  borgCaveFloorGrid,
+  featIsShop,
+} from "../flow/flow-consts.js";
+import { distance } from "../danger/geometry.js";
 import type { FlowState } from "../flow/flow.js";
 import { borgPrepLeaveLevelSpells } from "../flow/flow-stairs.js";
 import { borgRestock } from "../trait/prepared.js";
@@ -45,7 +55,7 @@ import {
 } from "../item/item-use.js";
 import { borgSlot } from "../item/deps.js";
 import { getFightState, idiv } from "./state.js";
-import { borgSurrounded, borgEscape } from "./escape.js";
+import { borgSurrounded, borgEscape, borgFreedom } from "./escape.js";
 import { borgDefend } from "./defend.js";
 
 function av(ctx: BorgContext): number {
@@ -359,21 +369,6 @@ export function borgHeal(ctx: BorgContext, danger: number): AgentCommand | null 
  * borg_caution (caution.c:799) - life-critical core
  * ---------------------------------------------------------------- */
 
-/** Least-danger adjacent floor grid (the b_q borg_escape is called with). */
-function leastAdjacentDanger(ctx: BorgContext, fallback: number): number {
-  let best = fallback;
-  for (let i = 0; i < 8; i++) {
-    const x = ctx.world.self.c.x + ddx_ddd[i]!;
-    const y = ctx.world.self.c.y + ddy_ddd[i]!;
-    if (!ctx.world.map.inBounds(x, y)) continue;
-    const ag = ctx.world.map.at(x, y);
-    if (ag.feat === FEAT.NONE || ag.kill) continue;
-    const d = borgDanger(ctx, y, x, 1, true, false);
-    if (d < best) best = d;
-  }
-  return best;
-}
-
 /**
  * borgCaution (caution.c:799): the "prevent death" step. Returns a heal/defend/
  * stair/escape/emergency command, or null (yield to the think ladder's flow
@@ -398,11 +393,9 @@ export function borgCaution(
   if (trait(ctx, BI.ISBLIND)) nasty = true;
   if (trait(ctx, BI.ISCONFUSED)) nasty = true;
   if (trait(ctx, BI.ISIMAGE)) nasty = true;
-  void nasty;
 
   /* Surrounded? (caution.c:857). */
   const surrounded = borgSurrounded(ctx);
-  void surrounded;
 
   /* Too many escapes -> flee flags (caution.c:861). */
   if (
@@ -583,10 +576,10 @@ export function borgCaution(
     }
   }
 
-  /* Teleport from danger (caution.c strategy 1b): escape with the least-danger
-   * adjacent square as b_q. */
-  const bQ = leastAdjacentDanger(ctx, posDanger);
-  const esc = borgEscape(ctx, bQ);
+  /* Teleport from danger (caution.c:1653). borg_escape takes the danger of the
+   * grid the Borg is STANDING ON; see the note on borgEscape for why its `b_q`
+   * parameter name must not be trusted over this, its only call site. */
+  const esc = borgEscape(ctx, posDanger);
   if (esc) {
     /* increment the escapes this level counter (caution.c:1655). This is the
      * only place upstream raises it, and seven places in borgEscape lower it
@@ -597,6 +590,9 @@ export function borgCaution(
     ctx.world.self.goal.type = 0;
     return esc;
   }
+
+  const backOff = borgBackAway(ctx, flow, posDanger, nasty, surrounded);
+  if (backOff) return backOff;
 
   /* Final emergency ez-heal (caution.c end): all escape failed, about to die. */
   if (
@@ -616,7 +612,138 @@ export function borgCaution(
     if (c) return c;
   }
 
-  /* Remaining C tail (stairs / retreat / back-away / food-light flow) emits
-   * flow/rest commands owned by the P8.6 think ladder; yield to it. */
+  /* Remaining C tail (the cure ladder from caution.c:1846 on, and the
+   * food/light maintenance flows) emits item and flow commands whose owning
+   * subsystems sit later in the ladder; yield to it. */
   return null;
+}
+
+/* ---------------------------------------------------------------- *
+ * *** Back away *** (caution.c:1664)
+ * ---------------------------------------------------------------- */
+
+/**
+ * borgBackAway (caution.c:1664): step one square to a safer adjacent grid when
+ * the current one is dangerous but not desperate.
+ *
+ * This is the whole of the Borg's short-range tactical retreat, and nothing
+ * else in the ladder does it. Without it there are exactly two responses to a
+ * monster: consume an escape item, or attack. A first-level character with no
+ * phase door and an adjacent rogue therefore has one option, and takes it,
+ * whatever the odds. Upstream steps back instead, and lets the monster come to
+ * it on a square with fewer approaches.
+ *
+ * The two upstream warts are preserved deliberately. `adjacentMonster` is
+ * declared once outside the direction loop and never cleared, so the first
+ * unsafe direction latches it for every later direction and also flips the
+ * sub-35 danger threshold from 80 percent to unconditional. A trap in any
+ * direction `break`s the whole search rather than skipping that one direction.
+ * Both are upstream 4.2.6 behavior; core keeps the warts.
+ *
+ * square_isvault has no equivalent here: the Borg's remembered grid carries no
+ * vault bit, and the level-scoped vaultOnLevel fact is a different question.
+ * Upstream uses it only to suppress backing away, so the port can back away in
+ * a vault where upstream would not.
+ */
+export function borgBackAway(
+  ctx: BorgContext,
+  flow: FlowState,
+  posDanger: number,
+  nasty: boolean,
+  surrounded: boolean,
+): AgentCommand | null {
+  const self = ctx.world.self;
+  const g = getDangerGlobals(ctx.world);
+  const fs = getFightState(ctx.world);
+
+  const wants =
+    (posDanger > idiv(av(ctx) * 4, 10) && !nasty && self.noRetreat < 1) ||
+    (surrounded && posDanger !== 0);
+  if (!wants) return null;
+  if (g.morgothPosition) return null;
+  if (ctx.world.clock - fs.tAntisummon < 50) return null;
+  if (trait(ctx, BI.ISCONFUSED)) return null;
+  if (trait(ctx, BI.CURHP) >= 500) return null;
+
+  let bI = -1;
+  let bF = -1;
+  /* Fake the danger up when surrounded so any step looks like an improvement. */
+  let bK = surrounded ? idiv(posDanger * 12, 10) : posDanger;
+  bF = borgFreedom(ctx, self.c.y, self.c.x);
+
+  /* Latched across directions, exactly as the C declares it (see the note). */
+  let adjacentMonster = false;
+
+  for (let i = 0; i < 8; i++) {
+    const x = self.c.x + ddx_ddd[i]!;
+    const y = self.c.y + ddy_ddd[i]!;
+    if (!ctx.world.map.inBounds(x, y)) continue;
+    const ag = ctx.world.map.at(x, y);
+
+    /* Confusion makes the landing square unpredictable. */
+    if (trait(ctx, BI.ISCONFUSED)) continue;
+    if (!borgCaveFloorGrid(ag)) continue;
+    if (ag.kill) continue;
+    if (featIsShop(ag.feat)) continue;
+    if (ag.trap && !ag.glyph) break;
+
+    /* Bounce detection: standing here two steps ago and there three steps ago
+     * is an oscillation, so refuse it while healthy. time_this_panel running
+     * long is the same signal by a different route. */
+    const st = flow.step;
+    const bouncing =
+      trait(ctx, BI.CURHP) >= idiv(trait(ctx, BI.MAXHP) * 7, 10) &&
+      st.num > 2 &&
+      st.y[st.num - 2] === y &&
+      st.x[st.num - 2] === x &&
+      st.y[st.num - 3] === self.c.y &&
+      st.x[st.num - 3] === self.c.x;
+    if (bouncing || self.timeThisPanel >= 300) continue;
+
+    /* Landing next to a monster just hands it the free hit. */
+    for (const [, kill] of ctx.world.kills.entries()) {
+      if (kill.when < ctx.world.clock - 2) continue;
+      const d = distance(y, x, kill.pos.y, kill.pos.x);
+      if (d <= 1 && !surrounded) adjacentMonster = true;
+      if (d <= 2 && kill.speed > trait(ctx, BI.SPEED) && !surrounded) adjacentMonster = true;
+    }
+    if (adjacentMonster) continue;
+
+    const k = borgDanger(ctx, y, x, 1, true, false);
+
+    /* Worse than the avoidance ceiling: take the fight instead. */
+    if (k > av(ctx)) continue;
+
+    /* Not worth the move unless the gain is real. A veteran wants a 40 percent
+     * cut; below level 35 an 80 percent cut will do, and with a monster already
+     * adjacent any cut will. */
+    if (trait(ctx, BI.MAXCLEVEL) >= 35 && k > idiv(bK * 6, 10)) continue;
+    if (trait(ctx, BI.MAXCLEVEL) < 35 && !adjacentMonster && k > idiv(bK * 8, 10)) continue;
+    if (k > bK) continue;
+
+    const f = borgFreedom(ctx, y, x);
+
+    if (bK === k) {
+      const lowAndHurt =
+        trait(ctx, BI.CLEVEL) <= 10 &&
+        trait(ctx, BI.CDEPTH) > 0 &&
+        (trait(ctx, BI.CURHP) < trait(ctx, BI.MAXHP) || trait(ctx, BI.CURSP) < trait(ctx, BI.MAXSP));
+      if (!lowAndHurt) {
+        /* Equal danger, so prefer the grid with more room to move - and deep
+         * down, never trade a known grid for an equal one. */
+        if (bF > f || trait(ctx, BI.CDEPTH) >= 85) continue;
+      }
+    }
+
+    bI = i;
+    bK = k;
+    bF = f;
+  }
+
+  if (bI < 0) return null;
+
+  self.goal.g.x = self.c.x + ddx_ddd[bI]!;
+  self.goal.g.y = self.c.y + ddy_ddd[bI]!;
+  self.goal.type = 0;
+  return ctx.act.move(ddd[bI]!);
 }

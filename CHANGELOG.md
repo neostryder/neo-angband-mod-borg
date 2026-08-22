@@ -166,8 +166,9 @@ and let a squint-eyed rogue kill it.
   three squares at full hit points went from 403 to zero.
 
   Upstream's 1-in-100 anti-loop roll is deliberately not ported and says so in
-  the source: this Borg reseeds its private generator at the top of every think,
-  which makes a roll taken at a fixed point in the think a constant.
+  the source. Its test is `randint1(100) < 1`, and `randint1` returns 1 to 100,
+  so the arm is unreachable in 4.2.6; porting it would add a deletion path the
+  original does not have.
 
 - **Nothing ever marked a grid as lit by the Borg's own light.** `BORG_LIGHT` is
   "my torch reaches here" and `BORG_GLOW` is "this room lights itself"; three
@@ -175,6 +176,50 @@ and let a squint-eyed rogue kill it.
   (`borg-cave-light.c:71`) was not ported, so all three read every dark corridor
   as unlit. Among them is the check above, which is why a phantom in a corridor
   could not be disproved even standing next to it.
+
+- **The Borg's own random stream restarted at the top of every decision.** The
+  controller reseeded the private generator to a fixed constant before each
+  think, so the first draw of decision one and the first draw of decision fifty
+  were the same number, and so was every draw after it. Anything that consults
+  the Borg's generator at a stable point in the think was therefore frozen: an
+  equal-cost pathfinding tie-break resolved the same way every time, and a
+  low-probability branch either never fired or fired on every pass. Upstream's
+  swap-in/swap-out around `borg_think` ends by writing the ADVANCED value back
+  (`borg.c:504`) and seeds the stream once at start-up
+  (`borg-init.c:487-488`), so its stream carries from one think to the next. It
+  now does here too. The Borg remains fully deterministic for a given starting
+  seed, because determinism comes from the stream being private and seeded, not
+  from restarting it.
+
+  `src/play.test.ts` also gave every one of its four "different" runs the same
+  Borg seed, so the suite was structurally blind to this entire class of bug.
+  The seed now varies with the run.
+
+- **It read the wrong square's danger before deciding whether to teleport out.**
+  `borg_escape`'s parameter is named `b_q`, but it has exactly one caller and
+  that caller passes the danger of the grid the Borg is STANDING ON
+  (`borg-caution.c:1653`). This port trusted the name and passed the smallest
+  danger among the surrounding squares instead. Every threshold inside is "is
+  this danger above X", so a smaller number could only ever suppress an escape,
+  never cause a spurious one: a first-level character on a dangerous square with
+  one safe square beside it read the safe square's number, decided it was fine,
+  and stayed to be killed. The exact scenario the field report described.
+
+- **There was no way to simply step back from a monster.** `borg_caution`'s
+  *** Back away *** block (`borg-caution.c:1664-1846`) had never been ported, and
+  nothing else in the ladder does its job: caution found no escape item, returned
+  nothing, and the next rung attacked. That left a fresh character exactly one
+  response to anything that walked up to it, whatever the odds, which is how a
+  level-one character dies to a town rogue rather than retreating up the alley it
+  came from. Ported at its upstream position, thresholds and all: the 40 percent
+  danger reduction a character past level 35 demands before giving up a square,
+  the 80 percent one below it, the freedom-of-movement tiebreak when two squares
+  are equally dangerous, the refusal to move while confused or while the
+  anti-summon corridor timer is running, and the bounce detection that stops the
+  retreat itself becoming a shuffle. Upstream's two warts in this block are kept:
+  a trap in any one direction abandons the whole search, and the "next to a
+  monster" flag latches on the first bad direction and then applies to all of
+  them, which in practice makes backing away a corridor manoeuvre.
 
 ### Added
 
