@@ -878,7 +878,7 @@ shape - a fresh level-one character heads straight to the dungeon stairs before
 the late "deal with shops" rung is ever reached, in every seed tried - and is
 not what this issue asked.
 
-### 6. The settings surface - FIRST SLICE DONE 2026-08-22 (neo-angband#30)
+### 6. The settings surface - SECOND SLICE DONE 2026-08-22 (neo-angband#30)
 
 **Eight of upstream's settings are toggles in the mod manager, and the port reads
 them for the first time.** `BorgCfg` and `defaultCfg()` had been in
@@ -898,33 +898,62 @@ The values reach the decision code through a module-level active setting that
 the ported call sites are the same shape. An explicit `opts.cfg` at a call still
 wins per key, so the existing tests keep asking their own questions.
 
-**Three of upstream's booleans were held back, each for a different distance from
-working**, and this is the part worth keeping rather than the list of what
-shipped:
+**A second pass audited all fifteen fields of `BorgCfg` against their real
+readers, not just their presence in the type.** One more boolean shipped as a
+toggle: `borg_munchkin_start` moves real gear valuation (`trait/power.ts`
+suppresses the value of resist/speed potions, phase door, recall and deep cure
+stockpiles below `borg_munchkin_level`), even though the stair-scum diving mode
+it is named for is not ported. A setting that changes a real decision, honestly
+described as only half of what upstream's flag does, clears the bar this project
+holds toggles to; a setting that changes nothing does not, which is why the other
+three below are still absent.
 
-- `borg_kills_uniques` has no reader in this port at all. Its branch needs the
-  live-unique census (`borg_numb_live_unique`, `borg_depth_hunted_unique`), which
-  is not kept here.
-- `borg_uses_swaps` has a reader, and it gates two functions that return early
-  because `weaponSwapEval` / `armourSwapEval` are unwired - and those are unwired
-  because a swap contributes zero to `borg_power` here, so the comparison would be
-  between two equal numbers. Unreachable rather than merely unwired, the same
-  finding as step 2's fourth seam.
-- `borg_munchkin_start` moves gear valuation (`trait/power.ts`) but not diving,
-  because `borg_think_dungeon_munchkin` is not ported and `world.self.munchkinMode`
-  is written nowhere. Half a setting is the worst of the three: it would look like
-  it worked.
+**Three of upstream's booleans remain held back, each for a different reason,
+and none of them is "not yet gotten to":**
+
+- `borg_kills_uniques` has no reader in this port at all. Upstream's own gate
+  (`borg-prepared.c:625-644`) needs a live-unique census -
+  `borg_numb_live_unique`, `borg_first_living_unique`, `borg_depth_hunted_unique`
+  - rebuilt every level change by scanning the *entire* race table for uniques
+  whose `max_num` has dropped to zero (`borg-update.c:2225-2300`, ~75 lines,
+  including an off-screen-death cheat and a three-shallowest-depth sort). No
+  seam here exposes a race's live/dead population count across a run; building
+  one is a subsystem, not a settings toggle.
+- `borg_uses_dynamic_calcs` switches the power/depth/restock math from this
+  port's internal calculations to a formula language upstream parses out of
+  `borg.txt`'s own `[BEGIN FORMULA SECTION]` (`borg-formulas.c`, several hundred
+  lines: a line-oriented parser, a condition grammar and a value-type table
+  covering ranges, traits, config, activations and every `tv_*`). That is a
+  second calculation engine sitting behind the flag, not a flag on this one.
+  Porting it is disproportionate to a settings audit and has not been attempted.
+- `borg_uses_swaps` has a real reader (`borgUsesSwaps`, `store.ts:450`) that
+  gates `borgThinkHomeBuySwapWeapon` / `borgThinkHomeBuySwapArmour`
+  (`buy.ts:543-587`) - but both return `false` unconditionally whenever
+  `weaponSwapEval` / `armourSwapEval` are absent, and `think-session.ts:400-405`
+  says in its own comment that they are absent on purpose: "Unreachable until
+  the swap subsystem is ported, not merely unwired." A swap also contributes
+  zero to `borg_power` here. Flipping this toggle would tick in the mod manager
+  and change nothing the Borg does, which is exactly the failure this file
+  exists to name - so unlike `borg_munchkin_start`, it is not shipped.
 
 **What is still open on neo-angband#30**, in the order it is worth doing:
 
-- **The numeric settings have no shape to be a toggle.** `borg_no_deeper`,
+- **The numeric settings have no shape to be a toggle, and this is now confirmed
+  against the host's own schema rather than assumed.** `borg_no_deeper`,
   `borg_stop_dlevel`, `borg_stop_clevel`, `borg_enchant_limit`,
-  `borg_munchkin_level`, `borg_money_scum_amount`. A depth ceiling is the one an
-  operator actually wants, and a manifest carries only booleans. Two routes:
-  a non-boolean option type in the host's manifest schema, which every mod would
-  get, or `ctx.ui.openPanel` plus a `registry:menu` transformer that adds a row to
-  the game menu, which is this mod's alone and costs two capabilities on the
-  consent screen. The first is the better answer and it is a game-side change.
+  `borg_munchkin_level`, `borg_money_scum_amount`. `PackRule`
+  (`packages/mod-sdk/src/manifest.ts:98-111` in the game's own repository) has
+  exactly four fields - `flag`, `title`, `description`, `default` - and
+  `validateRules` (manifest.ts:727-729) throws unless `default` is a `boolean`.
+  `ModPluginContext.flags` (`packages/web/src/mod-plugin.ts:204`) is
+  `Readonly<Record<string, boolean>>` all the way through the resolution chain,
+  with no numeric, string or enum-valued flag anywhere. There is no shortcut
+  available from this side: a depth ceiling or an enchant limit needs a
+  non-boolean rule type added to the host's manifest schema, which every mod
+  would then get, or `ctx.ui.openPanel` plus a `registry:menu` transformer,
+  which is this mod's alone and costs two capabilities on the consent screen.
+  The first is the better answer and it is a game-side change this repository
+  cannot make.
 - **A pinned respawn race and class are not reachable from this side of the seam.**
   `ReincarnateOptions` already carries `raceName` and `className`, and
   `game.reincarnate` already honours them - but the caller is the host's own
@@ -941,6 +970,51 @@ shipped:
   own default point-buy. The comment is stale upstream documentation. The five
   `borg_worships_*` weights are the real surface for "what should this character
   become", and they are shipped.
+
+### 7. A faster autoplayer tick (10ms) - blocked on the game, not this mod
+
+**Opened 2026-08-22. The request: a 10ms option for how often the Borg takes a
+turn, for watching it play at speed.**
+
+**This mod has nothing to change, because it does not own the setting.** As of
+Neo Angband 0.27.2 (`f310277ed` in the game's repository) the mod manager shows
+an *Autoplayer speed* row on the settings screen of whichever mod currently
+holds the one autoplayer slot - `packages/web/src/mods.ts:1930-2029` keys it off
+`deps.autoplayer.activeId() === m.id`, not off anything in that mod's manifest.
+Any mod whose `controller()` the host has installed gets the row for free.
+`manifest.json` already asks for `engine: ">=0.27.0"`, so once a player is on
+0.27.2 or newer the Borg has this control with no change here at all - confirmed
+by reading the row's own wiring rather than assumed.
+
+**The three tiers, and the 40ms floor, are host constants, declared three times
+over:**
+
+- `AutoplayerSpeed` (`packages/web/src/mod-store.ts:47`): `"fast" | "normal" |
+  "slow"`, persisted under `neo:autoplayerSpeed`, default `"normal"`.
+- `AUTOPLAYER_SPEED_MS` (`packages/web/src/main.ts:12567-12571`, duplicated at
+  `packages/web/src/mods.ts:1861-1865`): `{ fast: 40, normal: 120, slow: 400 }`.
+- The tier list a player picks from (`packages/web/src/mods.ts:1878`):
+  `const tiers: AutoplayerSpeed[] = ["fast", "normal", "slow"];`.
+
+Fast is 40ms today, not 10ms, and there is no route from this repository to
+change that: the type, the two duplicated millisecond maps and the picker's
+tier list all live in `packages/web`, which is the game's host application, not
+`@rpgm-tools/neo-angband-core` or anything this mod depends on or can extend.
+Widening `AutoplayerSpeed` to a fourth tier - one honest name would be
+`"instant"` at 10ms, matching the debug agent seam's own floor
+(`?speed=` accepts a raw 10-5000ms value, `docs/modding/BORG.md`) - is entirely
+a change to those three files in the game's repository. No manifest rule, no
+plugin code and no capability in this mod can carry it, because the control was
+built to be host-owned and mod-agnostic on purpose (`mods.ts:1935`: "keyed on
+`deps.autoplayer.activeId()` rather than on a declared flag").
+
+**Left open rather than worked around.** Inventing a Borg-only tick override
+here would be exactly the second settings channel the task that opened this
+item explicitly ruled out, and it would fight the host's real pump
+(`MOD_AUTOPLAYER_TICK_MS`, `main.ts:12572`) rather than use it. The fix belongs
+in the game's repository: add a fourth `AutoplayerSpeed` tier at 10ms to the
+three sites above (plus its label and the picker's tier list). That is a small,
+well-scoped change, and it is not one this repository's `git` history can make.
 
 ## What is deliberately NOT here
 

@@ -207,6 +207,42 @@ describe("the store settings", () => {
   });
 });
 
+describe("borg_munchkin_start", () => {
+  /** A warrior carrying speed potions, at a given (max) character level. */
+  function withSpeedPotions(maxClevel: number): number[] {
+    const t = new Array<number>(BI_MAX).fill(0);
+    t[BI.CLASS] = CLASS_WARRIOR;
+    t[BI.LIGHT] = 1;
+    t[BI.FOOD] = 100;
+    t[BI.CLEVEL] = maxClevel;
+    t[BI.MAXCLEVEL] = maxClevel;
+    t[BI.MAXHP] = 50;
+    t[BI.CURHP] = 50;
+    t[BI.ASPEED] = 5;
+    return t;
+  }
+
+  it("stops rewarding speed potions below borg_munchkin_level", () => {
+    /* trait/power.ts:636 - munchGate suppresses the whole ASPEED term when set
+       and the character has not yet reached the level threshold. */
+    const stock = borgPower(ctxWith(withSpeedPotions(5)));
+    setBorgCfg({ munchkinStart: true });
+    const munchkin = borgPower(ctxWith(withSpeedPotions(5)));
+    expect(munchkin).toBeLessThan(stock);
+  });
+
+  it("leaves a character past the level threshold alone either way", () => {
+    /* Non-vacuity: default borg_munchkin_level is 12, and this port has no
+       toggle for the level itself, so 20 clears the gate regardless of the
+       flag. Without this the test above could pass against a stub that always
+       lowered the score when the flag was set. */
+    const stock = borgPower(ctxWith(withSpeedPotions(20)));
+    setBorgCfg({ munchkinStart: true });
+    const munchkin = borgPower(ctxWith(withSpeedPotions(20)));
+    expect(munchkin).toBe(stock);
+  });
+});
+
 describe("installing settings", () => {
   it("starts stock, and a Borg built with none leaves it stock", () => {
     expect(borgCfg()).toEqual(defaultCfg());

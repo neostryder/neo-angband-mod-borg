@@ -1,7 +1,7 @@
 {
   "id": "borg",
   "name": "The Borg",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "shape": "plugin",
   "facets": [
     "plugin"
@@ -80,6 +80,12 @@
       "title": "Save up for something it wants",
       "description": "borg_self_scum. Let the Borg set itself a gold target and work in town until it can afford one item it has decided it needs. It only does this from character level 10, with a permanent light source and food in the pack.",
       "default": true
+    },
+    {
+      "flag": "borg.munchkinStart",
+      "title": "Skimp on stockpiles for an early munchkin run",
+      "description": "borg_munchkin_start. Below character level borg_munchkin_level (12), stop valuing potions of resist poison and speed, phase door, word of recall and the deeper cure stockpiles as highly as it normally would, on the assumption that a young character is cashing out rather than settling in. Upstream also has the Borg stair-scum for loot to sell at this stage; that half is not ported, so this changes only what it carries, not how it dives.",
+      "default": false
     }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-borg"

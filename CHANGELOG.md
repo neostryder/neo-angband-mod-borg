@@ -8,6 +8,46 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.9.0
+
+A second pass over the settings surface, checking every one of `BorgCfg`'s
+fifteen fields against what actually reads it rather than against what is
+merely declared.
+
+### Added
+
+- **A ninth toggle: *Skimp on stockpiles for an early munchkin run*
+  (`borg_munchkin_start`).** Below character level `borg_munchkin_level` (12,
+  not itself a setting here), it stops valuing potions of resist poison and
+  speed, phase door, word of recall and the deeper cure stockpiles as highly as
+  it normally would - real gear valuation moves, even though upstream's
+  stair-scum diving mode for the same flag is not ported. The rule's own
+  description says which half it is.
+
+### Notes
+
+- **`borg_uses_swaps`, `borg_kills_uniques` and `borg_uses_dynamic_calcs`
+  remain absent, and now for a documented reason apiece rather than a shared
+  one.** `borg_uses_swaps` has a real reader, but both functions it gates
+  return early regardless of its value because the swap-valuation seams stay
+  deliberately unwired - flipping it would tick and change nothing. The other
+  two need a subsystem this port does not have: a live census of surviving
+  uniques for the first, and a whole second formula-driven calculation engine,
+  parsed out of `borg.txt`'s own FORMULA SECTION, for the second. See
+  PLANNED.md.
+- **The three remaining numeric settings** (`borg_no_deeper`,
+  `borg_munchkin_level`, `borg_enchant_limit`) are confirmed blocked on the
+  host's manifest schema, not merely assumed to be: `PackRule` in the game's
+  own `packages/mod-sdk` carries only a boolean `default`, and every flag the
+  host resolves to a mod is `Readonly<Record<string, boolean>>`. Reaching them
+  needs a schema change in the game, which is out of this mod's reach.
+- **Neo Angband 0.27.2 added a host-owned *Autoplayer speed* row** (Fast/
+  Normal/Slow, 40/120/400ms) to whichever mod holds the autoplayer slot. The
+  Borg gets it for free on 0.27.0 or newer with no change in this repository,
+  because the control is keyed on which mod is playing rather than on
+  anything a manifest declares. It has no tier faster than 40ms today; a 10ms
+  tier is tracked in PLANNED.md as work the game's repository would need to do.
+
 ## 0.8.0
 
 The Borg can be told how to play. Upstream reads about thirty settings out of a
