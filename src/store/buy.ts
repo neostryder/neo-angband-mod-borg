@@ -197,9 +197,9 @@ export function borgGoodBuy(
         (item.sval === Sc.teleport_level || item.sval === Sc.teleport));
 
     if (special) {
-      /* self-scum toward this item (:141). Inert unless selfScum enabled. */
+      /* self-scum toward this item (:141). On by default, as upstream has it. */
       if (
-        (d?.selfScum ?? false) &&
+        (d?.selfScum ?? true) &&
         st(ctx, BI.CLEVEL) >= 10 &&
         st(ctx, BI.LIGHT) &&
         st(ctx, BI.FOOD) + 0 >= 100 && /* num_food seam folded to 0 by default */

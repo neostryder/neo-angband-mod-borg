@@ -116,7 +116,7 @@ export function borgChooseShop(ctx: BorgContext, d?: StoreDeps): boolean {
     mem.moneyScumAmount !== 0 &&
     !st(ctx, BI.CDEPTH) &&
     st(ctx, BI.LIGHT) &&
-    !(d?.selfScum ?? false)
+    !(d?.selfScum ?? true)
   ) {
     if (borgThinkShopBuyUseful(ctx, d)) return true;
     return false;

@@ -46,7 +46,7 @@ import type { Flow, FlowHooks } from "./flow/index.js";
 import type { WearDeps } from "./item/index.js";
 import { borgCheckRest, createFlow } from "./flow/index.js";
 import { BI } from "./trait/index.js";
-import { borgPrepared } from "./trait/index.js";
+import { borgCfg, borgPrepared } from "./trait/index.js";
 import {
   borgCountSell,
   borgFirstEmptyInventorySlot,
@@ -335,12 +335,31 @@ export function buildItemDeps(session: ThinkSession): WearDeps {
   };
 }
 
+/**
+ * The three `borg_cfg[]` settings the store ladder reads.
+ *
+ * They are copied out of the active settings rather than read at each use, so a
+ * single trip through the ladder cannot see two different answers. Read here and
+ * not in `store.ts` because `StoreDeps` is the seam the store subsystem was
+ * ported against: leaving its fields optional keeps every store test able to ask
+ * its own question without installing settings first.
+ */
+function storeCfg(): Pick<StoreDeps, "worshipsGold" | "selfScum" | "usesSwaps"> {
+  const cfg = borgCfg();
+  return {
+    worshipsGold: cfg.worshipsGold,
+    selfScum: cfg.selfScum,
+    usesSwaps: cfg.usesSwaps,
+  };
+}
+
 /** Build the store deps for this think (shares the anti-loop memory). */
 export function buildStoreDeps(session: ThinkSession): StoreDeps {
   const res = session.resolvers;
-  if (!res.loadoutPower) return { mem: session.storeMem };
+  if (!res.loadoutPower) return { mem: session.storeMem, ...storeCfg() };
   return {
     mem: session.storeMem,
+    ...storeCfg(),
     /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
      * would WIELD is worn; anything else joins the pack. Both cost their weight,
      * which is what makes plate armour read as the speed loss it is. */

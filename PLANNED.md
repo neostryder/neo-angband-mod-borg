@@ -550,6 +550,8 @@ implemented" but "who writes it".
 | 2026-08-21 | **Step 4 started, and found the defect the whole file predicts.** 0.6.1 installed from its tag into the released 0.25.0 desktop build, enabled, keyboard handed over - and it threw on the first perceived turn, because the manifest declared `command:add` and nothing else while the frozen view is gated per read DOMAIN. It had logged success first: `the Borg has the keyboard, and danger vision over 624 races, activation identity, the in-shop signal and loadout evaluation`. Fixed in 0.6.2 by declaring the nine domains the port reads, with a test that derives the set from the source instead of restating it. This is the same shape as everything above - a seam that looked wired from every angle except the one that plays a turn - and it is exactly what a green suite could not see. |
 | 2026-08-21 | **The rest engine seam named in symptom 9 has landed in neo-angband's tree.** `rest(count?: number)` on the agent action surface now reaches a real multi-turn `restAction`, self-continuing on the internal command queue exactly like a run, plus the three `REST_` conditional-stop modes. `src/core-api.ts` binds `REST_COMPLETE` alongside the other five engine symbols; the seven recovery-ladder `ctx.act.rest()` call sites now pass it explicitly, and the one tactical one-turn wait (`fight/attack.ts`'s `auxRest`) moved to `ctx.act.hold()`, since a rest count of exactly 1 means "repeat the last rest" upstream, not "one turn". The change degrades to today's single-turn hold on an engine without the fix, so it needed no `manifest.json` floor bump - but the healing-rate benefit itself, and this repository's own tests against a real engine, both wait on a release. |
 
+| 2026-08-22 | **The Borg can be told how to play, for the first time.** Eight of upstream's `borg.txt` settings are toggles in the mod manager, and `createBorg` installs them where the ported decision code reads them. `BorgCfg` had existed since the self-model landed with no caller, so a stock default was the only value any of the twenty-odd reading call sites had ever seen. One of those defaults was also wrong: `borg_self_scum` ships enabled upstream and was disabled at both of this port's call sites, so a stock Borg never saved up for anything. Three of upstream's booleans were held back rather than shipped as switches that tick and change nothing; step 6 says which and why. |
+
 ## Releasing this
 
 **0.4.0 IS TAGGED, released with Neo Angband 0.23.0 (2026-08-20).** It was held
@@ -875,6 +877,70 @@ town's own explore/leave-level ordering) is a separate, already-documented
 shape - a fresh level-one character heads straight to the dungeon stairs before
 the late "deal with shops" rung is ever reached, in every seed tried - and is
 not what this issue asked.
+
+### 6. The settings surface - FIRST SLICE DONE 2026-08-22 (neo-angband#30)
+
+**Eight of upstream's settings are toggles in the mod manager, and the port reads
+them for the first time.** `BorgCfg` and `defaultCfg()` had been in
+`src/trait/config.ts` since the self-model landed; nothing had ever supplied one,
+so every call site that reads a setting read a stock default. That is the same
+shape as the resolver seams: present, correct, and fed a constant.
+
+**The surface is a manifest `rule` per setting**, not `ctx.prefs` and not a
+panel. The reasoning is in `plugin.ts`'s own header and reduces to three facts: a
+rule is the only one of the host's three settings surfaces that is editable
+today, it needs no capability on the consent screen a player reads before handing
+over a character, and a changed rule re-composes the page - so a session can
+never see a setting move under it, which is the lifetime `borg_cfg[]` has.
+
+The values reach the decision code through a module-level active setting that
+`resolveOpts` folds in, because upstream's `borg_cfg[]` is a file-scope array and
+the ported call sites are the same shape. An explicit `opts.cfg` at a call still
+wins per key, so the existing tests keep asking their own questions.
+
+**Three of upstream's booleans were held back, each for a different distance from
+working**, and this is the part worth keeping rather than the list of what
+shipped:
+
+- `borg_kills_uniques` has no reader in this port at all. Its branch needs the
+  live-unique census (`borg_numb_live_unique`, `borg_depth_hunted_unique`), which
+  is not kept here.
+- `borg_uses_swaps` has a reader, and it gates two functions that return early
+  because `weaponSwapEval` / `armourSwapEval` are unwired - and those are unwired
+  because a swap contributes zero to `borg_power` here, so the comparison would be
+  between two equal numbers. Unreachable rather than merely unwired, the same
+  finding as step 2's fourth seam.
+- `borg_munchkin_start` moves gear valuation (`trait/power.ts`) but not diving,
+  because `borg_think_dungeon_munchkin` is not ported and `world.self.munchkinMode`
+  is written nowhere. Half a setting is the worst of the three: it would look like
+  it worked.
+
+**What is still open on neo-angband#30**, in the order it is worth doing:
+
+- **The numeric settings have no shape to be a toggle.** `borg_no_deeper`,
+  `borg_stop_dlevel`, `borg_stop_clevel`, `borg_enchant_limit`,
+  `borg_munchkin_level`, `borg_money_scum_amount`. A depth ceiling is the one an
+  operator actually wants, and a manifest carries only booleans. Two routes:
+  a non-boolean option type in the host's manifest schema, which every mod would
+  get, or `ctx.ui.openPanel` plus a `registry:menu` transformer that adds a row to
+  the game menu, which is this mod's alone and costs two capabilities on the
+  consent screen. The first is the better answer and it is a game-side change.
+- **A pinned respawn race and class are not reachable from this side of the seam.**
+  `ReincarnateOptions` already carries `raceName` and `className`, and
+  `game.reincarnate` already honours them - but the caller is the host's own
+  `LOOP_STATUS.DEAD` branch, which passes only the noscore mark and a rolled name.
+  There is no value a controller can return that means "roll me a new character",
+  which is the same wall step 3 hit, so the mod cannot reach this without the host
+  asking it what it wants. Upstream's own default is a reroll
+  (`borg_respawn_race` / `_class` are -1), so the port is faithful as it stands
+  and this is a feature rather than a gap.
+- **There is no stat-priority setting, and there is none upstream either.**
+  `borg.txt` describes one in a comment block ("CON 16, secondary 17, primary 17,
+  500,000 tries") and no setting backs it: `borg-reincarnate.c:527-531` fakes a
+  command with `choice = 1` and calls `do_cmd_reset_stats`, which is the game's
+  own default point-buy. The comment is stale upstream documentation. The five
+  `borg_worships_*` weights are the real surface for "what should this character
+  become", and they are shipped.
 
 ## What is deliberately NOT here
 

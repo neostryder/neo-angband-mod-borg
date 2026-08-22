@@ -142,6 +142,51 @@ mod anyone could write against this API, so it is the best available test of
 whether the API is honest. Two of the things found while wiring it up were engine
 bugs rather than Borg bugs.
 
+## Telling it how to play
+
+Upstream's borg reads a `borg.txt` out of the user's Angband folder and takes
+about thirty settings from it. There is no such folder here, and no path to one
+on a phone, so those settings are toggles in the mod manager beside *Let the Borg
+play*. Each one's description names the `borg_` setting it is, so a `borg.txt`
+you already have translates row by row.
+
+    Play risky                     borg_plays_risky
+    Value melee and missile damage borg_worships_damage
+    Value speed                    borg_worships_speed
+    Value hit points               borg_worships_hp
+    Value spell points             borg_worships_mana
+    Value armour class             borg_worships_ac
+    Value gold                     borg_worships_gold
+    Save up for something it wants  borg_self_scum
+
+Every default is upstream's own, so leaving all of them alone gets the Borg
+Angband ships. *Save up for something it wants* is the one that starts on,
+because `borg_self_scum` does.
+
+**Play risky** is the setting that changes the most. It skips the early hit-point
+and character-level floors that hold the Borg above a depth, makes it wait longer
+before drinking a cure, and makes it back away later in a losing fight. It gets
+deeper faster and it dies more.
+
+**The five "Value" settings are how the Borg weighs a piece of gear**, and they
+stack: switching on two adds both weights. They are the closest thing here to
+telling it what kind of character to be, because what a Borg wears is most of
+what it becomes. There is no separate setting for stat priorities, and there is
+none upstream either - `borg.txt` describes one in a comment, but no setting
+backs it and the reincarnation code just takes the game's default point-buy.
+
+A changed toggle takes effect on the next reload, the same as any other mod
+setting. The log line the Borg writes when it takes the keyboard names every
+setting that is not on its stock value, so the record of an unattended run says
+what it was told to do.
+
+Three of upstream's booleans are deliberately absent rather than merely
+unimplemented: `borg_kills_uniques`, `borg_uses_swaps` and
+`borg_munchkin_start` each gate code this port does not have, so a toggle for
+them would tick and change nothing. The numeric settings - depth ceilings, the
+enchant limit, a pinned race or class to respawn as - have no yes-or-no shape and
+are not here yet.
+
 ## Two things it does not do
 
 - **It cannot cheat.** Upstream's borg reads the game's own structures directly

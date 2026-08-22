@@ -206,6 +206,40 @@ describe("the built plugin.js", () => {
     expect(install({}, ["registries", "state"]).controller).toBeUndefined();
   });
 
+  it("runs on upstream's stock settings when the player moved nothing, and says so", () => {
+    /* A stock Borg is the Borg Angband ships. The log line is how an unattended
+       run's record says which one was playing, and this is the case where the
+       answer is "the one the C would have been". */
+    const { logs } = install({ "borg.autoplay": true });
+    expect(logs.join(" ")).toContain("stock settings");
+  });
+
+  it("carries the player's settings through the bundle, and names the changed ones", () => {
+    /* THE SECOND ANTI-INERT TEST. src/settings.test.ts proves each setting moves
+       a decision; that runs against TypeScript. This proves the flags survive the
+       trip from the mod manager, through esbuild's single scope, into the Borg -
+       and it asserts the NAMES, because a table that mapped two flags onto one
+       setting would still produce a Borg that starts and plays. */
+    const { logs } = install({
+      "borg.autoplay": true,
+      "borg.playsRisky": true,
+      "borg.worshipsSpeed": true,
+      "borg.selfScum": false,
+    });
+    const said = logs.join(" ");
+    expect(said).toContain("playsRisky=true");
+    expect(said).toContain("worshipsSpeed=true");
+    expect(said).toContain("selfScum=false");
+    expect(said).not.toContain("worshipsGold");
+  });
+
+  it("does not report a setting the player left on its stock value", () => {
+    /* Switching a rule ON that is already on by default is not a change, and a
+       log that called it one would make every run look configured. */
+    const { logs } = install({ "borg.autoplay": true, "borg.selfScum": true });
+    expect(logs.join(" ")).toContain("stock settings");
+  });
+
   it("yields when the player is dead", () => {
     const controller = install({ "borg.autoplay": true }).controller!;
     expect(controller(makeScenarioView({ player: { dead: true } }), makeFakeActions())).toBeNull();

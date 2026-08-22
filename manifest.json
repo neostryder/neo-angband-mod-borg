@@ -1,7 +1,7 @@
 {
   "id": "borg",
   "name": "The Borg",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "shape": "plugin",
   "facets": [
     "plugin"
@@ -32,6 +32,54 @@
       "title": "Let the Borg play",
       "description": "Hand the Borg your character. It perceives the level, decides, and issues commands on its own, following the same priority ladder as upstream Angband's borg: avoid death, recover, fight, improve gear, take loot, explore, descend. Off by default, because enabling a mod and giving away the keyboard are different decisions.",
       "default": false
+    },
+    {
+      "flag": "borg.playsRisky",
+      "title": "Play risky",
+      "description": "borg_plays_risky. Skip the early hit-point and character-level gates that hold the Borg above a depth, wait longer before drinking a cure, and back away later in a losing fight. It reaches deeper sooner and dies more.",
+      "default": false
+    },
+    {
+      "flag": "borg.worshipsDamage",
+      "title": "Value melee and missile damage",
+      "description": "borg_worships_damage. Add weight to weapon and bow damage when the Borg scores a set of gear, so a trade that costs armour for damage looks better than it otherwise would.",
+      "default": false
+    },
+    {
+      "flag": "borg.worshipsSpeed",
+      "title": "Value speed",
+      "description": "borg_worships_speed. Add weight to a speed bonus when scoring gear.",
+      "default": false
+    },
+    {
+      "flag": "borg.worshipsHp",
+      "title": "Value hit points",
+      "description": "borg_worships_hp. Add weight to constitution and hit points when scoring gear.",
+      "default": false
+    },
+    {
+      "flag": "borg.worshipsMana",
+      "title": "Value spell points",
+      "description": "borg_worships_mana. Add weight to spell points when scoring gear. Nothing for a warrior, who has none.",
+      "default": false
+    },
+    {
+      "flag": "borg.worshipsAc",
+      "title": "Value armour class",
+      "description": "borg_worships_ac. Add weight to armour class when scoring gear.",
+      "default": false
+    },
+    {
+      "flag": "borg.worshipsGold",
+      "title": "Value gold",
+      "description": "borg_worships_gold. Sell harder, walk down rather than pay for a recall, and put off the first deep recall. It buys better equipment sooner and spends longer in town doing it. Upstream stops applying this past character level 20.",
+      "default": false
+    },
+    {
+      "flag": "borg.selfScum",
+      "title": "Save up for something it wants",
+      "description": "borg_self_scum. Let the Borg set itself a gold target and work in town until it can afford one item it has decided it needs. It only does this from character level 10, with a permanent light source and food in the pack.",
+      "default": true
     }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-borg"

@@ -5496,15 +5496,24 @@ function defaultCfg() {
     worshipsHp: false,
     worshipsMana: false,
     worshipsAc: false,
+    worshipsGold: false,
     playsRisky: false,
     killsUniques: false,
     usesSwaps: true,
+    selfScum: true,
     usesDynamicCalcs: false,
     noDeeper: 127,
     munchkinStart: false,
     munchkinLevel: 12,
     enchantLimit: 12
   };
+}
+var activeCfg = defaultCfg();
+function setBorgCfg(cfg = {}) {
+  activeCfg = { ...defaultCfg(), ...cfg };
+}
+function borgCfg() {
+  return activeCfg;
 }
 function defaultSpellSeam() {
   return {
@@ -5532,7 +5541,7 @@ function defaultFrame() {
 }
 function resolveOpts(opts = {}) {
   return {
-    cfg: { ...defaultCfg(), ...opts.cfg },
+    cfg: { ...borgCfg(), ...opts.cfg },
     spells: opts.spells ?? defaultSpellSeam(),
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? defaultFrame(),
@@ -8466,7 +8475,7 @@ function borgGoodBuy(ctx, item, who, ware, d) {
       return true;
     const special = item.tval === TV.POTION && (item.sval === P.star_healing || item.sval === P.life || item.sval === P.healing || item.sval === P.inc_str && st(ctx, 10 /* CSTR */) < 18 + 100 || item.sval === P.inc_int && st(ctx, 11 /* CINT */) < 18 + 100 || item.sval === P.inc_wis && st(ctx, 12 /* CWIS */) < 18 + 100 || item.sval === P.inc_dex && st(ctx, 13 /* CDEX */) < 18 + 100 || item.sval === P.inc_con && st(ctx, 14 /* CCON */) < 18 + 100) || item.tval === TV.ROD && (item.sval === Ro.healing || item.sval === Ro.recall && cls !== CLASS_PRIEST && cls !== CLASS_PALADIN || item.sval === Ro.speed && cls !== CLASS_DRUID && cls !== CLASS_RANGER || item.sval === Ro.teleport_other && cls !== CLASS_MAGE && cls === CLASS_ROGUE || item.sval === Ro.illumination && !st(ctx, 228 /* ALITE */)) || canBrowse(item, d) && (d?.amtBook ? d.amtBook(item) : 0) === 0 && (d?.isDungeonBook ? d.isDungeonBook(item) : false) || item.tval === TV.SCROLL && (item.sval === Sc.teleport_level || item.sval === Sc.teleport);
     if (special) {
-      if ((d?.selfScum ?? false) && st(ctx, 35 /* CLEVEL */) >= 10 && st(ctx, 26 /* LIGHT */) && st(ctx, 39 /* FOOD */) + 0 >= 100 && /* num_food seam folded to 0 by default */
+      if ((d?.selfScum ?? true) && st(ctx, 35 /* CLEVEL */) >= 10 && st(ctx, 26 /* LIGHT */) && st(ctx, 39 /* FOOD */) + 0 >= 100 && /* num_food seam folded to 0 by default */
       shopCost(item) <= 85e3) {
         const dexSafe = 0;
         if (dexSafe + st(ctx, 35 /* CLEVEL */) > 90) {
@@ -8748,7 +8757,7 @@ function borgChooseShop(ctx, d) {
     goal.shop = BORG_HOME;
     return true;
   }
-  if (st(ctx, 45 /* GOLD */) < mem.moneyScumAmount && mem.moneyScumAmount !== 0 && !st(ctx, 105 /* CDEPTH */) && st(ctx, 26 /* LIGHT */) && !(d?.selfScum ?? false)) {
+  if (st(ctx, 45 /* GOLD */) < mem.moneyScumAmount && mem.moneyScumAmount !== 0 && !st(ctx, 105 /* CDEPTH */) && st(ctx, 26 /* LIGHT */) && !(d?.selfScum ?? true)) {
     if (borgThinkShopBuyUseful(ctx, d)) return true;
     return false;
   }
@@ -9753,11 +9762,20 @@ function buildItemDeps(session) {
     } : {}
   };
 }
+function storeCfg() {
+  const cfg = borgCfg();
+  return {
+    worshipsGold: cfg.worshipsGold,
+    selfScum: cfg.selfScum,
+    usesSwaps: cfg.usesSwaps
+  };
+}
 function buildStoreDeps(session) {
   const res = session.resolvers;
-  if (!res.loadoutPower) return { mem: session.storeMem };
+  if (!res.loadoutPower) return { mem: session.storeMem, ...storeCfg() };
   return {
     mem: session.storeMem,
+    ...storeCfg(),
     /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
      * would WIELD is worn; anything else joins the pack. Both cost their weight,
      * which is what makes plate armour read as the speed loss it is. */
@@ -15059,6 +15077,8 @@ function createBorg(opts = {}) {
   const world = new BorgWorld();
   const rng = makeBorgRng(opts.rngSeed);
   const memo = makePerceiveMemo();
+  setBorgCfg(opts.cfg ?? {});
+  getFightState(world).playsRisky = borgCfg().playsRisky;
   const session = buildThinkSession(opts.resolvers ?? {});
   installThinkSession(world, session);
   const tables = buildHitByTable(session.resolvers.blowActions ?? []);
@@ -15227,6 +15247,28 @@ function makeCoreResolvers(input) {
 
 // plugin.ts
 var AUTOPLAY_FLAG = "borg.autoplay";
+var RULE_CFG = {
+  "borg.playsRisky": "playsRisky",
+  "borg.worshipsDamage": "worshipsDamage",
+  "borg.worshipsSpeed": "worshipsSpeed",
+  "borg.worshipsHp": "worshipsHp",
+  "borg.worshipsMana": "worshipsMana",
+  "borg.worshipsAc": "worshipsAc",
+  "borg.worshipsGold": "worshipsGold",
+  "borg.selfScum": "selfScum"
+};
+function cfgFromFlags(flags) {
+  const cfg = {};
+  for (const [flag, key] of Object.entries(RULE_CFG)) {
+    const value = flags[flag];
+    if (typeof value === "boolean") cfg[key] = value;
+  }
+  return cfg;
+}
+function changedFrom(cfg) {
+  const stock = defaultCfg();
+  return Object.entries(cfg).filter(([key, value]) => stock[key] !== value).map(([key, value]) => `${key}=${String(value)}`).sort();
+}
 var plugin_default = {
   api: 1,
   controller(ctx) {
@@ -15245,16 +15287,22 @@ var plugin_default = {
     }
     const races = ctx.registries.monsters.races;
     const blowMethods = ctx.registries.monsters.blowMethods.values();
+    const cfg = cfgFromFlags(ctx.flags);
     const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,
         objects: ctx.registries.objects,
         state: ctx.state,
         blowMethods
-      })
+      }),
+      cfg
     });
     ctx.log(
       `the Borg has the keyboard, and danger vision over ${races.length} races, activation identity, the in-shop signal and loadout evaluation`
+    );
+    const changed = changedFrom(cfg);
+    ctx.log(
+      changed.length === 0 ? "the Borg is on upstream's stock settings" : `the Borg's settings differ from stock: ${changed.join(", ")}`
     );
     return borg.controller;
   }
