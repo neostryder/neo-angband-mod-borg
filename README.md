@@ -103,6 +103,22 @@ fresh set of heuristics that merely look similar.
 > nothing in sight and nothing to heal went from 403 to zero, and the ground
 > covered nearly doubled.
 >
+> **Then it was watched playing, and this time it played.** 2026-08-22, thirteen
+> minutes in the development build and four in the packaged 0.26.0 artifact, each
+> on its own isolated data directory: no mod faults, no console errors, 37 blocking
+> prompts answered without a human, four locked doors picked a turn at a time, four
+> secret doors found by searching, thirteen monsters killed in the artifact run, and
+> four characters that died and started again on their own. It fled twice under a
+> low-hitpoint warning by taking the stairs, arrived in town at 6 of 11 hit points,
+> and rested back to 10 before diving again.
+>
+> **What it still does not do is shop.** It reveals the whole town, walks past all
+> eight shop entrances and spends nothing, because `shop-buy`, `shop-sell` and
+> `shop-exit` have no handler in the engine's command registry. So it fights with
+> birth gear and dies at character level one, cycling between the town and 50 feet.
+> That cycle is upstream's own behaviour for a scared level-one borg; leaving it
+> is what shopping is for. `PLANNED.md` has the whole record.
+>
 > So: install it to watch it try, not to watch it win. And do not take the rest of
 > the suite for evidence - most of the other files cover dispatch, ladder ordering
 > and resolver wiring, and they do not play a turn. That was exactly the gap;
