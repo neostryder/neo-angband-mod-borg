@@ -78,21 +78,37 @@ function primed(
   return { session, ctx };
 }
 
-/** A resolver that records every change it is asked about and answers `power`. */
-function recorder(power: number | null): {
+/**
+ * A resolver that records every change it is asked about, answering `base` for
+ * the empty change and `power` for every other.
+ *
+ * THE EMPTY CHANGE IS PART OF THE CONTRACT. powerOf turns a simulated score into
+ * a DELTA against the character as it stands, and it gets the second half by
+ * asking this same seam about a change of nothing. A stub that answered one
+ * number for everything would describe an engine on which no item improves
+ * anything, which is a real state and not the one most of these tests want, so
+ * `base` defaults to the current power rather than to `power`.
+ */
+function recorder(power: number | null, base: number | null = 1000): {
   resolvers: BorgResolvers;
   seen: BorgLoadoutChange[];
 } {
   const seen: BorgLoadoutChange[] = [];
+  const isEmpty = (c: BorgLoadoutChange): boolean => Object.keys(c).length === 0;
   return {
     seen,
     resolvers: {
       loadoutPower: (_ctx, change) => {
         seen.push(change);
-        return power;
+        return isEmpty(change) ? base : power;
       },
     },
   };
+}
+
+/** The changes a recorder saw, with the baseline probes taken out. */
+function candidates(seen: BorgLoadoutChange[]): BorgLoadoutChange[] {
+  return seen.filter((c) => Object.keys(c).length > 0);
 }
 
 describe("the loadout seam reaches the wear decision", () => {
@@ -105,8 +121,29 @@ describe("the loadout seam reaches the wear decision", () => {
     const { resolvers, seen } = recorder(2000);
     const { session } = primed(resolvers);
     const power = buildItemDeps(session).wearEval!(item({ handle: 42 }));
+    /* The live power (1000) plus the simulated gain (2000 - 1000), NOT the raw
+       simulated 2000: the two numbers the decision compares have to come from
+       one derivation or a systematic offset between them reads as a gain on
+       every candidate. See powerOf. */
     expect(power).toBe(2000);
-    expect(seen).toEqual([{ wield: [{ from: "gear", handle: 42 }] }]);
+    expect(candidates(seen)).toEqual([{ wield: [{ from: "gear", handle: 42 }] }]);
+    expect(seen.some((c) => Object.keys(c).length === 0), "it asked for the baseline too").toBe(true);
+  });
+
+  it("cancels a systematic offset between the live and simulated derives", () => {
+    /* THE TORCH LOOP, as an arithmetic statement. An engine whose simulated
+       derive scores 14000 higher than the live one for the very same loadout made
+       every wearable item look like a 14000-point upgrade, and the Borg swapped
+       one wooden torch for an identical one 3964 times in 4000 decisions. With
+       the baseline subtracted, an offset that applies to both sides cancels and
+       an item that changes nothing reports no gain. */
+    const { resolvers } = recorder(15_000, 14_000);
+    const { session } = primed(resolvers, [], 1000);
+    expect(buildItemDeps(session).wearEval!(item({ handle: 42 }))).toBe(2000);
+
+    const flat = recorder(14_000, 14_000);
+    const flatSession = primed(flat.resolvers, [], 1000).session;
+    expect(buildItemDeps(flatSession).wearEval!(item({ handle: 42 }))).toBe(1000);
   });
 
   it("hands back the CURRENT power when the engine cannot answer", () => {
@@ -155,7 +192,7 @@ describe("the loadout seam reaches the store decisions", () => {
     expect(
       deps.buyShopEval!(ctx, { item: ware({ index: 4 }), store: 1, qty: 3, wields: false }),
     ).toBe(2000);
-    expect(seen).toEqual([
+    expect(candidates(seen)).toEqual([
       { carry: [{ item: { from: "store", store: 1, index: 4 }, number: 3 }] },
     ]);
   });
@@ -166,8 +203,9 @@ describe("the loadout seam reaches the store decisions", () => {
     const deps = buildStoreDeps(session);
     deps.buyShopEval!(ctx, { item: ware({ index: 4 }), store: 2, qty: 1, wields: true });
     deps.buyShopEval!(ctx, { item: ware({ index: 4 }), store: 2, qty: 2, wields: true });
-    expect(seen[0]).toEqual({ wield: [{ from: "store", store: 2, index: 4 }] });
-    expect(seen[1]).toEqual({
+    const asked = candidates(seen);
+    expect(asked[0]).toEqual({ wield: [{ from: "store", store: 2, index: 4 }] });
+    expect(asked[1]).toEqual({
       wield: [{ from: "store", store: 2, index: 4 }],
       carry: [{ item: { from: "store", store: 2, index: 4 }, number: 1 }],
     });
@@ -186,7 +224,7 @@ describe("the loadout seam reaches the store decisions", () => {
       qty: 1,
       wields: false,
     });
-    expect(seen).toEqual([
+    expect(candidates(seen)).toEqual([
       { carry: [{ item: { from: "store", store: 7, index: 17 }, number: 1 }] },
     ]);
   });
@@ -197,7 +235,7 @@ describe("the loadout seam reaches the store decisions", () => {
     const deps = buildStoreDeps(session);
     deps.sellEval!(ctx, item({ handle: 9 }), 4);
     deps.sellHomeBadEval!(ctx, item({ handle: 9 }));
-    expect(seen).toEqual([
+    expect(candidates(seen)).toEqual([
       { release: [{ handle: 9, number: 4 }] },
       { release: [{ handle: 9, number: 1 }] },
     ]);

@@ -55,6 +55,12 @@ export function borgPrepared(
 
   /* Minimal requirements (borg-prepared.c:565). */
   if (depth <= 99) {
+    /* borg_prepared_aux's own first two lines (borg-prepared.c:48-52): the -1
+     * "never asked" becomes 0, and a winner is ready for Morgoth by definition.
+     * They live here rather than in borgPreparedAux because that helper takes the
+     * trait table instead of the world. */
+    if (ctx.world.self.readyMorgoth === -1) ctx.world.self.readyMorgoth = 0;
+    if (t[BI.KING]) ctx.world.self.readyMorgoth = 1;
     const reason = borgPreparedAux(t, d, R, depth);
     if (reason) return reason;
   }
@@ -92,7 +98,12 @@ export function borgPrepared(
   }
 
   /* Live-unique / Morgoth gating (borg-prepared.c:627): modelled by seam;
-   * with stock borg_kills_uniques = false this resolves to "ready". */
+   * with stock borg_kills_uniques = false this resolves to "ready", which is
+   * the "is only Morgoth alive" branch - so readyMorgoth goes back to -1 and
+   * becomes 1 only at depth 99. The reset looks pointless one line before a
+   * return, and is not: the next borgRestock reads it and turns it back to 0. */
+  ctx.world.self.readyMorgoth = -1;
+  if (depth >= 99) ctx.world.self.readyMorgoth = 1;
   return null;
 }
 
@@ -355,6 +366,12 @@ export function borgRestock(
   const t = ctx.world.self.trait;
   const d = getDerived(ctx.world);
   const cls = t[BI.CLASS]!;
+
+  /* borg-prepared.c:697: "We are now looking at our preparedness" - the -1 that
+   * means "never asked" becomes 0 on the first look. Several readers, the stair
+   * choice in borg_caution among them, test for 0 rather than for "not 1", so a
+   * readyMorgoth left at -1 silently disables them. */
+  if (ctx.world.self.readyMorgoth === -1) ctx.world.self.readyMorgoth = 0;
 
   /* Level 1. */
   if (t[BI.LIGHT]! < 1) return "restock light radius < 1";

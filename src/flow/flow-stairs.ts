@@ -11,6 +11,11 @@
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
 import type { BorgContext } from "../context.js";
+import {
+  Spell,
+  borgHeroismLevel,
+  borgSpellFail,
+} from "../item/magic.js";
 import { AUTO_MAX_X, AUTO_MAX_Y, BI, FEAT, trait } from "./flow-consts.js";
 import {
   borgFlowClear,
@@ -204,4 +209,101 @@ export function borgFlowStairMore(
 
   if (!borgFlowCommit(ctx, flow, why)) return null;
   return borgFlowOld(ctx, flow, why);
+}
+
+/**
+ * borg_prep_leave_level_spells (borg-flow-stairs.c:252): buff before stepping
+ * onto a staircase, in upstream's order -- haste, resistance, mana channel,
+ * berserk strength, heroism, rapid regeneration, smite evil, venom. Each sets
+ * `noRestPrep` so the borg does not immediately rest the buff away, and each
+ * returns as soon as one casts, so a full set takes one turn per spell.
+ *
+ * A borg that is running away does not stop to buff, and neither does one below
+ * 60 percent mana. A non-caster falls straight through: every branch needs a
+ * spell it does not have.
+ */
+export function borgPrepLeaveLevelSpells(
+  ctx: BorgContext,
+): AgentCommand | null {
+  const w = ctx.world;
+  const self = w.self;
+  const temp = self.temp;
+
+  /* If we are running away, just run. */
+  if (self.goal.fleeing) return null;
+
+  /* If we are low on mana, do not prep. */
+  if (trait(w, BI.CURSP) < Math.trunc((trait(w, BI.MAXSP) * 6) / 10)) return null;
+
+  if (!temp.fast) {
+    const cmd = borgSpellFail(ctx, Spell.HASTE_SELF, 15);
+    if (cmd) {
+      self.noRestPrep = 5000;
+      return cmd;
+    }
+  }
+
+  if (
+    Number(temp.resFire) +
+      Number(temp.resAcid) +
+      Number(temp.resElec) +
+      Number(temp.resCold) <
+    3
+  ) {
+    const cmd = borgSpellFail(ctx, Spell.RESISTANCE, 15);
+    if (cmd) {
+      self.noRestPrep = 21000;
+      return cmd;
+    }
+  }
+
+  if (!temp.fastcast) {
+    const cmd = borgSpellFail(ctx, Spell.MANA_CHANNEL, 15);
+    if (cmd) {
+      self.noRestPrep = 6000;
+      return cmd;
+    }
+  }
+
+  if (!temp.berserk) {
+    const cmd = borgSpellFail(ctx, Spell.BERSERK_STRENGTH, 15);
+    if (cmd) {
+      self.noRestPrep = 10000;
+      return cmd;
+    }
+  }
+
+  if (!temp.hero && trait(w, BI.CLEVEL) > borgHeroismLevel(ctx)) {
+    const cmd = borgSpellFail(ctx, Spell.HEROISM, 15);
+    if (cmd) {
+      self.noRestPrep = 3000;
+      return cmd;
+    }
+  }
+
+  if (!temp.regen) {
+    const cmd = borgSpellFail(ctx, Spell.RAPID_REGENERATION, 15);
+    if (cmd) {
+      self.noRestPrep = 6000;
+      return cmd;
+    }
+  }
+
+  if (!temp.smiteEvil && !trait(w, BI.WS_EVIL)) {
+    const cmd = borgSpellFail(ctx, Spell.SMITE_EVIL, 15);
+    if (cmd) {
+      self.noRestPrep = 21000;
+      return cmd;
+    }
+  }
+
+  if (!temp.venom && !trait(w, BI.WB_POIS)) {
+    const cmd = borgSpellFail(ctx, Spell.VENOM, 15);
+    if (cmd) {
+      self.noRestPrep = 18000;
+      return cmd;
+    }
+  }
+
+  return null;
 }

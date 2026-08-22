@@ -26,6 +26,12 @@ export interface WearDeps extends ItemDeps {
   randarts?: boolean;
   /** borg.power if `item` were worn (the C's borg_notice/borg_power sim). */
   wearEval?: (item: ItemView) => number;
+  /**
+   * borg_began: the Borg clock when it arrived on this level, for the
+   * "been sitting here forever" guard (wear.c:779). Default 0, which with a
+   * clock of 0 reads as "just arrived" and lets the scan run.
+   */
+  began?: number;
 }
 
 /** borg_is_ammo(tval) (wear.c:1541). */
@@ -104,6 +110,13 @@ export function borgWearStuff(
   /* Need an empty slot to simulate pushing equipment (wear.c:774). */
   if (d?.hasHole === false) return null;
 
+  /* "Forbid if been sitting on level forever" (wear.c:779). Both halves are
+   * anti-loop: a borg that has spent this long without leaving is not going to
+   * be rescued by another equipment swap, and the swap is what is keeping it
+   * there. */
+  if ((d?.clock ?? 0) - (d?.began ?? 0) > 2000) return null;
+  if (ctx.world.self.timeThisPanel > 1300) return null;
+
   const currentPower = ctx.world.self.power;
   let bestPower = currentPower;
   let best: ItemView | null = null;
@@ -127,12 +140,33 @@ export function borgWearStuff(
 
     /* Evaluate the loadout (wear.c:858). Without the seam, no improvement. */
     const p = d?.wearEval ? d.wearEval(item) : currentPower;
-    if (p > bestPower) {
-      bestPower = p;
-      best = item;
-    }
+
+    /* "Ignore essentially equal swaps" (wear.c:913). THE MARGIN IS THE ANTI-LOOP,
+     * and 50 rather than 0 is the whole point: two wooden torches with a few turns
+     * of fuel between them score within a handful of points of each other, so a
+     * plain `p > bestPower` made each the better choice in turn and the borg spent
+     * every turn of the rest of its life swapping one for the other. Measured over
+     * a headless run before this line existed: 3964 wield commands out of 4000
+     * decisions.
+     *
+     * NOT PORTED, and honestly: upstream also refuses a swap that raises the
+     * danger at the current grid (`if (danger < d) continue`, wear.c:908), which
+     * needs borg_danger re-run over the simulated loadout. The wearEval seam
+     * answers with a power and nothing else, so there is no simulated world here
+     * to ask. It costs the borg a swap it should have declined, not a loop. */
+    if (p <= bestPower + 50) continue;
+
+    bestPower = p;
+    best = item;
   }
 
-  if (best) return ctx.act.wear(best.handle);
+  /* The final gate is against the CURRENT power, not against the running best
+   * (wear.c:993): the margin above only decides which candidate wins. */
+  if (best && bestPower > currentPower) {
+    /* borg.time_this_panel++ (wear.c:1021): a wear is an action, and the panel
+     * clock is what the ladder's own anti-loop rungs read. */
+    ctx.world.self.timeThisPanel++;
+    return ctx.act.wear(best.handle);
+  }
   return null;
 }

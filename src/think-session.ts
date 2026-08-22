@@ -185,14 +185,52 @@ function wareRef(store: number, item: ItemView & { index: number }): BorgLoadout
  * decisions compares the result against borg.power and acts only on a gain, so
  * handing back the current power is exactly the conservative default the seam
  * documents.
+ *
+ * A DELTA APPLIED TO THE LIVE SCORE, NOT THE SIMULATED SCORE ITSELF, and the
+ * reason is the whole class of bug this file keeps meeting. Upstream compares two
+ * numbers that came out of ONE code path: it wields the candidate for real, runs
+ * borg_power, and puts it back. This port compares the live self-model's score
+ * against a score derived from a simulated view, and any systematic difference
+ * between those two derivations reads as a gain on EVERY candidate.
+ *
+ * That was not hypothetical. Measured 2026-08-21 on a headless run: in a daytime
+ * town the simulated derive reported a light radius the character did not have,
+ * worth 14000 points, so every wearable item looked like an improvement and the
+ * Borg spent 3964 of 4000 decisions swapping one wooden torch for an identical
+ * one. Subtracting the simulation's own baseline cancels any such offset exactly,
+ * whatever its cause, and leaves the quantity the decision actually wants.
  */
 function powerOf(
   session: ThinkSession,
   ctx: BorgContext,
   change: BorgLoadoutChange,
 ): number {
-  const answer = session.resolvers.loadoutPower?.(ctx, change);
-  return answer ?? ctx.world.self.power;
+  const resolve = session.resolvers.loadoutPower;
+  if (!resolve) return ctx.world.self.power;
+  const answer = resolve(ctx, change);
+  if (answer === null) return ctx.world.self.power;
+
+  /* The same simulation over an EMPTY change: the character as it stands, scored
+   * by the path that scored the candidate. One per think, because every eval in
+   * a decision asks for it and the derive is not free. */
+  const base = simulationBaseline(session, ctx, resolve);
+  if (base === null) return answer;
+  return ctx.world.self.power + (answer - base);
+}
+
+/** Per-think memo for the simulated baseline (see powerOf). */
+const BASELINES = new WeakMap<ThinkSession, { clock: number; base: number | null }>();
+
+function simulationBaseline(
+  session: ThinkSession,
+  ctx: BorgContext,
+  resolve: (c: BorgContext, change: BorgLoadoutChange) => number | null,
+): number | null {
+  const cached = BASELINES.get(session);
+  if (cached && cached.clock === ctx.world.clock) return cached.base;
+  const base = resolve(ctx, {}) ?? null;
+  BASELINES.set(session, { clock: ctx.world.clock, base });
+  return base;
 }
 
 /**
@@ -218,6 +256,8 @@ export function buildItemDeps(session: ThinkSession): WearDeps {
     avoidance: w.self.trait[BI.CURHP] ?? 0,
     canRest: true,
     clock: w.clock,
+    /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
+    began: session.flow.state.borgBegan,
     fearRegion: fear.region(py, px),
     ...(res.resolveActivation
       ? {

@@ -21,6 +21,13 @@ import { BA } from "./bf.js";
 import { getFightState } from "./state.js";
 import { borgThrustDamageOne, borgLaunchDamageOne, borgBestMult, borgAttack } from "./attack.js";
 import { borgCaution } from "./caution.js";
+import { createFlowState } from "../flow/flow.js";
+import { FEAT } from "../flow/flow-consts.js";
+
+/** A fresh FlowState with the inert default hooks (borg_init_flow). */
+function makeFlowState(): ReturnType<typeof createFlowState> {
+  return createFlowState();
+}
 
 /** Build a seeded BorgContext with trait overrides applied after perceive. */
 function makeCtx(
@@ -177,6 +184,61 @@ describe("borgAttack (attack.c:5148)", () => {
 describe("borgCaution (caution.c:799)", () => {
   it("healthy, no monsters -> null (nothing to do)", () => {
     const ctx = makeCtx({}, { CURHP: 50, MAXHP: 50, CLEVEL: 20, CDEPTH: 5 });
-    expect(borgCaution(ctx)).toBeNull();
+    expect(borgCaution(ctx, makeFlowState())).toBeNull();
+  });
+
+  /* THE STALL THIS BLOCK EXISTS TO END. Every other ladder stage flows toward a
+   * staircase and sets stairLess / stairMore; caution.c:1169 is the only place
+   * that spends a turn on one. While it was missing, the borg walked onto an up
+   * staircase, ran out of flow, explored one step off it, and was pulled back --
+   * for as long as anybody left it running. */
+  it("takes an up staircase it is standing on while leaving (caution.c:1169)", () => {
+    const ctx = makeCtx(
+      { cells: { "20,12": { feat: FEAT.LESS } }, player: { grid: { x: 20, y: 12 } } },
+      { CURHP: 50, MAXHP: 50, CLEVEL: 20, CDEPTH: 5 },
+    );
+    /* Past the 200-turn restock grace (caution.c:1064), so the restock arm runs
+     * and normalises readyMorgoth from -1 to 0 - which is what the stair choice
+     * below tests for. Asserting the chain rather than hand-setting the flag: the
+     * flag staying at -1 was the whole defect. */
+    ctx.world.clock = 500;
+    ctx.world.self.goal.leaving = true;
+    const cmd = borgCaution(ctx, makeFlowState());
+    expect(ctx.world.self.readyMorgoth).toBe(0);
+    expect(cmd?.code).toBe("ascend");
+    expect(ctx.world.self.stairLess).toBe(true);
+  });
+
+  it("takes a down staircase it is standing on while leaving (caution.c:1188)", () => {
+    const ctx = makeCtx(
+      { cells: { "20,12": { feat: FEAT.MORE } }, player: { grid: { x: 20, y: 12 } } },
+      { CURHP: 50, MAXHP: 50, CLEVEL: 20, CDEPTH: 5 },
+    );
+    ctx.world.self.goal.leaving = true;
+    const cmd = borgCaution(ctx, makeFlowState());
+    expect(cmd?.code).toBe("descend");
+  });
+
+  it("prefers up over down when there is an up stair and the borg is hungry", () => {
+    /* caution.c:1148: "don't go down if we can go up and are hungry". The gate
+     * is track_less being non-empty, so a flow state that knows an up stair is
+     * what makes the branch reachable at all. */
+    const flow = makeFlowState();
+    flow.less.add(4, 4);
+    const ctx = makeCtx(
+      { cells: { "20,12": { feat: FEAT.MORE } }, player: { grid: { x: 20, y: 12 } } },
+      { CURHP: 50, MAXHP: 50, CLEVEL: 20, CDEPTH: 5, ISHUNGRY: 1 },
+    );
+    ctx.world.self.goal.leaving = true;
+    expect(borgCaution(ctx, flow)).toBeNull();
+    expect(ctx.world.self.stairMore).toBe(false);
+  });
+
+  it("does not touch a staircase when it has no reason to leave", () => {
+    const ctx = makeCtx(
+      { cells: { "20,12": { feat: FEAT.MORE } }, player: { grid: { x: 20, y: 12 } } },
+      { CURHP: 50, MAXHP: 50, CLEVEL: 20, CDEPTH: 5 },
+    );
+    expect(borgCaution(ctx, makeFlowState())).toBeNull();
   });
 });

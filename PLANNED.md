@@ -51,9 +51,7 @@ Three claims, and the third is the one that decides it:
 3. **It has been WATCHED playing, in the installed build, over several runs**, and
    what it did is written down: what depth it reached, whether it fled, whether it
    shopped, whether it used an activation, how it died, and whether it started
-   again. A green test suite is not this claim and cannot become it - the tests
-   cover `borg_think` dispatch, ladder determinism and ladder priorities, and not
-   one of them plays a turn.
+   again. A green test suite is not this claim and cannot become it.
 
    **NOT DONE. First attempted 2026-08-21, and it failed.** The watching happened
    and is written down below; what it showed is that the Borg does not yet get far
@@ -61,6 +59,16 @@ Three claims, and the third is the one that decides it:
    both times without dying, so the restart loop was never exercised at all. Three
    distinct stalls are named in "Watched playing" below, one of them in this
    repository and two of them in the game's.
+
+   **All three stalls are now closed, and there is a test that plays.** That
+   changes what claim 3 is waiting for, and does not satisfy it. Every stall was
+   found and fixed with `src/play.test.ts`, which boots a real game, hands it to
+   the Borg and drives 1500 decisions on each of four seeds: it now explores
+   hundreds of squares, opens doors, disarms real traps, changes level and dies.
+   That instrument paints nothing and runs no shell, and the prompt fix is entirely
+   shell-side, so it cannot answer this claim. It can and does answer the sentence
+   this bullet used to end with - "not one of them plays a turn" was true of the
+   whole suite and is not any more.
 
 Until 3 is done, nothing here says the Borg plays properly. See the README's own
 Status section, which was narrowed on 2026-08-21 for exactly this reason.
@@ -114,12 +122,18 @@ without end. The chain is exact:
   from the view, and no turn has elapsed. Nothing breaks the cycle.
 
 Upstream's borg never hits this, and the reason names the defect: its `ag->trap`
-comes from a trap GLYPH on the screen, which a locked door does not draw. The
-port swapped that for a wider signal without narrowing it. Two things need
-deciding rather than patching: whether the frozen view should offer a
-"disarmable" answer that matches what `disarm` will accept, and whether this port
-needs a general guard against a command that is refused for free - because a
-zero-energy refusal in a loop is a hang, not a bad decision, whatever issues it.
+comes from `square_isdisarmabletrap`, which a locked door fails on two counts (a
+door lock is flagged `LOCK | INVISIBLE`, so it is neither a player trap nor a
+visible one). The port swapped that for a wider signal without narrowing it.
+
+**FIXED 2026-08-21, in the game's repository.** `CellView.trap` is now
+`square_isdisarmabletrap` - the same predicate `disarm` itself tests, and the same
+one the trap layer draws from. A glyph of warding, a web and a decoy are excluded
+by it too, and so is a trap the player has not found, which the old field leaked.
+Nothing in this repository changed: `ingestMap` copying `c.trap` was correct, and
+the field it copied was not. The second question the paragraph above asked - a
+general guard against a command refused for free - was not needed once the field
+told the truth, and a guard would have papered over it.
 
 **2. It does not explore a dungeon level. THIS REPOSITORY.** With the first stall
 avoided, run 2 spent nine minutes moving between two squares of the corridor it
@@ -128,6 +142,46 @@ loop rather than a freeze: the flow either finds no dark target or re-targets th
 stairs it is on. The revealed map never grew past a bare corridor. Upstream's
 `borg_flow_dark` is what should be carrying it, and something in that path is
 not.
+
+**FIXED 2026-08-21, and `borg_flow_dark` was innocent.** The ported explore path
+is faithful; what was missing sat two rungs above it. Four separate facts, each
+found by driving a real game headlessly and reading the trace rather than by
+reading the code again:
+
+- **Nothing in the port ever used a staircase it was standing on.**
+  `borg_caution`'s own "take the stairs up / take the stairs down" block
+  (`borg-caution.c:1169-1204`) had never been ported - the file header said the
+  stair-taking tail was "left to the P8.6 think ladder", and the ladder never took
+  it. `stairLess` and `stairMore` were written in twelve places and read in none.
+  So every rung that flows toward a staircase got the Borg onto one, the flow ran
+  out, the explore rung stepped one square off, and the flee rung pulled it
+  straight back. That IS the two-square oscillation, exactly, and the up staircase
+  it was standing on was the arrival stair.
+- **`readyMorgoth` was initialised to -1 and nothing ever changed it.** Upstream
+  turns that "never asked" into 0 on the first look, at the head of both
+  `borg_prepared_aux` (`borg-prepared.c:48`) and `borg_restock`
+  (`borg-prepared.c:697`); neither normalisation was ported. Three readers test
+  for exactly 0, the stair choice above among them, so it would have stayed
+  switched off even once the block existed. The call site upstream gets the
+  ordering from is `borg_caution`'s restock arm (`caution.c:1064`), which was also
+  missing - and that is the rung that sends the Borg home when it runs out of
+  food, fuel or cures.
+- **Arriving on a level did not clear "use the next staircase"**
+  (`borg-update.c:2135`). With the two above fixed, this surfaced immediately as a
+  town/level-one shuttle: 215 descend/ascend pairs and nothing else. The same wipe
+  was also too broad in the other direction - it reset `rising` and
+  `fleeingToTown`, which are journeys across several levels that upstream keeps.
+- **The equipment swap loop**, which is its own entry in CHANGELOG.md: three
+  missing guards in `borg_wear_stuff` plus a comparison between two differently
+  derived scores. It dominated every run once the stalls above were gone, and it
+  is why "explores properly" could not be answered until it went.
+
+The instrument is now a test. `src/play.test.ts` boots a real game, hands it to
+the Borg and drives 1500 decisions on each of four seeds, checking that no single
+command ran away with the session, that the character covered ground and that game
+time passed. All four facts above were found with it and all four are guarded by
+it. Not one of the other seventeen test files could see any of them, because each
+loop is a decision that is individually correct.
 
 **3. A blocking prompt parks the autoplayer, and only a human can free it. THE
 GAME'S REPOSITORY.** Descending prints "You enter a maze of down staircases."
@@ -145,6 +199,39 @@ screen (any step onto two or more objects) and on the store screen (any step ont
 a shop door), and `auto_more` reaches neither. The option is also stored per
 character, so it reverts every time the Borg reincarnates - which makes it
 useless for exactly the unattended run this item is about.
+
+**FIXED 2026-08-21, in the game's repository, and the answer was upstream's own
+mechanism rather than a new contract.** Reading `borg.c` settles what upstream
+actually does, and it is not what "there is no asynchronous prompt in C" would
+suggest: `internal_borg_inkey` looks at the message line FIRST and answers a
+trailing " -more-" with a space (`borg.c:371-388`), and a named set of prompts get
+their own replies (`borg-messages-react.c`), all before `borg_think` is reached at
+all. The borg's key source is consulted for EVERY key the game reads. So a
+blocking prompt is the borg's next keypress, not something it waits out.
+
+Every blocking read in the game's web shell resolves on a keydown delivered
+through one input door, so the host now feeds one ESCAPE into that door whenever an
+autoplayer holds the keyboard and a modal is open on a live game screen, and logs
+that it did. It reaches the pager, the forced `-more-` in front of a level change,
+the floor-item list, a confirm and the shop screen, which is every case named
+above. Nothing is answered before there is a game, so character creation still
+belongs to the player.
+
+Two honest limits, both reviewed rather than assumed:
+
+- **ESCAPE is not a per-prompt answer.** Upstream replies `y` to a few named
+  confirms and a letter to a few pickers. In this port those live in the shell's
+  KEY path, in front of a command a human typed; a controller's command goes
+  straight to the command provider and never raises one. So the asymmetry is not
+  reachable today - but a future prompt raised from inside a turn would be
+  answered "no" rather than correctly, and that is the seam to revisit if one
+  appears.
+- **The shop screen is dismissed rather than driven**, which is strictly better
+  than parking on it and is not the same as shopping. The Borg's store ladder
+  returns `shop-buy` / `shop-sell` / `shop-exit`, and NOTHING in the engine's
+  command registry handles those three codes today - a separate gap, recorded
+  below, and the reason the shopping seen in the watched runs cannot be credited
+  to the ladder.
 
 ## Progress
 
@@ -378,17 +465,48 @@ Driven in the installed desktop build over CDP, because that is the only
 instrument here that proves pixels and a running game rather than a populated data
 structure. The main repository's `CLAUDE.md` has the procedure and the four traps.
 
-**Done, and the answer was no.** See "Watched playing" above for the two runs and
-the three stalls. Two of the three are in this repository and are the work that
-now stands between the mod and this item:
+**First attempt: the answer was no.** See "Watched playing" above for the two runs
+and the three stalls, all three of which are now closed - and the FIXED notes there
+say where each one lived.
 
-1. The `disarm` loop against a locked door, which is a hang rather than a bad
-   decision, because the refusal costs no energy.
-2. No exploration of a dungeon level: it oscillates where it arrives.
+**Second attempt, still owed: watch it again in the installed build.** Every stall
+above was found and closed with a headless instrument (`src/play.test.ts`), which
+drives a real game and a real Borg but paints nothing and runs no shell. What it
+proves is that the DECISIONS have stopped looping, over four seeds and 1500
+decisions each: the Borg now explores hundreds of squares, opens doors, disarms
+real traps, changes level under its own steam, and dies. What it cannot prove is
+anything about the shell - and the prompt seam is entirely shell-side, so the one
+claim this item exists to make still needs the desktop build over CDP.
 
-The third is the host's and cannot be fixed here. Until 1 and 2 are closed there
-is no point running this again - the Borg cannot reach a death, so it cannot
-demonstrate the restart loop, which is the half of this item that matters most.
+What remains to record, once run: what depth it reached, whether it fled, whether
+it shopped, whether it used an activation, how it died, and whether it started
+again. The last of those is the one the first attempt could never reach, because
+nothing died; four seeds now die headlessly, so the restart loop is finally
+reachable.
+
+**And the mod cannot be tagged before the game ships.** Two of the fixes are in the
+game's repository (the trap predicate and the prompt seam), and a released Borg
+that requires an unreleased engine refuses to load. Raise `engine` in
+`manifest.json` to the version that carries them, then tag. `src/play.test.ts`
+measures the engine on disk for the trap fix and skips itself rather than failing
+when it is absent, so a red suite here always means a fault here.
+
+### 5. The store ladder has no engine to trade through - OPEN, found 2026-08-21
+
+`src/store/` is ported and reachable: the in-shop resolver reports which shop the
+Borg is standing in, and the ladder returns `shopBuy` / `shopSell` / `shopExit` on
+the act facade. **Nothing in the engine's command registry handles those three
+codes.** They are built by `agent/act.ts` and by the sandbox worker's mirror of it,
+and that is every occurrence in the game's tree.
+
+So the ladder's decisions are inert, and any shopping seen in a watched run has
+another explanation - birth outfitting, or a human key while the screen was open.
+That is why the 2026-08-21 runs above cannot credit the ladder for the gold that
+was spent, however plausible it looked.
+
+This is the game's to close, not this repository's: three command handlers, on the
+same terms as every other verb. Until then a step onto a shop door has the screen
+dismissed by the prompt seam, which keeps the run going and buys nothing.
 
 ## What is deliberately NOT here
 

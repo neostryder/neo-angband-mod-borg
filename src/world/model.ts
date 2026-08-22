@@ -252,13 +252,39 @@ export class BorgWorld {
   /** True once at least one perception has populated the model. */
   seeded = false;
 
-  /** Reset everything for a new level (borg_init_cave + list wipes). */
-  wipeLevel(): void {
+  /**
+   * Reset everything for a new level (borg_init_cave + the new-level branch of
+   * borg_update, borg-update.c:2050-2180). `depth` is the depth just ARRIVED at,
+   * because three of the resets ask about it.
+   *
+   * NOT a blanket `makeGoals()`. Two intents are journeys across several levels
+   * and upstream keeps them: `rising` (climbing back to town) survives every
+   * level change except arriving IN town, and `fleeingToTown` survives depth 1,
+   * which is the one depth from which the next step is the town. Wiping both on
+   * arrival restarted the journey on every staircase.
+   *
+   * `stairLess` / `stairMore` are the other half, and leaving them set was a
+   * hang: arriving in town with `stairMore` still true made the borg walk
+   * straight back down, and arriving on level 1 with `stairLess` still true made
+   * it climb straight back up - a town/level-1 shuttle that never played a turn.
+   */
+  wipeLevel(depth: number): void {
     this.map.wipe();
     this.kills.wipe();
     this.takes.wipe();
     this.facts = makeLevelFacts();
+
+    const g = this.self.goal;
+    const rising = g.rising;
+    const fleeingToTown = g.fleeingToTown;
     this.self.goal = makeGoals();
+    this.self.goal.rising = depth === 0 ? false : rising;
+    this.self.goal.fleeingToTown = depth === 0 || depth >= 2 ? false : fleeingToTown;
+
+    /* "Do not use any stairs" (borg-update.c:2135). */
+    this.self.stairLess = false;
+    this.self.stairMore = false;
+
     this.self.timeThisPanel = 0;
     this.self.timesTwitch = 0;
     this.self.escapes = 0;
