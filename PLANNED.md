@@ -450,23 +450,36 @@ about fifty borg turns on a level before considering the stairs
 (`borg-think-dungeon-util.c:571`, `clevel * 50`). That part reads as impatience
 and is upstream's own number.
 
-**9. "Did not seem to use the rest function" is real, is measurable, and cannot
-be fixed in this repository.** Upstream rests in blocks - `R` then 100, or `*`
-for "until healed", or 9 while waiting for recall - at fourteen call sites. The
-frozen action surface has one `rest()` and the engine maps it to a single-turn
-hold, so the Borg necessarily passes time one turn at a time. That is not
-cosmetic: five consecutive turns of a real rest DOUBLE hit-point and mana
-regeneration (`player-util.c:459`, gated on `REST_REQUIRED_FOR_REGEN`), and a
-hold never starts a rest, so this Borg heals at half the rate upstream's does.
-It is a plausible contributor to "still dies earlier than one would expect",
-since it spends twice as long standing still to recover and re-enters the
-dungeon less healed when it gives up waiting.
+**9. "Did not seem to use the rest function" was real, was measurable, and the
+engine side has landed in neo-angband's tree, not yet in a release.** Upstream
+rests in blocks - `R` then 100, or `*` for "until healed", or `&` while waiting
+for recall - at fourteen call sites. The frozen action surface had one `rest()`
+taking no arguments, and the engine mapped it to a single-turn hold, so the
+Borg necessarily passed time one turn at a time. That was not cosmetic: five
+consecutive turns of a real rest DOUBLE hit-point and mana regeneration
+(`player-util.c:459`, gated on `REST_REQUIRED_FOR_REGEN`), and a hold never
+started a rest, so this Borg healed at half the rate upstream's does.
 
-The fix is an engine seam - an agent-visible rest that takes a turn count and
-starts a real rest - and it is deliberately NOT bundled here. The mod's engine
-floor is already a version that has not been published; raising it again would
-tag a mod that no player could load. Named here as the next engine change this
-mod needs.
+The engine now has the seam this needed: `rest(count?: number)` on the agent
+action surface, backed by a real multi-turn `restAction` (self-continuing on
+the internal command queue exactly like a run, so a caller is not asked for
+another command until the rest ends) plus the three `REST_` conditional-stop
+modes. `src/core-api.ts` binds `REST_COMPLETE` alongside the other engine
+symbols, and the seven `ctx.act.rest()` call sites across `item/recover.ts`,
+`think-ladder.ts` and `flow/flow-misc.ts` now pass it explicitly ("rest as
+needed"); the one call that wanted exactly one tactical turn
+(`fight/attack.ts`'s `auxRest`) moved to `ctx.act.hold()` instead, because
+`rest(1)` means "repeat the last rest" upstream, not "one turn"
+(`cmd-cave.c:1638-1643`).
+
+This stays OPEN rather than closed: the game installs from a published
+release, not from a commit, and this repository's own tag cannot move ahead
+of one either. The call degrades gracefully on an engine without the fix -
+the old `rest(): AgentCommand` ignored every argument, so `ctx.act.rest(-2)`
+against an unpublished-fix engine is just today's single-turn hold again - so
+no `manifest.json` floor bump was needed to land the source change safely.
+Closing this for real needs a released engine version and a watched run
+showing the Borg actually resting in blocks rather than one hold at a time.
 
 **10. "Base delay seems low, movement was not swift" is not a defect, and the
 numbers are worth writing down.** The host drives a mod autoplayer on a fixed
@@ -530,6 +543,7 @@ implemented" but "who writes it".
 | 2026-08-22 | **Four more from a second field report, described as symptoms 7 to 10 above.** Floor objects were never priced and never picked up, which is the whole of "not interested in any loot"; `borg_must_return_to_town` had lost both of its guards; the location tracks survived a level change so the short-leash rung measured against the previous level's staircases; and the per-level clock never restarted, which among other things stopped the Borg deciding at all after thirty thousand decisions. Two things were checked and found faithful rather than fixed: the doubled light modifier, and the decision rate, which is already thirteen times upstream's default. One is named as the next ENGINE seam this mod needs: an agent-visible rest that takes a turn count, without which the Borg regenerates at half upstream's rate. |
 | 2026-08-22 | **Three defects from a read-the-C-beside-the-port pass, described as symptom 6 above.** The Borg's private RNG was restarted every think instead of carried, so every draw at a fixed point in the decision was a constant; `borg_escape` was handed the least-dangerous neighbouring square's danger instead of the danger of the square the Borg stands on, which can only suppress an escape; and `borg_caution`'s *** Back away *** block was not ported, leaving no tactical retreat at all between "use an escape item" and "attack". All three are fixed, with `src/fight/fight.test.ts` covering the retreat and its refusals, `src/foundation.test.ts` covering the stream advancing while staying replayable from a seed, and `src/play.test.ts` now varying the Borg's seed with the run so the harness can see this class of bug at all. |
 | 2026-08-21 | **Step 4 started, and found the defect the whole file predicts.** 0.6.1 installed from its tag into the released 0.25.0 desktop build, enabled, keyboard handed over - and it threw on the first perceived turn, because the manifest declared `command:add` and nothing else while the frozen view is gated per read DOMAIN. It had logged success first: `the Borg has the keyboard, and danger vision over 624 races, activation identity, the in-shop signal and loadout evaluation`. Fixed in 0.6.2 by declaring the nine domains the port reads, with a test that derives the set from the source instead of restating it. This is the same shape as everything above - a seam that looked wired from every angle except the one that plays a turn - and it is exactly what a green suite could not see. |
+| 2026-08-21 | **The rest engine seam named in symptom 9 has landed in neo-angband's tree.** `rest(count?: number)` on the agent action surface now reaches a real multi-turn `restAction`, self-continuing on the internal command queue exactly like a run, plus the three `REST_` conditional-stop modes. `src/core-api.ts` binds `REST_COMPLETE` alongside the other five engine symbols; the seven recovery-ladder `ctx.act.rest()` call sites now pass it explicitly, and the one tactical one-turn wait (`fight/attack.ts`'s `auxRest`) moved to `ctx.act.hold()`, since a rest count of exactly 1 means "repeat the last rest" upstream, not "one turn". The change degrades to today's single-turn hold on an engine without the fix, so it needed no `manifest.json` floor bump - but the healing-rate benefit itself, and this repository's own tests against a real engine, both wait on a release. |
 
 ## Releasing this
 

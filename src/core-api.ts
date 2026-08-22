@@ -48,6 +48,15 @@ export let RSF!: typeof Core.RSF;
 export let Rng!: typeof Core.Rng;
 export let MON_RACE_FLAG_ENTRIES!: typeof Core.MON_RACE_FLAG_ENTRIES;
 export let MON_SPELL_ENTRIES!: typeof Core.MON_SPELL_ENTRIES;
+/**
+ * do_cmd_rest's "rest as needed" mode (player-util.h REST_COMPLETE = -2),
+ * passed to `ctx.act.rest(count)` wherever the recovery ladder wants a genuine
+ * multi-turn rest instead of the single-turn-per-tick call that used to be the
+ * only shape `rest()` had. A plain number, not a registry - bound here anyway
+ * rather than imported directly, so this stays the only file in the bundle
+ * that names the engine as a value source (core-import-census.test.ts).
+ */
+export let REST_COMPLETE!: number;
 
 let bound = false;
 
@@ -62,6 +71,7 @@ export function bindCore(core: typeof Core): void {
   Rng = core.Rng;
   MON_RACE_FLAG_ENTRIES = core.MON_RACE_FLAG_ENTRIES;
   MON_SPELL_ENTRIES = core.MON_SPELL_ENTRIES;
+  REST_COMPLETE = core.REST_COMPLETE;
   bound = true;
 }
 

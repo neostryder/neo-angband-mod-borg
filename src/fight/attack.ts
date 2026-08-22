@@ -1254,7 +1254,14 @@ function auxRest(ctx: BorgContext, fs: FightState): number {
   }
   if (!found) return 0;
   if (fs.simulate) return 1;
-  fs.pending = ctx.act.rest();
+  /* Exactly one turn, not a rest: this is a tactical wait for a SPECIFIC
+   * approaching monster that is already visible (so its mere presence will
+   * not disturb an open-ended rest into stopping on its own), and the ladder
+   * must re-check next think whether it is now adjacent. `ctx.act.rest(1)`
+   * would NOT do that - do_cmd_rest's own quirk (cmd-cave.c:1638-1643) reads a
+   * count of exactly 1 as "repeat whatever I last asked to rest for", not
+   * "one turn", so hold is the only unambiguous one-turn command. */
+  fs.pending = ctx.act.hold();
   ctx.world.self.goal.waiting = true;
   return 1;
 }

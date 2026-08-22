@@ -289,6 +289,20 @@ and let a squint-eyed rogue kill it.
   on a staircase while that reads zero, so whether the Borg would climb depended
   on which subsystem had asked a question last.
 
+- **It rested at half the rate upstream does.** The agent action surface's
+  `rest()` took no argument and the engine mapped it to a single-turn hold, so
+  every recovery-ladder call spent one turn and stopped; a real rest needs five
+  consecutive turns to earn the doubled hit-point and mana regeneration
+  (`player-util.c:459`, `REST_REQUIRED_FOR_REGEN`), which a hold never starts.
+  `rest()` now takes an optional turn count and the seven recovery call sites
+  pass `REST_COMPLETE` ("rest as needed") explicitly; the one call that wanted a
+  single tactical turn while waiting for an approaching monster moved to
+  `hold()` instead, because a count of exactly 1 means "repeat the last rest",
+  not "one turn". **This needs the corresponding Neo Angband fix, which has not
+  reached a release yet** - see `PLANNED.md` item 9. Until then the call
+  degrades to today's single-turn hold, silently and correctly; no player-facing
+  change lands until the engine catches up.
+
 ### Added
 
 - **A test that plays the game.** `src/play.test.ts` boots a real game against the

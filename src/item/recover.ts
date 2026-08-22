@@ -25,6 +25,7 @@ import {
   borgSlot,
 } from "./deps.js";
 import { Spell, borgSpell, borgSpellOkay } from "./magic.js";
+import { REST_COMPLETE } from "../core-api.js";
 import {
   borgActivateItem,
   borgQuaffCrit,
@@ -320,7 +321,11 @@ export function borgRecover(
         !borgSpellOkay(ctx, Spell.RECHARGING)
       ) {
         ctx.world.self.timeThisPanel = 0;
-        return ctx.act.rest();
+        /* "&": rest as needed. A full-HP/SP character stops after one turn -
+         * the rod still needs a real recharge, so the ladder simply asks
+         * again next think - but a hurt one now gets the genuine multi-turn
+         * rest and its x2 regen bonus instead of a single hold-shaped turn. */
+        return ctx.act.rest(REST_COMPLETE);
       }
     }
   }
@@ -354,7 +359,11 @@ export function borgRecover(
       if (lightCmd) return lightCmd;
       ctx.world.self.timeThisPanel = 0;
       ctx.world.self.temp.needSeeInvis = clockOf(ctx, d) - 50;
-      return ctx.act.rest();
+      /* "&": rest as needed - the engine itself now runs every turn of it,
+       * stopping on the same disturbance rules upstream would (a monster
+       * coming into view, damage taken, HP/SP filling), instead of this
+       * ladder having to be re-run once per game turn to get there. */
+      return ctx.act.rest(REST_COMPLETE);
     }
   }
 
@@ -374,7 +383,8 @@ export function borgRecover(
       trait(ctx, BI.FOOD) > 2 &&
       !ctx.world.self.munchkinMode
     ) {
-      return ctx.act.rest();
+      /* "&": rest as needed, for the same reason as the two rest calls above. */
+      return ctx.act.rest(REST_COMPLETE);
     }
   }
 

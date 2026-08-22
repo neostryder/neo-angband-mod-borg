@@ -31,7 +31,7 @@
  */
 
 import type { AgentCommand, ItemView } from "@rpgm-tools/neo-angband-core";
-import { FEAT } from "./core-api.js";
+import { FEAT, REST_COMPLETE } from "./core-api.js";
 import type { BorgContext } from "./context.js";
 import { distance } from "./think.js";
 import {
@@ -409,8 +409,9 @@ export function borgThinkDungeonLight(
 
   const noLight = !T(ctx, BI.LIGHT);
   if (noLight && T(ctx, BI.CDEPTH) >= 1) {
-    /* Recalling: sit tight (util:163). */
-    if (w.self.goal.recalling) return ctx.act.rest();
+    /* Recalling: sit tight (util:163). "&": rest as needed - the recall's own
+     * countdown, or a disturbance, ends it; there is no HP/SP target here. */
+    if (w.self.goal.recalling) return ctx.act.rest(REST_COMPLETE);
 
     /* Wear stuff and see if it glows (util:172). */
     const wear = borgWearStuff(ctx, deps);
@@ -739,7 +740,8 @@ export function borgThinkDungeon(
       if (self.c.y === track.y[i] && self.c.x === track.x[i]) {
         if (T(ctx, BI.CDEPTH)) g.less = false;
         if (borgDanger(ctx, self.c.y, self.c.x, 1, true, false) === 0) {
-          return ctx.act.rest();
+          /* "&": rest as needed - regains the mana this branch is guarding on. */
+          return ctx.act.rest(REST_COMPLETE);
         }
       }
     }
@@ -1061,7 +1063,8 @@ export function borgThinkDungeon(
     g.recalling &&
     borgDanger(ctx, self.c.y, self.c.x, 1, true, false) <= 0
   ) {
-    return ctx.act.rest();
+    /* "&": rest as needed, same reasoning as the light-path recall wait above. */
+    return ctx.act.rest(REST_COMPLETE);
   }
 
   /*** Nothing to do ***/
