@@ -6,12 +6,16 @@
  * the item-activation identity tables (act_*, borg_equips_item), the swap
  * subsystem (borg-trait-swap), the home inventory (borg_notice_home), and the
  * per-object sval/kind identity tables (borg-item-val). Rather than hack the
- * frozen contract, those are modelled here as explicit SEAMS with faithful,
- * inert defaults so the ported arithmetic is byte-for-byte the C when a seam is
- * supplied, and simply "the borg is unaware / has none" when it is not.
+ * frozen contract, those are modelled here as explicit SEAMS. Most default to
+ * "the borg is unaware / has none", which is faithful because the C reaches the
+ * same state when it owns nothing. The sval identity table is the exception and
+ * defaults to the real one; see BorgSvals for why an empty default was a bug
+ * rather than a conservative choice.
  *
  * borg_cfg[] values come from reference/src/borg/borg.txt (stock defaults).
  */
+
+import { flatSvals } from "../item/svals.js";
 
 /** borg_cfg[] settings the trait/power/prepared code reads (borg.txt defaults). */
 export interface BorgCfg {
@@ -141,8 +145,15 @@ export function defaultFrame(): BorgFrame {
  * Per-role sval identity, resolved by the engine at init (borg-item-val.c). The
  * inventory notice matches carried items by (tval, sval) against this to build
  * the consumable-ability traits (BI_AHEAL, BI_APHASE, ...) and the has[] map.
- * When absent those traits stay 0 - faithful to "the borg has not identified
- * any such items". Keyed by the sv_/kv_ role name (borg-item-val.h).
+ * Keyed by the sv_/kv_ role name (borg-item-val.h).
+ *
+ * IT DEFAULTS TO THE REAL TABLE, and that is not a convenience. Upstream's
+ * borg_init_item_val runs unconditionally at borg start-up, so there is no state
+ * in which the borg does not know which sval a Ration of Food is. An empty table
+ * makes every `item.sval === sv.<role>` comparison compare against `undefined`,
+ * which is a Borg that believes a full pack contains no food, no cures, no phase
+ * doors and no fuel - and it is what shipped, because the default was `{}` and no
+ * caller passed anything. A caller may still override individual roles.
  */
 export type BorgSvals = Partial<Record<string, number>>;
 
@@ -171,6 +182,6 @@ export function resolveOpts(opts: BorgTraitOpts = {}): ResolvedOpts {
     spells: opts.spells ?? defaultSpellSeam(),
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? defaultFrame(),
-    svals: opts.svals ?? {},
+    svals: opts.svals ?? flatSvals(),
   };
 }

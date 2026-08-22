@@ -42,9 +42,10 @@ interface BuiltPlugin {
 const built = ((await import("./plugin.js")) as { default: BuiltPlugin }).default;
 
 /**
- * A `ctx.registries`-shaped host fact carrying one core race and one a mod added.
+ * A `ctx.registries`-shaped host fact carrying one core race and one a mod added,
+ * plus one blow method with an action message.
  *
- * Only the field the plugin reads is real. That is deliberate: the claim under
+ * Only the fields the plugin reads are real. That is deliberate: the claim under
  * test is "the shipped bundle reaches for the registry and reports what it
  * found", and a fuller fixture would only make the test slower at asserting the
  * same thing. Whether the facts it derives are CORRECT is src/resolvers.test.ts.
@@ -52,6 +53,9 @@ const built = ((await import("./plugin.js")) as { default: BuiltPlugin }).defaul
 function hostRegistries(): unknown {
   return {
     monsters: {
+      blowMethods: new Map([
+        ["HIT", { name: "HIT", messages: ["hits {target}"] }],
+      ]),
       races: [
         { ridx: 0, name: "soldier ant", blows: [], flags: [], spellFlags: [], friends: [] },
         {
@@ -84,7 +88,7 @@ function hostState(): unknown {
 /**
  * Install the built plugin against a COMPLETE host context: every field the
  * host's own `controller()` call site is guaranteed to carry. Since manifest.json
- * declares `engine: ">=0.25.0"` that is all of them, so there is no longer a
+ * declares an engine floor that is all of them, so there is no longer a
  * half-supplied context to parameterise over.
  *
  * `omit` builds a defective context on purpose, for the one test that pins what

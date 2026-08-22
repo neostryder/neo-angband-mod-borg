@@ -152,6 +152,13 @@ export default {
      * produces - see src/resolvers.ts. Nothing about it is conditional any more:
      * manifest.json requires an engine that has it.
      *
+     * THE ATTACK-MESSAGE TABLE is the fifth, and it decides whether the Borg
+     * notices being hit by something it cannot see. Upstream builds it from
+     * blow_methods at start-up; this reads the same records from
+     * `ctx.registries.monsters.blowMethods`, so a mod's own blow method is
+     * recognised on the same terms. Without it an unexplained blow raises no
+     * regional fear and the Borg will rest through a beating.
+     *
      * The force-descend option is still on its default and is NOT covered by
      * this call; see PLANNED.md.
      */
@@ -176,11 +183,13 @@ export default {
     }
 
     const races = ctx.registries.monsters.races;
+    const blowMethods = ctx.registries.monsters.blowMethods.values();
     const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,
         objects: ctx.registries.objects,
         state: ctx.state,
+        blowMethods,
       }),
     });
     /* The race count is in the message because an empty registry is the one

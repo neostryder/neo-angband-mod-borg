@@ -444,3 +444,33 @@ describe("the narrowed loadout shapes still match the engine's own", () => {
     expect(true).toBe(true);
   });
 });
+
+describe("the attack-message table", () => {
+  /**
+   * borg_init_hit_by_messages (borg-messages.c:1595) walks every blow method in
+   * the data and inserts each of its action messages. This reads the same
+   * records from the bound registry, which is what covers a mod's own blow
+   * method - and what makes the Borg notice being hit at all.
+   */
+  it("is built from the blow-method registry, mod methods included", () => {
+    const r = makeCoreResolvers({
+      races: [],
+      blowMethods: [
+        { messages: ["hits {target}", "hits {target} hard"] },
+        { messages: ["nibbles {target}"] },
+      ],
+    });
+    expect(r.blowActions).toEqual([
+      "hits {target}",
+      "hits {target} hard",
+      "nibbles {target}",
+    ]);
+  });
+
+  it("is empty, not absent, when the host supplies no blow methods", () => {
+    /* Empty means the Borg recognises no attack message and raises no regional
+     * fear. That is a Borg that will rest through a beating, so the emptiness is
+     * worth pinning: it says the host forgot, not that the game has no blows. */
+    expect(makeCoreResolvers({ races: [] }).blowActions).toEqual([]);
+  });
+});

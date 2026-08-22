@@ -123,6 +123,19 @@ export interface FlowHooks {
    * "KILL_WALL"). Needs the monster-race model (P8.6); defaults to false.
    */
   monsterHasFlag: (world: BorgWorld, killIndex: number, flag: string) => boolean;
+  /**
+   * borg_danger_one_kill(y, x, 1, i, true, true): the danger ONE tracked monster
+   * poses to a grid. Separate from `danger`, which sums every monster and both
+   * fear caches - a rest check that asked the grid's total would refuse a
+   * clearing because the whole level is busy, rather than because of the monster
+   * it is looking at. Defaults to 0.
+   */
+  dangerOneKill: (
+    world: BorgWorld,
+    y: number,
+    x: number,
+    killIndex: number,
+  ) => number;
   /** borg_los(y1, x1, y2, x2): clear line of sight between two grids. */
   los: (world: BorgWorld, y1: number, x1: number, y2: number, x2: number) => boolean;
 }
@@ -139,6 +152,7 @@ export function defaultFlowHooks(): FlowHooks {
     countSell: () => 0,
     packFull: () => false,
     monsterHasFlag: () => false,
+    dangerOneKill: () => 0,
     los: () => true,
   };
 }

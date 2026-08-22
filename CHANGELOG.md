@@ -8,15 +8,22 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
-## Unreleased
+## 0.7.0
 
-**This one waits for an engine release, and the reason is the point.** Two of the
-five fixes below are in the game rather than here, and the mod cannot be tagged
-until they ship: a released Borg that needs an unreleased engine is a Borg that
-refuses to load. Raise `engine` in `manifest.json` to the version that carries them
-before tagging. `src/play.test.ts` measures whether the engine on disk has the trap
-fix and skips itself rather than failing when it does not, so a red suite here
-always means a fault here.
+**Needs Neo Angband 0.26.0 or newer**, up from 0.25.0. Two of the fixes below are
+in the game rather than here - the trap predicate a locked door used to fail, and
+the host answering a blocking prompt for an autoplayer - and both shipped in
+0.26.0. A Borg that needs them and loads on a game without them is a Borg that
+wedges against the first locked door, so `manifest.json` refuses instead.
+`src/play.test.ts` measures whether the engine on disk has the trap fix, and skips
+itself rather than failing when it does not, so a red suite here always means a
+fault here.
+
+The entries divide into two halves. The first five stopped the Borg PLAYING: it
+wedged, shuttled or swapped forever. The rest stopped it playing WELL, and they
+share one shape - a fact the ported decision code reads that nothing in the mod
+ever wrote. Between them they are why a level-one character stood still in town
+and let a squint-eyed rogue kill it.
 
 ### Fixed
 
@@ -73,6 +80,101 @@ always means a fault here.
   the stair block above is its only caller: a caster with mana to spare hastes,
   resists and buffs before it takes a staircase, in upstream's order, each one
   setting the no-rest timer that stops it resting the buff away.
+
+- **It rested while something it could not see beat it to death.** Upstream's
+  answer to an attacker it cannot find is REGIONAL FEAR, and `borg_fear_regional`'s
+  own comment (`borg-update.c:697`) is the specification: it exists "to keep him
+  from resting while unseen guys attack him". This port had the two fear caches,
+  both updaters that fill them and every reader that consults them, and nothing in
+  between. `borgFearGrid` and `borgFearRegional` had no caller at all, so both
+  caches held zero for the life of every character.
+
+  The whole path is connected now, at upstream's own four points: an attack
+  message the Borg cannot attribute raises fear at its own grid, a monster
+  appearing right afterwards is assumed to be the cause and clears it again, the
+  fear decays a point every ten turns, and a new level forgets it outright. The
+  monster half is re-stamped once per think from each tracked monster's own
+  danger, which is what makes a crowd read as dangerous when no single member of
+  it does.
+
+  Recognising an attack at all needs the game's blow-method messages, which
+  upstream builds its `suffix_hit_by` table from at start-up. The plugin now reads
+  the same records from `ctx.registries.monsters.blowMethods`, so a mod's own blow
+  method is recognised on the same terms as core's.
+
+- **The one gate that decides whether it is safe to sit still was wired to
+  `true`.** `borg_check_rest` is ported, and `borg_recover` puts every one of its
+  rests behind it - but the seam carrying its answer was the literal constant, so
+  the Borg would rest with a monster one square away. It asks the real function
+  now.
+
+  The function was also missing six of its own arms, including both fear tests,
+  the "I just cast a preparatory spell" timer, a mold two squares off, a breeder
+  within ten, and anything that walks through walls. Its danger test asked the
+  grid's TOTAL danger where upstream asks about one monster, which let a busy
+  level veto a rest next to something harmless.
+
+- **Nothing the Borg timed ever ran down.** Every duration it tracks -
+  the resist-all guess, the no-resting-after-a-prep-spell timer, the recall
+  countdown, the see-invisible clock - is counted in game turns and decremented
+  each think by `borg_game_ratio`. Neither the decrements nor the ratio had been
+  ported, so each of those latched permanently on first use: one Sense Invisible
+  and the Borg would never look again. The ratio was also present as a placeholder
+  set to 10 where upstream computes 1000 at normal speed, a hundredfold error in
+  the one check that read it.
+
+- **It never knew it was waiting for a Word of Recall.** `goal.recalling` is read
+  in eight places and was written in none, so the Borg re-read the scroll and
+  never sat still for it. The ignition, lift-off and cancellation messages
+  (`borg-messages.c:709-757`) are consumed now, and the countdown floors at 1 the
+  way upstream's does, so reaching zero cannot be mistaken for "no recall running".
+
+- **The self-model believed a full pack was empty.** `borg_notice` matches carried
+  items by `(tval, sval)` against the role table upstream builds at start-up
+  (`borg-item-val.c`) to count what the Borg has: healing potions, phase doors,
+  cures, fuel, food. The table was a seam that defaulted to `{}` and no caller ever
+  passed one, so every comparison was against `undefined` and every count stayed
+  zero. The Borg dived, restocked and judged itself prepared as though it carried
+  nothing at all. It defaults to the real table now, which is what upstream does
+  unconditionally, and the food count is why `borg_check_rest` refused every grid
+  on the level once it was finally being asked.
+
+- **Every monster read as unable to attack from a distance.** `ranged_attack` is
+  the count of a race's spell flags (`borg-flow-kill.c:216`); five subsystems
+  read it and nothing wrote it. Among them is the rest check, which refuses a grid
+  in line of sight of something that can shoot.
+
+- **The escape counter could only ever go down.** Seven places lower it for a
+  phase door, which upstream says is not really an escape, and the one place that
+  raises it (`caution.c:1655`) was not ported. So "flee the level after three
+  escapes" and "after fifty-five regardless" were both unreachable.
+
+- **It chased monsters that were not there.** A tracked record is the Borg's
+  belief about a monster, and `borg_follow_kill` (`borg-flow-kill.c:552`) is the
+  only thing upstream has that ever revises one downward: when the Borg can see
+  the grid it left a monster on and the monster is not on it, the record is
+  followed one step into somewhere it cannot see, or forgotten. None of it was
+  ported, so a record for a monster that had died out of sight, been mistaken or
+  simply walked away survived the full 2000-turn expiry - and `borg_flow_kill`
+  kept routing the Borg to it.
+
+  That is the second half of "moving frantically back and forth across three
+  cells": flow to kill the phantom, arrive, find nothing, let the explore rung
+  step back, repeat. Measured over four seeds at 2000 decisions each, the tightest
+  stretch of sixty consecutive monster-free decisions that were not spent resting
+  went from one square to twenty-one, and the number of such stretches confined to
+  three squares at full hit points went from 403 to zero.
+
+  Upstream's 1-in-100 anti-loop roll is deliberately not ported and says so in
+  the source: this Borg reseeds its private generator at the top of every think,
+  which makes a roll taken at a fixed point in the think a constant.
+
+- **Nothing ever marked a grid as lit by the Borg's own light.** `BORG_LIGHT` is
+  "my torch reaches here" and `BORG_GLOW` is "this room lights itself"; three
+  ported subsystems ask for the first and `borg_update_light`
+  (`borg-cave-light.c:71`) was not ported, so all three read every dark corridor
+  as unlit. Among them is the check above, which is why a phantom in a corridor
+  could not be disproved even standing next to it.
 
 ### Added
 

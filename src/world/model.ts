@@ -153,6 +153,14 @@ export interface BorgSelf {
   whenShiftPanel: number;
   timeThisPanel: number;
 
+  /**
+   * borg_game_ratio (borg-trait.c:2926): game-turns per borg-turn, derived from
+   * the final BI_SPEED by borg_notice. Every timer below is counted in game
+   * turns and decays by this much per think, so a wrong value here is a wrong
+   * duration for every buff the Borg thinks it is under. 1000 at normal speed.
+   */
+  gameRatio: number;
+
   /* timed activity flags */
   noRetreat: number;
   resistance: number;
@@ -191,6 +199,7 @@ export function makeBorgSelf(): BorgSelf {
     needShiftPanel: false,
     whenShiftPanel: 0,
     timeThisPanel: 0,
+    gameRatio: 1000,
     noRetreat: 0,
     resistance: 0,
     whenCallLight: 0,

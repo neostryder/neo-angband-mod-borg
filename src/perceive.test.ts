@@ -14,6 +14,7 @@ import { borgReactMessages } from "./perceive-messages.js";
 import { borgNearMonsterType } from "./perceive-facts.js";
 import { borgNotice, BI } from "./trait/index.js";
 import { getFightState } from "./fight/index.js";
+import { borgFollowMissingKills, createFlowState } from "./flow/index.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { makeBorgRng } from "./rng.js";
 import type { BorgContext } from "./context.js";
@@ -205,5 +206,63 @@ describe("fog-of-war invariant", () => {
     );
     // The unknown far corner was skipped -> still feat 0 (unseen).
     expect(world.map.at(1, 1).feat).toBe(0);
+  });
+});
+
+describe("a monster that is not where the Borg left it", () => {
+  /**
+   * borg_follow_kill (borg-flow-kill.c:552) is the only thing that removes a
+   * record for a monster that has gone. Without it a phantom sits on the map for
+   * the full 2000-turn expiry and borg_flow_kill keeps routing the Borg to it,
+   * which measured as a two-square shuffle with nothing in sight - flow to kill
+   * it, arrive, find nothing, let the explore rung step back.
+   */
+  function twoTicks(second: Parameters<typeof makeScenarioView>[0]): BorgWorld {
+    const world = new BorgWorld();
+    const memo = makePerceiveMemo();
+    const first = makeScenarioView({
+      player: { grid: { x: 20, y: 12 } },
+      monsters: [{ id: 9, race: "kobold", grid: { x: 21, y: 12 } }],
+    });
+    const ctx1: BorgContext = {
+      world,
+      view: first,
+      act: makeFakeActions(),
+      rng: makeBorgRng(),
+    };
+    borgNotice(ctx1);
+    perceive(world, first, memo);
+    expect([...world.kills.entries()]).toHaveLength(1);
+
+    world.clock += 1;
+    const view = makeScenarioView({
+      player: { grid: { x: 20, y: 12 } },
+      ...second,
+    });
+    const ctx2: BorgContext = {
+      world,
+      view,
+      act: makeFakeActions(),
+      rng: makeBorgRng(),
+    };
+    borgNotice(ctx2);
+    perceive(world, view, memo);
+    borgFollowMissingKills(ctx2, createFlowState());
+    return world;
+  }
+
+  it("forgets it when every way out of its grid is lit and empty", () => {
+    expect([...twoTicks({ monsters: [] }).kills.entries()]).toHaveLength(0);
+  });
+
+  it("keeps believing in it while its grid is out of view", () => {
+    /* Fog of war is not evidence of absence. Only a grid the Borg can actually
+     * see says anything about what is standing on it. */
+    const dark: Record<string, { inView: boolean }> = {};
+    for (let y = 10; y <= 14; y++) {
+      for (let x = 19; x <= 23; x++) dark[`${String(x)},${String(y)}`] = { inView: false };
+    }
+    const world = twoTicks({ monsters: [], cells: dark });
+    expect([...world.kills.entries()]).toHaveLength(1);
   });
 });

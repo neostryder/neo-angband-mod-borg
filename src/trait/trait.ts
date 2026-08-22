@@ -139,6 +139,14 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
 
   /* Publish the finished buffer. */
   ctx.world.self.trait = t;
+
+  /* borg_game_ratio (trait.c:2926): game-turns per borg-turn, from the FINAL
+   * speed, so it is computed here rather than inside finishNotice. Every timed
+   * value the Borg keeps (resistance, no_rest_prep, goal.recalling, see_inv) is
+   * counted in game turns and decays by this much per think. */
+  const speed = t[BI.SPEED] ?? 110;
+  ctx.world.self.gameRatio =
+    speed > 110 ? Math.trunc(100000 / ((speed - 110) * 10 + 100)) : 1000;
 }
 
 /**

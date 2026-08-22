@@ -6,9 +6,9 @@
  *
  * REDUCTIONS (documented; navigation preserved):
  * - borg_check_rest's per-monster race-flag tests (RF_NEVER_MOVE / RF_MULTIPLY /
- *   RF_PASS_WALL / RF_KILL_WALL) and the borg_fear_* regional arrays are not yet
- *   modelled, so the port keeps the distance/awake/danger checks and the
- *   HP/SP/status early-outs. Danger uses FlowHooks.danger.
+ *   RF_PASS_WALL / RF_KILL_WALL) are not modelled, so the port keeps the
+ *   distance/awake/danger checks. The borg_fear_* arrays ARE read now; see
+ *   borgCheckRest for the two arms that are still missing and why.
  * - Panel-relative scans (w_x/w_y + SCREEN_*) become full-map scans, since the
  *   port has no panel concept; the borg's own remembered map is the same data.
  * - borg_flow_spastic's borg_detect_door sector suppression is dropped (treated
@@ -52,6 +52,7 @@ import {
   type FlowState,
 } from "./flow.js";
 import { borgFlowCostStair, syncStairsFromMap } from "./flow-stairs.js";
+import { getFearCaches } from "../danger/state.js";
 
 /** borg_get_leash (borg-flow-misc.c): how far to roam from the stairs. */
 export function borgGetLeash(ctx: BorgContext, flow: FlowState, pickUp: boolean): number {
@@ -187,15 +188,60 @@ export function borgHappyGridBold(ctx: BorgContext, flow: FlowState, y: number, 
 }
 
 /**
- * borg_check_rest (borg-flow-misc.c), reduced port. Keeps the HP/SP/status
- * early-outs, the lava check, and the per-monster distance/awake/danger tests
- * (see file header for the race-flag reductions).
+ * borg_check_rest (borg-flow-misc.c:1214): is it safe to sit still here.
+ *
+ * This is the gate that stops the Borg resting through an attack, so every arm
+ * of it is load-bearing rather than decorative, and the two FEAR arms are the
+ * only thing that answers an attacker the Borg cannot see: an unexplained blow
+ * raises regional fear (perceive-messages.ts), and a level-one character's
+ * CURHP/20 is zero, so any fear at all is enough to keep it on its feet.
+ *
+ * Two upstream arms are left out. PF_COMBAT_REGEN needs a player-flag lookup the
+ * frozen view does not carry, and `when_last_kill_mult` needs a race flag at the
+ * moment a record is deleted, which the message pass does not have. Both are
+ * recorded in PLANNED.md rather than approximated. The vault arm is skipped for
+ * the reason danger/fear.ts documents: the remembered map has no vault flag.
  */
 export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: number): boolean {
   const w = ctx.world;
 
+  /* No resting if Blessed and good HP and good SP (misc.c:1230): a buff resting
+   * away is a buff wasted. */
+  const t = w.self.temp;
+  if (
+    (t.bless || t.hero || t.berserk || t.fastcast || t.regen || t.smiteEvil) &&
+    !w.self.munchkinMode &&
+    trait(w, BI.CURHP) >= Math.trunc((trait(w, BI.MAXHP) * 8) / 10) &&
+    trait(w, BI.CURSP) >= Math.trunc((trait(w, BI.MAXSP) * 7) / 10)
+  )
+    return false;
+
+  /* No resting right after a preparatory spell (misc.c:1262). */
+  if (
+    w.self.noRestPrep >= 1 &&
+    !w.self.munchkinMode &&
+    trait(w, BI.CURSP) > Math.trunc(trait(w, BI.MAXSP) / 4) &&
+    trait(w, BI.CDEPTH) < 85
+  )
+    return false;
+
   /* Don't rest on lava unless immune to fire */
   if (w.map.at(x, y).feat === FEAT.LAVA && !trait(w, BI.IFIRE)) return false;
+
+  /* Be concerned about the Regional Fear (misc.c:1272). */
+  const fear = getFearCaches(w);
+  if (
+    fear.region(y, x) > Math.trunc(trait(w, BI.CURHP) / 20) &&
+    trait(w, BI.CDEPTH) !== 100
+  )
+    return false;
+
+  /* Be concerned about the Monster Fear (misc.c:1277). */
+  if (
+    fear.monsters(y, x) > Math.trunc(trait(w, BI.CURHP) / 10) &&
+    trait(w, BI.CDEPTH) !== 100
+  )
+    return false;
 
   /* Concerned about danger at deep depth */
   if (
@@ -212,26 +258,49 @@ export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: n
     return false;
 
   /* Examine the monsters */
-  for (const [, kill] of w.kills.entries()) {
+  for (const [i, kill] of w.kills.entries()) {
     const x9 = kill.pos.x;
     const y9 = kill.pos.y;
     const ax = Math.abs(x9 - x);
     const ay = Math.abs(y9 - y);
     const d = Math.max(ax, ay);
+    const has = (f: string): boolean => flow.hooks.monsterHasFlag(w, i, f);
 
     /* Minimal distance (z_info->max_range ~ 20) */
     if (d > 20) continue;
 
-    /* Too close */
+    /* if too close to a Mold or other Never-Mover, don't rest */
+    if (d < 2 && !has("NEVER_MOVE")) return false;
     if (d === 1) return false;
+
+    /* if too close to a Multiplier, don't rest */
+    if (d < 10 && has("MULTIPLY")) return false;
 
     /* Asleep and far -- ignore */
     if (!kill.awake && d > 8 && !w.self.munchkinMode) continue;
 
-    /* Scary guys pretty close */
-    const p = flow.hooks.danger(w, y9, x9);
+    /* Scary guys pretty close. ONE monster's danger, not the grid's total: the
+     * grid sums every monster and both fear caches, so asking it here would let
+     * a busy level veto a rest next to something harmless. */
+    const p = flow.hooks.dangerOneKill(w, y9, x9, i);
     if (d < 5 && p > Math.trunc(flow.avoidance / 3) && !w.self.munchkinMode)
       return false;
+
+    /* Concerned for ranged attacks: it can reach the Borg without moving. */
+    if (flow.hooks.los(w, y9, x9, y, x) && kill.rangedAttack) return false;
+
+    /* Special handling for the munchkin mode */
+    if (
+      w.self.munchkinMode &&
+      flow.hooks.los(w, y9, x9, y, x) &&
+      kill.awake &&
+      !has("NEVER_MOVE")
+    )
+      return false;
+
+    /* if it walks through walls, not safe */
+    if (has("PASS_WALL")) return false;
+    if (has("KILL_WALL")) return false;
   }
   return true;
 }

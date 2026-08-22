@@ -7,7 +7,9 @@
  *   1. advance the Borg clock exactly once and the panel clock (:446).
  *   2. borgNotice: fill self.trait[] / power inputs from the view (:453).
  *   3. perceive: fold the current view into the world model, incl. the message
- *      stream and staleness/expiry (borg_update, :456).
+ *      stream and staleness/expiry (borg_update, :456), then run borg_update's
+ *      own tail - forget monsters that are demonstrably not where the Borg left
+ *      them (:2902), and re-stamp the monster fear cache (:2990).
  *   4. borgPower: score the current world (:459).
  *   5. track MAXCLEVEL / MAXDEPTH and the per-level "began" clock (:438).
  *   6. prime the wiring session (danger globals, flow avoidance) and think:
@@ -22,6 +24,9 @@ import type { AgentController, Rng } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "./world/model.js";
 import { makeBorgRng, reseedBorgRng } from "./rng.js";
 import { perceive, makePerceiveMemo } from "./perceive.js";
+import { buildHitByTable } from "./perceive-messages.js";
+import { borgUpdateMonsterFear } from "./danger/index.js";
+import { borgFollowMissingKills } from "./flow/index.js";
 import { think } from "./think.js";
 import { borgNotice, borgPower, BI } from "./trait/index.js";
 import { getFightState } from "./fight/index.js";
@@ -29,6 +34,7 @@ import type { BorgContext } from "./context.js";
 import {
   buildThinkSession,
   installThinkSession,
+  primeSession,
   type BorgResolvers,
 } from "./think-session.js";
 
@@ -77,6 +83,10 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   const session = buildThinkSession(opts.resolvers ?? {});
   installThinkSession(world, session);
 
+  /* suffix_hit_by, built once (borg_init_messages runs at borg start-up, not per
+   * think). Empty when the host supplied no blow methods. */
+  const tables = buildHitByTable(session.resolvers.blowActions ?? []);
+
   let lastDepth = -1;
 
   const controller: AgentController = (view, act) => {
@@ -91,7 +101,18 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     borgNotice(ctx);
 
     /* 3. Fold the view (map/monsters/objects/messages) into the world (:456). */
-    perceive(world, view, memo);
+    perceive(world, view, memo, tables);
+
+    /* 3b. The tail of borg_update, in its own order. The wiring session is
+     * primed first because both steps need the host's monster-race resolver;
+     * think() primes it again, which is idempotent.
+     *  - :2902 forget or follow monsters the Borg can now see are not where it
+     *    left them, which is the only thing that removes a phantom.
+     *  - :2990 re-stamp the monster fear cache from the surviving records.
+     * Nothing may read borg_danger between perceive and here. */
+    primeSession(session, ctx);
+    borgFollowMissingKills(ctx, session.flow.state);
+    borgUpdateMonsterFear(ctx);
 
     /* 4. Score the world (borg_power, :459). */
     world.self.power = borgPower(ctx);

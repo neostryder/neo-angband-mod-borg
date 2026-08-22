@@ -70,6 +70,13 @@ Three claims, and the third is the one that decides it:
    this bullet used to end with - "not one of them plays a turn" was true of the
    whole suite and is not any more.
 
+   **A second watching found two more symptoms, and they were not stalls.** The
+   Borg paced with nothing in sight, and it stood still in town while something it
+   could not see killed it. Both are diagnosed and fixed below (symptoms 4 and 5),
+   and both were found by asking the harness new questions rather than by watching
+   again - which is the shape this claim keeps meeting. The watching is still
+   owed.
+
 Until 3 is done, nothing here says the Borg plays properly. See the README's own
 Status section, which was narrowed on 2026-08-21 for exactly this reason.
 
@@ -233,6 +240,100 @@ Two honest limits, both reviewed rather than assumed:
   below, and the reason the shopping seen in the watched runs cannot be credited
   to the ladder.
 
+### The two symptoms that came back from a real game, 2026-08-21
+
+Reported after the three stalls above were fixed, from watching a released build:
+"it's just sitting there or moving frantically back and forth across three cells,
+doing nothing until something comes up and picks a fight. It just died to a
+squint-eyed rogue in the town." Two symptoms, and they turned out to have
+different causes.
+
+**4. The jitter had TWO causes, and only one of them was already fixed.** The
+last clause of the report is the diagnosis: a Borg with nothing in sight has no
+reason to hold position, so a monster-free stretch confined to a handful of
+squares is a decision loop.
+
+The first cause is the two-square oscillation named in stall 2 - flow to the
+staircase, run out of flow, step off, get pulled back - and the version being
+watched was 0.6.3, which predates that fix.
+
+The second only became visible once the Borg could see its own pack (see symptom
+5), and it is a phantom monster. `borg_follow_kill` was not ported, so a tracked
+record for a monster that had died out of sight or walked away survived the full
+2000-turn expiry, and `borg_flow_kill` kept routing the Borg to it: walk to the
+phantom, arrive, find nothing, let the explore rung step back, repeat. The trace
+that named it is unambiguous - goal type 1 (kill) at one square alternating with
+goal type 4 (explore) at the next, sixty times, at full hit points, with nothing
+visible.
+
+Measured after both: over four seeds and 2000 decisions each, the number of
+sixty-decision monster-free stretches confined to three squares at full hit points
+went from 403 to zero, and the ground covered went from 398 squares to 753 on the
+seed that had been worst. `src/play.test.ts` asserts the tightest such stretch
+stays above three squares, counting only decisions that were not spent resting -
+the engine has no "rest until done" command, so a character healing up legitimately
+stands still for sixty decisions.
+
+**5. The town death is separate, and it was a whole missing feedback path.** The
+Borg was not making a bad call on good information; it had no information. The
+headless runs show the shape: hundreds of `rest` commands interleaved with
+"Something touches you." and a low-hitpoint warning, ending in "You die." Nothing
+was visible, so the danger evaluator saw no threat, and the only mechanism
+upstream has for an attacker it cannot see - regional fear - had no producer in
+this port. Six facts came out of it, each one a value the ported decision code
+reads that nothing ever wrote:
+
+- the two fear caches, their updaters and their readers all existed, with nothing
+  in between;
+- the seam carrying "is it safe to rest here" was wired to the constant `true`,
+  so `borg_check_rest` was unreachable from the only ladder that rests;
+- `borg_check_rest` was itself missing six arms, both fear tests among them;
+- nothing decremented any of the durations the Borg tracks, so each latched on
+  first use, and `borg_game_ratio` was a placeholder off by a hundredfold;
+- the sval identity table defaulted to empty and no caller passed one, so the
+  self-model counted no food, no cures, no phase doors and no fuel on a full pack;
+- `ranged_attack`, `goal.recalling` and `escapes` were each read by several
+  subsystems and written by none, and `BORG_LIGHT` - "my own torch reaches this
+  grid" - was read by three subsystems and set by none, because
+  `borg_update_light` was not ported either.
+
+All of them are closed; `src/rest.test.ts` pins the path end to end, and
+`src/play.test.ts` asserts the Borg never chooses to rest with a monster adjacent.
+
+**The shape all of these share is worth naming, because it is the fourth time
+this repository has met it.** Not one was a mistake in the ported arithmetic. Each
+was a value the ported decision code READS and nothing in the mod ever WROTE, and
+every one of them looks, from the outside, exactly like a Borg that is simply bad
+at Angband. A unit test cannot see any of them, because each individual decision
+is correct given the state it was handed. The instrument that finds them is a
+harness that plays, and the question to ask of any remaining seam is not "is it
+implemented" but "who writes it".
+
+### What is still not ported, named rather than left to be rediscovered
+
+- **The detection scheduler.** `borg_check_light` (`borg-light.c:250-539`) is the
+  routine that casts Find Traps/Doors/Stairs, Detect Evil, Magic Mapping and
+  Detect Objects on a cadence and keeps the per-panel `borg_detect_*` arrays that
+  say which parts of the level have been swept. None of it is here, and the port
+  has no panel concept to hang the arrays on. A caster therefore explores the way
+  a warrior does. It does not touch the symptoms above - a level-one character has
+  none of those spells - but it is the largest single behavioural difference left.
+- **Regional fear from a spell cast by something unseen.** The message half is
+  ported for blows; `borg_fear_spell` (`borg-update.c:745`) and the monster-spell
+  message tables it keys off are not, so an invisible caster raises no fear where
+  an invisible biter does.
+- **`when_last_kill_mult`.** Upstream refuses to rest for four turns after killing
+  a breeder, which needs the race flag at the moment a record is deleted; the
+  message pass that deletes it has no resolver.
+- **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag.
+  `PlayerView` carries object flags and derived skills but no class flags, so this
+  needs an engine seam rather than wiring.
+- **The buff-timer safety net** (`borg-trait.c:3010`). Upstream cross-checks its
+  own guesses about recall, haste, protection and resistances against
+  `player->timed[]` every notice. `PlayerStatusView` carries the eight afflictions
+  and none of the buffs, so the port relies on its own bookkeeping alone. The
+  bookkeeping is correct now that it decays; the net is still missing.
+
 ## Progress
 
 | Date | What landed |
@@ -254,7 +355,15 @@ the version field is not. Danger vision needs a host that supplies
 that would have pinned a digest on a change inert on every game a player could
 actually be running.
 
-**The engine range is `>=0.25.0`, and 0.6.1 is where it stopped being permissive.**
+**The engine range is `>=0.26.0` as of 0.7.0, and 0.6.1 is where it stopped being
+permissive.** The move from 0.25.0 to 0.26.0 is the two fixes that live in the
+game: `CellView.trap` narrowed to `square_isdisarmabletrap`, so a locked door is
+no longer offered as something to disarm, and the host answering a blocking
+prompt on an autoplayer's behalf. A Borg without either wedges on the first
+locked door or on the first `-more-`, which is not a reduced Borg.
+
+The paragraph below is about the earlier move, from `>=0.12.0`, and the argument
+is the same one.
 Up to 0.6.0 it was `>=0.12.0` and the mod degraded: on an older host
 `ctx.registries` was absent, `createBorg()` took its conservative defaults, and
 the plugin said "playing blind" in its own log. That was written down as a
@@ -379,6 +488,15 @@ docstring says.
   still return belongs to a view with no live derive behind it rather than to an
   engine that cannot answer.
 
+- **The attack-message table** - **DONE 2026-08-21**, and it is a fifth seam
+  rather than one of the original four, because nothing had noticed the Borg
+  could not tell it was being hit. `borg_init_hit_by_messages`
+  (`borg-messages.c:1595`) builds `suffix_hit_by` from every blow method's action
+  message at start-up; `makeCoreResolvers` now reads the same records from
+  `ctx.registries.monsters.blowMethods`. Without it an attack the Borg cannot
+  attribute raises no regional fear, and regional fear is upstream's whole answer
+  to an attacker it cannot see.
+
 **Mod items and creatures must work with the Borg the same as vanilla ones**
 (a hard requirement). Reading the registry rather than shipping a
 table is what makes that free, and it is the standard every remaining seam is held
@@ -469,6 +587,14 @@ structure. The main repository's `CLAUDE.md` has the procedure and the four trap
 and the three stalls, all three of which are now closed - and the FIXED notes there
 say where each one lived.
 
+**A third-party watching of the released build found two more**, recorded above as
+symptoms 4 and 5: it paced with nothing in sight, and it stood still in town while
+something it could not see killed it. Both are closed. That is worth noting here
+rather than only above, because it is evidence about this item's own method: the
+watching was somebody else's, it took minutes, and it found two defects a green
+suite and a 1500-decision harness had both passed over. The harness could see them
+once it was asked the right questions, which are now permanent assertions.
+
 **Second attempt, still owed: watch it again in the installed build.** Every stall
 above was found and closed with a headless instrument (`src/play.test.ts`), which
 drives a real game and a real Borg but paints nothing and runs no shell. What it
@@ -484,12 +610,14 @@ again. The last of those is the one the first attempt could never reach, because
 nothing died; four seeds now die headlessly, so the restart loop is finally
 reachable.
 
-**And the mod cannot be tagged before the game ships.** Two of the fixes are in the
-game's repository (the trap predicate and the prompt seam), and a released Borg
-that requires an unreleased engine refuses to load. Raise `engine` in
-`manifest.json` to the version that carries them, then tag. `src/play.test.ts`
-measures the engine on disk for the trap fix and skips itself rather than failing
-when it is absent, so a red suite here always means a fault here.
+**And the mod cannot be tagged before the game's RELEASE is published**, which is
+a later event than the version bump. Both game-side fixes are in Neo Angband
+0.26.0 and `manifest.json` now declares `>=0.26.0`, but the game installs from a
+release and a Borg tagged against a version nobody can download refuses to load
+for everybody. Tag this repository once v0.26.0 has a published release with
+artifacts. `src/play.test.ts` measures the engine on disk for the trap fix and
+skips itself rather than failing when it is absent, so a red suite here always
+means a fault here.
 
 ### 5. The store ladder has no engine to trade through - OPEN, found 2026-08-21
 

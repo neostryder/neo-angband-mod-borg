@@ -48,6 +48,7 @@ import type { MonsterFacts } from "./facts.js";
 import { BORG_SPELL } from "./globals.js";
 import type { DangerGlobals } from "./globals.js";
 import { getDangerState } from "./state.js";
+import { borgFearGrid } from "./fear.js";
 
 /** C integer division: truncate toward zero. */
 function div(a: number, b: number): number {
@@ -1645,4 +1646,45 @@ export function borgDanger(
   }
 
   return p > 2000 ? 2000 : p;
+}
+
+/**
+ * The monster half of the fear model (borg-update.c:2928-2992): each tracked
+ * monster near the Borg stamps a tenth of its own danger onto the grids it can
+ * see, so a crowd reads as dangerous even when no single member of it does. The
+ * C's own comment is the specification: one orc will not be too dangerous, but
+ * twenty of them can be deadly.
+ *
+ * The cache is zeroed here rather than in perceive, because upstream zeroes and
+ * re-stamps it inside one function and a cache that is cleared somewhere else is
+ * a cache that eventually gets read stale. Call once per think, after perception
+ * has refreshed the monster list and before anything reads borg_danger.
+ *
+ * The vault checks are omitted for the reason fear.ts documents: the remembered
+ * map carries no vault flag, so they can only ever add fear the C would skip.
+ */
+export function borgUpdateMonsterFear(ctx: BorgContext): void {
+  const world = ctx.world;
+  const st = getDangerState(world);
+  const g = st.globals;
+
+  /* Remove regional fear from monsters, it gets added back in later. */
+  for (const row of st.fear.monsters2d) row.fill(0);
+
+  const px = world.self.c.x;
+  const py = world.self.c.y;
+
+  for (const [i, kill] of world.kills.entries()) {
+    /* Skip monsters that dont chase */
+    if (g.resolveFacts(ctx, i).flags.has("NEVER_MOVE")) continue;
+
+    /* Skip monsters that are far away */
+    if (borgDistance(kill.pos.y, kill.pos.x, py, px) >= 20) continue;
+
+    /* Obtain some danger */
+    const p = Math.trunc(borgDanger(ctx, kill.pos.y, kill.pos.x, 1, false, false) / 10);
+
+    /* Apply the Fear */
+    borgFearGrid(world, g, st.fear, kill.pos.y, kill.pos.x, p);
+  }
 }

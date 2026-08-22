@@ -3,7 +3,7 @@
 The Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
-**Needs Neo Angband 0.25.0 or newer.** An older game refuses to load it and says
+**Needs Neo Angband 0.26.0 or newer.** An older game refuses to load it and says
 so; the blockquote below says why that is a refusal rather than a reduced Borg.
 
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
@@ -81,10 +81,33 @@ fresh set of heuristics that merely look similar.
 > disarms real traps, changes level under its own steam, and dies - which is the
 > ending upstream's borg reaches too, and the half the restart loop needs.
 >
+> **Then it was watched again, and it lost a fight it should have won.** A
+> level-one character stood still in town while something it could not see killed
+> it. That was not a bad decision on good information: it was six more values the
+> ported decision code reads and nothing in this mod ever wrote. Upstream's whole
+> answer to an attacker it cannot find is regional fear, and this port had the
+> caches, the two functions that fill them and every reader that consults them,
+> with nothing in between. Alongside it: the seam carrying "is it safe to rest
+> here" was the constant `true`; none of the durations the Borg tracks were ever
+> decremented, so each latched on first use; and the table that tells the
+> self-model which object is a Ration of Food defaulted to empty, so a full pack
+> counted as no food, no cures, no phase doors and no fuel. All six are closed.
+>
+> The "sitting there or moving frantically back and forth across three cells" half
+> of that report had two causes. One was the staircase shuttle above, watched on
+> the version before it was fixed. The other was a phantom: nothing in the port
+> ever revised a monster record downward, so a monster that died out of sight or
+> walked away stayed on the Borg's map for two thousand turns and the Borg kept
+> walking to where it used to be. Measured over four seeds and 2000 decisions
+> each, the number of sixty-decision stretches spent inside three squares with
+> nothing in sight and nothing to heal went from 403 to zero, and the ground
+> covered nearly doubled.
+>
 > So: install it to watch it try, not to watch it win. And do not take the rest of
-> the suite for evidence - the other seventeen files cover dispatch, ladder
-> ordering and resolver wiring, and not one of them plays a turn. That was exactly
-> the gap; `play.test.ts` is the answer to it.
+> the suite for evidence - most of the other files cover dispatch, ladder ordering
+> and resolver wiring, and they do not play a turn. That was exactly the gap;
+> `play.test.ts` is the answer to it, and `rest.test.ts` pins the path that death
+> went through.
 
 It is a **mod**, not part of the engine, and that division is decided rather than
 incidental:

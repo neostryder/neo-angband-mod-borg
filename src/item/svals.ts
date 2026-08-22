@@ -38,6 +38,7 @@ export interface BorgSvalTable {
   staff: Record<string, number>;
   wand: Record<string, number>;
   dragon: Record<string, number>;
+  bow: Record<string, number>;
 }
 
 /**
@@ -248,4 +249,36 @@ export const SVAL: BorgSvalTable = {
     balance: 11,
     power: 12,
   },
+  /* bow (borg-item-val.c:186-191) */
+  bow: {
+    sling: 1,
+    short_bow: 2,
+    long_bow: 3,
+    light_xbow: 4,
+    heavy_xbow: 5,
+  },
 };
+
+/**
+ * The same table flattened to the key convention the self-model expects
+ * (`BorgSvals`, trait/config.ts): "<group>_<role>", except the bow svals, which
+ * upstream names sv_sling / sv_short_bow / ... with no group prefix and which
+ * borg_notice reads by those bare names.
+ *
+ * IT HAS TO BE PASSED IN. `resolveOpts` defaults `svals` to `{}`, and an empty
+ * table means every `item.sval === sv.<role>` comparison in borg_notice is
+ * `=== undefined` and therefore false. That is not a degraded self-model, it is
+ * a Borg that believes it owns no food, no cures, no phase doors and no fuel, on
+ * a full pack. Every production call to borgNotice passes this.
+ */
+export function flatSvals(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [group, roles] of Object.entries(SVAL) as Array<
+    [string, Record<string, number>]
+  >) {
+    for (const [role, sval] of Object.entries(roles)) {
+      out[group === "bow" ? role : `${group}_${role}`] = sval;
+    }
+  }
+  return out;
+}
