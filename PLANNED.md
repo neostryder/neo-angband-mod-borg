@@ -828,6 +828,19 @@ cycle it then sits in is upstream's own behaviour, but upstream's borg leaves th
 cycle by shopping. This is now the largest single thing between this Borg and a
 deep run, and it is not fixable here.
 
+**The engine side has landed in neo-angband's tree, not yet in a release.**
+`shop-buy` / `shop-sell` / `shop-exit` now resolve to real handlers
+(`packages/core/src/store/store-cmd.ts`, `installStoreCommands`) that turn a
+stock index or a gear handle into a real object, re-check the player is standing
+in the right store, and commit through the same buy/sell path the interactive
+shop screen uses - verified by a real `startGame` town, a queued command and
+`runGameLoop`, both a free purchase and a paid sale. This item stays OPEN: the
+game installs from a published release, not from a commit, and this repository's
+own tag cannot move ahead of one either. Closing item 5 for real needs a
+released engine version this mod's `manifest.json` can require, and a watched
+run (the standard this file already holds itself to above) showing gold actually
+change hands from the ladder rather than from birth outfitting.
+
 ## What is deliberately NOT here
 
 Making the Borg WIN. The target is that it tries its best and gets as far as it
