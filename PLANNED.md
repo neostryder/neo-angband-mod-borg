@@ -521,20 +521,20 @@ implemented" but "who writes it".
   routine that casts Find Traps/Doors/Stairs, Detect Evil, Magic Mapping and
   Detect Objects on a cadence, is not ported, and the port has no panel concept
   to hang its `borg_detect_*` arrays on, so a caster explores the way a warrior
-  does. Tracked as issue #1.
+  does. Tracked as neo-angband#40.
 - **Regional fear from a spell cast by something unseen.** The message half is
   ported for blows but not for spells, so an invisible caster raises no fear
-  where an invisible biter does. Tracked as issue #2.
+  where an invisible biter does. Tracked as neo-angband#38.
 - **`when_last_kill_mult`.** Upstream refuses to rest for four turns after killing
   a breeder, which needs the race flag at the moment a record is deleted; the
-  message pass that deletes it has no resolver. Tracked as issue #5.
+  message pass that deletes it has no resolver. Tracked as neo-angband#36.
 - **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag
   that `PlayerView` does not carry, so this needs an engine seam rather than
-  wiring. Tracked as issue #6.
+  wiring. Tracked as neo-angband#34.
 - **The buff-timer safety net** (`borg-trait.c:3010`). `PlayerStatusView` carries
   no buff timers, so the port's own bookkeeping about recall, haste, protection
   and resistances has no cross-check against the engine's real timers. Tracked
-  as issue #7.
+  as neo-angband#32.
 
 ## Progress
 
