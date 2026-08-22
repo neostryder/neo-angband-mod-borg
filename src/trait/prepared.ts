@@ -97,13 +97,24 @@ export function borgPrepared(
     }
   }
 
-  /* Live-unique / Morgoth gating (borg-prepared.c:627): modelled by seam;
-   * with stock borg_kills_uniques = false this resolves to "ready", which is
-   * the "is only Morgoth alive" branch - so readyMorgoth goes back to -1 and
-   * becomes 1 only at depth 99. The reset looks pointless one line before a
-   * return, and is not: the next borgRestock reads it and turns it back to 0. */
-  ctx.world.self.readyMorgoth = -1;
-  if (depth >= 99) ctx.world.self.readyMorgoth = 1;
+  /* Live-unique / Morgoth gating (borg-prepared.c:627). Two branches, and only
+   * the deep one touches readyMorgoth.
+   *
+   * MAXDEPTH <= 98 (borg-prepared.c:627-646) returns without writing it, which
+   * matters far more than it looks: with stock borg_kills_uniques = false the
+   * very first test returns NULL, so for every character that has not been
+   * below 4900 feet the flag keeps whatever borgRestock last set. Writing -1
+   * here regardless made the flag depend on which subsystem asked last, and
+   * borgCaution will only set stairLess - the flag that actually spends a turn
+   * on a staircase - while it reads 0.
+   *
+   * MAXDEPTH >= 98 && depth >= 98 (borg-prepared.c:648) is the branch that sets
+   * -1 for "unknown" and 1 at depth 99; with the live-unique list modelled by a
+   * seam that resolves to "only Morgoth is alive", that is what it reduces to. */
+  if ((t[BI.MAXDEPTH] ?? 0) >= 98 && depth >= 98) {
+    ctx.world.self.readyMorgoth = -1;
+    if (depth >= 99) ctx.world.self.readyMorgoth = 1;
+  }
   return null;
 }
 

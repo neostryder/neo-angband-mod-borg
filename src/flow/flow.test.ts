@@ -161,8 +161,9 @@ describe("flow.toTakes", () => {
       },
       { CLEVEL: 25, CDEPTH: 5, FOOD: 5, LIGHT: 1 },
     );
-    // Perceive records the take as un-wanted; mark it wanted (P8.5 valuation).
-    for (const [, t] of ctx.world.takes.entries()) t.wanted = true;
+    /* Perceive values it from the host's kind table; this fixture has none,
+     * so give it upstream's unaware value directly. */
+    for (const [, t] of ctx.world.takes.entries()) t.value = 1;
 
     const cmd = createFlow().toTakes(ctx);
     expect(dirOf(cmd)).toBe(4); // walk west toward (7,10)
@@ -176,6 +177,9 @@ describe("flow.toTakes", () => {
       },
       { CLEVEL: 25, CDEPTH: 5, FOOD: 5, LIGHT: 1 },
     );
+    /* borg_new_take prices anything unrecognised at 1, so "not wanted" has to
+     * be stated: this is the "known to be bad" price (borg-flow-take.c:269). */
+    for (const [, t] of ctx.world.takes.entries()) t.value = -10;
     expect(createFlow().toTakes(ctx)).toBeNull();
   });
 });

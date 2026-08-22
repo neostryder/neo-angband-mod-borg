@@ -85,17 +85,25 @@ describe("world model + perception", () => {
 });
 
 describe("controller cycle", () => {
-  it("perceives, advances the clock once per think, and returns a command", () => {
+  /* The clock is PER LEVEL. Arriving anywhere restarts it at 1000
+   * (borg-update.c:2017), which is what every absolute test against borg_t is
+   * written for - including borg_think_dungeon's own overflow panic at 30000,
+   * which hands the game back to a human and, on a clock that only ever climbs,
+   * would end every session at the same decision count. */
+  it("restarts the clock on arrival and advances it once per think", () => {
     const { world, controller } = createBorg();
     const view = makeScenarioView({ player: { grid: { x: 5, y: 5 } } });
     const act = makeFakeActions();
 
     expect(world.clock).toBe(0);
     const cmd = controller(view, act);
-    expect(world.clock).toBe(1);
+    expect(world.clock).toBe(1000);
     expect(cmd).not.toBeNull();
     controller(view, act);
-    expect(world.clock).toBe(2);
+    expect(world.clock).toBe(1001);
+
+    controller(makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 3 } }), act);
+    expect(world.clock).toBe(1000);
   });
 
   // The foundation stub's fixed melee/step/hold policy was replaced by the

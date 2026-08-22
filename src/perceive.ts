@@ -24,7 +24,7 @@
  * Decision subsystems read BorgWorld, never the live engine.
  */
 
-import type { AgentView } from "@rpgm-tools/neo-angband-core";
+import type { AgentView, ItemView } from "@rpgm-tools/neo-angband-core";
 import {
   AUTO_MAX_X,
   AUTO_MAX_Y,
@@ -68,6 +68,7 @@ export function perceive(
   view: AgentView,
   memo: PerceiveMemo,
   tables: BorgMessageTables = emptyMessageTables(),
+  valuation: TakeValuation = {},
 ): void {
   const p = view.player();
 
@@ -97,7 +98,7 @@ export function perceive(
   ingestMap(world, view);
   borgUpdateLight(world);
   const seen = ingestMonsters(world, view);
-  ingestFloor(world, view, oldX, oldY);
+  ingestFloor(world, view, oldX, oldY, valuation);
 
   // Consume the message stream (drains view.messages() exactly once). The C
   // also force-deletes all records while hallucinating (borg-update.c:1557);
@@ -407,18 +408,90 @@ function clearLocalRegionFear(world: BorgWorld): void {
 }
 
 /**
+ * What the host can tell the Borg about an object kind: its shop base price
+ * (ObjectKind.cost) and whether the character knows what the flavour is.
+ * Returns null for a kind the host cannot resolve.
+ */
+export type KindCostResolver = (
+  tval: number,
+  sval: number,
+) => { cost: number; aware: boolean } | null;
+
+/** What perception needs in order to price a floor object. */
+export interface TakeValuation {
+  /** Host kind lookup; absent means every kind reads as unaware. */
+  kindCost?: KindCostResolver | undefined;
+  /**
+   * "tval:sval" of every kind the Borg has thrown away on this level, which is
+   * this port's stand-in for upstream's inscription. borg_drop_junk inscribes
+   * an item "borg ignore" BEFORE dropping it (borg-junk.c:464-467) precisely so
+   * that borg_new_take prices it at -10 and the Borg never walks back to it.
+   * The frozen action surface has no inscribe command, so the Borg remembers
+   * instead. Per kind rather than per object, which is what the price is anyway.
+   */
+  junked?: ReadonlySet<string> | undefined;
+}
+
+/** The junked-set key for an object. */
+export function junkKey(tval: number, sval: number): string {
+  return `${String(tval)}:${String(sval)}`;
+}
+
+/** tval_is_money: TV_GOLD (generated/tvals.ts). */
+const TV_GOLD = 35;
+
+/**
+ * borg_new_take's valuation (borg-flow-take.c:251-271). This is the number
+ * every flow-to-object gate reads, and a zero here means the Borg walks past
+ * the object forever.
+ *
+ * Upstream: an aware kind is worth kind->cost, gold is flat 30, an unaware kind
+ * is worth 1 (so the Borg picks up unidentified things to find out what they
+ * are), and two rules force -10 - an item whose plusses are known to be
+ * negative, and one inscribed "borg ignore". Both -10 rules exist to stop the
+ * Borg dropping something as junk and immediately walking back to pick it up.
+ *
+ * ONE DIFFERENCE, and it is in the knowledge the rule is allowed to use.
+ * Upstream gates the negative-plusses rule on object_fully_known, because in
+ * the C the borg would otherwise be reading a value the character has not
+ * learned. The frozen ItemView reports true plusses to every subsystem in this
+ * port with no knowledge gate at all, so there is no fully-known signal to gate
+ * on; the rule is applied to what the view reports. The alternative is dropping
+ * the rule, which reinstates exactly the pick-up-and-drop loop it was written
+ * to prevent.
+ */
+export function takeValue(item: ItemView, valuation: TakeValuation): number {
+  let value: number;
+  if (item.tval === TV_GOLD) {
+    value = 30;
+  } else {
+    const kind = valuation.kindCost?.(item.tval, item.sval) ?? null;
+    /* No host table is the unaware branch: worth 1, which is "pick it up and
+     * find out", not "ignore it". */
+    value = kind?.aware ? kind.cost : 1;
+  }
+
+  if (item.toA < 0 || item.toD < 0 || item.toH < 0) value = -10;
+  if (item.inscription?.startsWith("borg ignore")) value = -10;
+  if (valuation.junked?.has(junkKey(item.tval, item.sval))) value = -10;
+
+  return value;
+}
+
+/**
  * Fold floor objects into the take-tracking list, updating in place by position
  * so unseen objects persist and expire on the 2000-turn clock, and deleting
  * objects under the borg (or its previous grid) as the C does
- * (borg-update.c:1569-1601). Identity resolution to a real k_idx and want/junk
- * valuation happen in the item subsystem (P8.5); this records presence, tval,
- * and position so flow-to-item (P8.1) has targets.
+ * (borg-update.c:1569-1601). Identity resolution to a real k_idx is still the
+ * item subsystem's; this records presence, tval, position and the estimated
+ * value flow-to-item gates on.
  */
 function ingestFloor(
   world: BorgWorld,
   view: AgentView,
   oldX: number,
   oldY: number,
+  valuation: TakeValuation,
 ): void {
   // Clear grid.take back-pointers; rebuilt below.
   for (const [, t] of world.takes.entries()) {
@@ -460,6 +533,7 @@ function ingestFloor(
       t.pos.x = x;
       t.pos.y = y;
       t.when = world.clock;
+      t.value = takeValue(head, valuation);
     }
   }
 

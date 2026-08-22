@@ -33,6 +33,7 @@ import type { ItemView } from "@rpgm-tools/neo-angband-core";
 import type { BorgLoadoutChange, BorgLoadoutRef } from "./trait/simulate.js";
 import type { BorgContext } from "./context.js";
 import type { FactsResolver } from "./danger/index.js";
+import type { KindCostResolver } from "./perceive.js";
 import {
   borgDanger,
   borgDangerOneKill,
@@ -113,6 +114,15 @@ export interface BorgResolvers {
    * which is only correct for a Borg that is not playing.
    */
   blowActions?: readonly string[];
+  /**
+   * ObjectKind.cost and the character's awareness of the flavour, for one
+   * (tval, sval). borg_new_take prices a floor object at kind->cost when the
+   * kind is aware (borg-flow-take.c:253), and the price is what every
+   * flow-to-object gate reads. Default: absent, which is upstream's unaware
+   * branch - every object is worth 1, so the Borg still collects to identify,
+   * it just cannot tell an expensive thing from a cheap one.
+   */
+  kindCost?: KindCostResolver;
   /** OPT(player, birth_force_descend): the level cannot be climbed. */
   forceDescend?: boolean;
 }
@@ -132,6 +142,34 @@ export interface ThinkSession {
   readonly resolvers: BorgResolvers;
   /** The live decision context for this think (refreshed by the controller). */
   ctx: BorgContext | null;
+  /**
+   * Is the Borg still in the arrival moment on this grid? True from the think
+   * after it steps somewhere new, until it issues any command other than a
+   * pickup. See borgPickUpHere: upstream only ever collects as a side effect of
+   * MOVING onto a grid, so a Borg that picks up while standing still picks up
+   * whatever its own junk-dropping rung just put down, forever.
+   */
+  arrivalPickup: boolean;
+  /** "depth:x,y" of the grid the Borg stood on last think. */
+  lastGrid: string;
+  /**
+   * Kinds the Borg has thrown away, as "tval:sval". See TakeValuation.junked:
+   * this is upstream's "borg ignore" inscription, which the frozen action
+   * surface cannot write. Without it the Borg drops a stack of junk and then
+   * walks straight back to collect it.
+   */
+  readonly junked: Set<string>;
+  /**
+   * "depth:x,y:pile size" of the last pickup attempt, or "" for none.
+   *
+   * The pickup rung exists because upstream turns on pickup_always instead of
+   * ever pressing a key (see borgPickUpHere), and a command the engine declines
+   * costs no game time, so a floor object the engine will not hand over - one
+   * the player's ignore rules hide, one the pack cannot take a partial stack of
+   * - would otherwise be asked for on every decision forever. The pile size is
+   * part of the key so a pile still empties one press at a time.
+   */
+  pickupTried: string;
 }
 
 /** Build the persistent flow hooks, closing over the session's ctx holder. */
@@ -356,6 +394,10 @@ export function buildThinkSession(resolvers: BorgResolvers = {}): ThinkSession {
     storeMem: createStoreMemory(),
     resolvers,
     ctx: null,
+    arrivalPickup: false,
+    lastGrid: "",
+    junked: new Set<string>(),
+    pickupTried: "",
   };
   (session as { flow: Flow }).flow = createFlow(buildFlowHooks(session));
   return session;

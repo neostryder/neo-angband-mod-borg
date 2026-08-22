@@ -15,8 +15,13 @@ export interface BorgTake {
   tval: number;
   /** Verified kind (not just guessed from a symbol). */
   known: boolean;
-  /** Whether the Borg wants this item (set by valuation). */
-  wanted: boolean;
+  /**
+   * Estimated value (borg_take.value, set in borg_new_take,
+   * borg-flow-take.c:251-271). Everything that flows to an object gates on
+   * `value > 0`, so a record left at zero is a record the Borg will never walk
+   * to. See takeValue in perceive.ts for how it is derived.
+   */
+  value: number;
   /** Location. */
   pos: { x: number; y: number };
   /** When last seen (borg clock). */
@@ -31,7 +36,7 @@ export function makeBorgTake(): BorgTake {
     kIdx: 0,
     tval: 0,
     known: false,
-    wanted: false,
+    value: 0,
     pos: { x: 0, y: 0 },
     when: 0,
     oIdx: 0,

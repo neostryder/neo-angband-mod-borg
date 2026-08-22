@@ -3,9 +3,6 @@
  * reference/src/borg/borg-flow-take.c (borg_flow_take and borg_flow_take_scum).
  *
  * ADAPTATIONS
- * - The upstream "value" of a take (from kind->cost) is not modelled yet (P8.5);
- *   the port uses BorgTake.wanted as the "value > 0" predicate ("skip worthless
- *   items"), which is exactly what that field means.
  * - "Require one empty pack slot" (borg_items[PACK_SLOTS-1].iqty) needs the
  *   inventory model (P8.5), so it is delegated to FlowHooks.packFull.
  * - The gold-scumming book/ammo-kind cheats need k_info; they are gated by the
@@ -80,8 +77,8 @@ export function borgFlowTake(
       if (j !== 255 && bJ <= leash && j >= leash) continue;
     }
 
-    /* skip worthless items (value <= 0 -> !wanted) */
-    if (!take.wanted) continue;
+    /* skip worthless items (borg-flow-take.c:500) */
+    if (take.value <= 0) continue;
 
     const ag = w.map.at(x, y);
     if (viewable && !(ag.info & BORG_VIEW)) continue;
@@ -141,7 +138,7 @@ export function borgFlowTakeScum(
     const y = take.pos.y;
     const ag = w.map.at(x, y);
 
-    if (!take.wanted) continue;
+    if (take.value <= 0) continue;
     if (viewable && !(ag.info & BORG_VIEW)) continue;
     if (borgFlowFarFromStairs(ctx, flow, x, y, bStair)) continue;
 
