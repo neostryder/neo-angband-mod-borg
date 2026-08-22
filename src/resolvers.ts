@@ -76,6 +76,13 @@ export interface CoreResolverInput {
    * same terms as `objects`.
    */
   state?: CoreShopLookup;
+  /**
+   * The bound blow-method registry (`ctx.registries.monsters.blowMethods`), for
+   * the attack-message table. Reading it here rather than copying
+   * blow_methods.txt into this repository is what covers a mod's own blow method
+   * on the same terms as core's.
+   */
+  blowMethods?: Iterable<{ readonly messages: readonly string[] }>;
 }
 
 /** RF_* code names for the set flags in a race flag set (index == RF value). */
@@ -222,11 +229,22 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     return shopnum > 0 ? shopnum - 1 : null;
   };
 
+  /* borg_init_hit_by_messages (borg-messages.c:1595) walks every blow method and
+   * inserts each of its action messages, with {target} still in place: the
+   * matcher works on the literal fragments AROUND the tags, so the substituted
+   * "you" is never compared. Passing the raw templates through is therefore the
+   * faithful shape, not a shortcut. */
+  const blowActions: string[] = [];
+  for (const method of input.blowMethods ?? []) {
+    for (const msg of method.messages) blowActions.push(msg);
+  }
+
   return {
     resolveMonsterFacts,
     resolveActivation,
     activateHandle,
     inShop,
+    blowActions,
     // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
     // which the agent API declares optional on the view itself, and answers null
     // when there is no live derive behind it (a worldless harness) - so this is

@@ -35,6 +35,7 @@ import type { BorgContext } from "./context.js";
 import type { FactsResolver } from "./danger/index.js";
 import {
   borgDanger,
+  borgDangerOneKill,
   borgLos,
   getDangerGlobals,
   getFearCaches,
@@ -42,7 +43,7 @@ import {
 } from "./danger/index.js";
 import type { Flow, FlowHooks } from "./flow/index.js";
 import type { WearDeps } from "./item/index.js";
-import { createFlow } from "./flow/index.js";
+import { borgCheckRest, createFlow } from "./flow/index.js";
 import { BI } from "./trait/index.js";
 import { borgPrepared } from "./trait/index.js";
 import {
@@ -103,6 +104,15 @@ export interface BorgResolvers {
     ctx: BorgContext,
     change: BorgLoadoutChange,
   ) => number | null;
+  /**
+   * blow_methods[].messages: every monster-blow action template in the data
+   * ("hits {target}", "begs {target} for money"). borg_init_hit_by_messages
+   * builds suffix_hit_by from exactly this, and suffix_hit_by is how the Borg
+   * recognises that it was just attacked - so without it an unexplained blow
+   * raises no fear and the Borg will rest through a beating. Default: empty,
+   * which is only correct for a Borg that is not playing.
+   */
+  blowActions?: readonly string[];
   /** OPT(player, birth_force_descend): the level cannot be climbed. */
   forceDescend?: boolean;
 }
@@ -165,6 +175,8 @@ function buildFlowHooks(session: ThinkSession): FlowHooks {
       );
       return facts.flags.has(flag);
     },
+    dangerOneKill: (_world, y, x, killIndex) =>
+      borgDangerOneKill(ctx(), y, x, 1, killIndex, true, true),
     los: (world, y1, x1, y2, x2) => borgLos(world, y1, x1, y2, x2),
   };
 }
@@ -254,7 +266,10 @@ export function buildItemDeps(session: ThinkSession): WearDeps {
   return {
     danger: dangerHere,
     avoidance: w.self.trait[BI.CURHP] ?? 0,
-    canRest: true,
+    /* borg_check_rest(borg.c.y, borg.c.x): the real gate, not a constant. Every
+     * rest in borg-recover.c is behind it, so a hardcoded `true` is the Borg
+     * resting with a monster next to it. */
+    canRest: borgCheckRest(c, session.flow.state, py, px),
     clock: w.clock,
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,

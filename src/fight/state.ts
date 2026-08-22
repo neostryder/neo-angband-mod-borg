@@ -63,12 +63,6 @@ export interface FightState {
   /** borg_time_town: turns spent this town trip (borg-flow.c). */
   timeTown: number;
 
-  /**
-   * borg_game_ratio: game-turns per borg-turn (borg-trait.c). Only used by the
-   * defend Resistance-refresh pre-check; a faithful nominal default (10x normal
-   * speed energy) until P8.6 wires the true ratio.
-   */
-  gameRatio: number;
   /** borg_cfg[BORG_PLAYS_RISKY]: risk-tolerant play (borg config). */
   playsRisky: boolean;
 }
@@ -93,7 +87,6 @@ export function getFightState(world: BorgWorld): FightState {
       tAntisummon: 0,
       began: 0,
       timeTown: 0,
-      gameRatio: 10,
       playsRisky: false,
     };
     STATES.set(world, st);

@@ -863,7 +863,10 @@ export function borgDefend(ctx: BorgContext, p1: number): AgentCommand | null {
   fs.simulate = true;
 
   /* Resistance refresh when it is about to drop (defend.c:3558). */
-  if (ctx.world.self.resistance && ctx.world.self.resistance < fs.gameRatio * 2) {
+  if (
+    ctx.world.self.resistance &&
+    ctx.world.self.resistance < ctx.world.self.gameRatio * 2
+  ) {
     const g = getDangerGlobals(ctx.world);
     g.attacking = true;
     const p = borgDanger(ctx, ctx.world.self.c.y, ctx.world.self.c.x, 1, false, false);

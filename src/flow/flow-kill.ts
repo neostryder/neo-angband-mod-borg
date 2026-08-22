@@ -20,8 +20,18 @@ import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
 import type { BorgContext } from "../context.js";
 import { distance } from "../think.js";
 import { GOAL_DIGGING, GOAL_KILL } from "../world/model.js";
-import { BORG_VIEW } from "../world/grid.js";
-import { AUTO_MAX_X, AUTO_MAX_Y, BI, FEAT, trait } from "./flow-consts.js";
+import { BORG_GLOW, BORG_LIGHT, BORG_VIEW } from "../world/grid.js";
+import {
+  AUTO_MAX_X,
+  AUTO_MAX_Y,
+  BI,
+  FEAT,
+  borgCaveFloorBold,
+  ddx_ddd,
+  ddy_ddd,
+  inBoundsFully,
+  trait,
+} from "./flow-consts.js";
 import {
   borgCanDig,
   borgFlowClear,
@@ -499,4 +509,186 @@ export function borgFlowKillDirect(ctx: BorgContext, flow: FlowState, twitchy: b
   borgFlowSpread(ctx, flow, 15, true, false, true, -1, false);
   if (!borgFlowCommit(ctx, flow, GOAL_DIGGING)) return null;
   return borgFlowOld(ctx, flow, GOAL_DIGGING);
+}
+
+/**
+ * borg_follow_kill_aux (borg-flow-kill.c:473): would the Borg SEE a monster of
+ * this record's race standing at (y, x)?
+ *
+ * BORG_OKAY has no analogue and is treated as set: it means "on the current
+ * panel", and the port has no panel - every grid it holds is a grid it could
+ * examine.
+ */
+function killWouldBeVisible(
+  ctx: BorgContext,
+  flow: FlowState,
+  killIndex: number,
+  y: number,
+  x: number,
+): boolean {
+  const w = ctx.world;
+  const has = (f: string): boolean => flow.hooks.monsterHasFlag(w, killIndex, f);
+  const d = distance(w.self.c.x, w.self.c.y, x, y);
+
+  /* Too far away */
+  if (d > (ctx.view.constants().maxSight ?? 20)) return false;
+  if (!w.map.inBounds(x, y)) return false;
+  const ag = w.map.at(x, y);
+
+  /* Line of sight */
+  if (ag.info & BORG_VIEW) {
+    /* Use "illumination" */
+    if (ag.info & (BORG_LIGHT | BORG_GLOW)) {
+      /* We can see invisible */
+      if (trait(w, BI.SINV) || w.self.temp.seeInv) return true;
+      /* Monster is not invisible */
+      if (!has("INVISIBLE")) return true;
+    }
+    /* Use "infravision" -- works on "warm" creatures */
+    if (d <= trait(w, BI.INFRA) && !has("COLD_BLOOD")) return true;
+  }
+
+  /* Telepathy fails on "strange" monsters */
+  if (trait(w, BI.ESP)) {
+    if (has("EMPTY_MIND")) return false;
+    if (has("WEIRD_MIND")) return false;
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * borg_follow_kill (borg-flow-kill.c:552): the record says a monster is at a
+ * grid the Borg can now see, and it is not there. Predict one step of its
+ * movement into a grid the Borg cannot see, or forget it.
+ *
+ * THIS IS THE ONLY THING THAT REMOVES A PHANTOM. Without it a record for a
+ * monster that has died out of sight, been mistaken, or simply walked away sits
+ * on the map until the 2000-turn expiry, and `borg_flow_kill` keeps routing the
+ * Borg to it. Measured 2026-08-21: a phantom one square away produced a
+ * two-square shuffle - flow to kill it, arrive, find nothing, let the explore
+ * rung step back - for hundreds of decisions with nothing in sight, which is
+ * exactly what "moving frantically back and forth across three cells" looks like
+ * from outside.
+ *
+ * ONE UPSTREAM ARM IS OMITTED and it is the 1-in-100 "prevent loops" roll
+ * (borg-flow-kill.c:590). The Borg's private generator is reseeded at the top of
+ * every think so its decisions are a pure function of their inputs, which makes
+ * a roll taken at a fixed point in the think a CONSTANT: the arm would either
+ * never fire or fire on every record, and one of those two is catastrophic. The
+ * five deterministic deletions below are what actually prune, and all five are
+ * here.
+ */
+function borgFollowKill(ctx: BorgContext, flow: FlowState, i: number): void {
+  const w = ctx.world;
+  const kill = w.kills.at(i);
+  const ox = kill.pos.x;
+  const oy = kill.pos.y;
+  const has = (f: string): boolean => flow.hooks.monsterHasFlag(w, i, f);
+
+  /* Out of sight: nothing to conclude, keep believing the record. */
+  if (!killWouldBeVisible(ctx, flow, i, oy, ox)) return;
+
+  /* Prevent silliness */
+  if (!borgCaveFloorBold(w, oy, ox)) {
+    w.kills.delete(i);
+    return;
+  }
+
+  /* prevent overflows */
+  if (w.clock > 20000) {
+    w.kills.delete(i);
+    return;
+  }
+
+  /* Some never move, and some are asleep: no reason to follow them, but forget
+   * one the Borg is standing on. */
+  if (has("NEVER_MOVE") || !kill.awake) {
+    if (oy === w.self.c.y && ox === w.self.c.x) w.kills.delete(i);
+    return;
+  }
+
+  /* Scan locations: sum the offsets of every neighbouring grid it could have
+   * stepped into unseen. */
+  let bDx = 0;
+  let bDy = 0;
+  for (let j = 0; j < 8; j++) {
+    const dx = ddx_ddd[j]!;
+    const dy = ddy_ddd[j]!;
+    const x = ox + dx;
+    const y = oy + dy;
+    if (!inBoundsFully(x, y)) continue;
+    if (!borgCaveFloorBold(w, y, x)) continue; /* known walls and doors */
+    if (w.map.at(x, y).kill) continue; /* known monsters */
+    if (killWouldBeVisible(ctx, flow, i, y, x)) continue; /* visible grids */
+    bDx += dx;
+    bDy += dy;
+  }
+
+  /* Don't go too far */
+  bDx = Math.max(-1, Math.min(1, bDx));
+  bDy = Math.max(-1, Math.min(1, bDy));
+
+  const nx = ox + bDx;
+  const ny = oy + bDy;
+
+  /* Avoid walls and doors */
+  if (!w.map.inBounds(nx, ny) || !borgCaveFloorBold(w, ny, nx)) {
+    w.kills.delete(i);
+    return;
+  }
+
+  /* Avoid monsters */
+  if (w.map.at(nx, ny).kill !== i) {
+    w.kills.delete(i);
+    return;
+  }
+
+  /* Delete monsters that did not really move. This is the arm that kills the
+   * phantom: every way out was visible and empty, so the offsets cancelled. */
+  if (ny === oy && nx === ox) {
+    w.kills.delete(i);
+    return;
+  }
+
+  /* Update the grids and follow it. */
+  w.map.at(kill.pos.x, kill.pos.y).kill = 0;
+  kill.ox = ox;
+  kill.oy = oy;
+  kill.pos.x = nx;
+  kill.pos.y = ny;
+  w.map.at(nx, ny).kill = i;
+
+  /* Clear goals (borg-flow-kill.c:717): chasing a monster the Borg cannot see
+   * to where it used to be is the loop this whole function exists to break. */
+  if (
+    !trait(w, BI.ESP) &&
+    w.self.goal.type === GOAL_KILL &&
+    w.self.goal.g.y === kill.pos.y &&
+    w.self.goal.g.x === kill.pos.x
+  ) {
+    w.self.goal.type = 0;
+  }
+}
+
+/**
+ * The "Notice missing monsters" pass of borg_update (borg-update.c:2902-2925).
+ * Call once per think, after perception has refreshed the monster list and
+ * before anything reads the map's monster back-pointers.
+ */
+export function borgFollowMissingKills(ctx: BorgContext, flow: FlowState): void {
+  const w = ctx.world;
+
+  /* Blind or hallucinating: the C skips the whole pass. PlayerView carries no
+   * hallucination flag, so only blindness is checked. */
+  if (trait(w, BI.ISBLIND)) return;
+
+  for (const [i, kill] of w.kills.entries()) {
+    /* Skip seen monsters */
+    if (kill.when === w.clock) continue;
+    /* Skip assigned monsters */
+    if (kill.seen) continue;
+    borgFollowKill(ctx, flow, i);
+  }
 }

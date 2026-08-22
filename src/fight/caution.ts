@@ -587,7 +587,16 @@ export function borgCaution(
    * adjacent square as b_q. */
   const bQ = leastAdjacentDanger(ctx, posDanger);
   const esc = borgEscape(ctx, bQ);
-  if (esc) return esc;
+  if (esc) {
+    /* increment the escapes this level counter (caution.c:1655). This is the
+     * only place upstream raises it, and seven places in borgEscape lower it
+     * again for a phase door. Without the raise the counter can only ever go
+     * negative, and the two arms above that read it - flee the level after three
+     * escapes, and after fifty-five regardless - are dead. */
+    ctx.world.self.escapes += 1;
+    ctx.world.self.goal.type = 0;
+    return esc;
+  }
 
   /* Final emergency ez-heal (caution.c end): all escape failed, about to die. */
   if (

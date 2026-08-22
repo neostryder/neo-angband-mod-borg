@@ -7,6 +7,8 @@
  *  - borgDanger(ctx, y, x, turns, average, fullDamage): total danger at a grid.
  *  - borgDangerOneKill(ctx, y, x, turns, i, average, fullDamage): per-monster.
  *  - borgFearGrid / borgFearRegional: the fear-cache updaters (borg-update.c).
+ *  - borgUpdateMonsterFear(ctx): the per-think re-stamp of the monster half of
+ *    the fear model, which is what makes a crowd read as dangerous.
  *  - getDangerGlobals(world) / getFearCaches(world): the per-Borg danger state
  *    the fight/think ports set before calling borgDanger (the analog of the C
  *    file-scope globals the maneuver code toggled).
@@ -21,6 +23,7 @@ export {
   borgDangerOneKill,
   borgDangerPhysical,
   borgDangerSpell,
+  borgUpdateMonsterFear,
 } from "./danger.js";
 
 export * from "./tables.js";

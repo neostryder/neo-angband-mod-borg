@@ -289,6 +289,7 @@ function makeBorgSelf() {
     needShiftPanel: false,
     whenShiftPanel: 0,
     timeThisPanel: 0,
+    gameRatio: 1e3,
     noRetreat: 0,
     resistance: 0,
     whenCallLight: 0,
@@ -445,1905 +446,6 @@ function spellStatForClass(cls) {
     default:
       return -1;
   }
-}
-
-// src/danger/tables.ts
-var EXTRACT_ENERGY = [
-  /* Slow */
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  /* Slow */
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  /* Slow */
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  /* Slow */
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  /* Slow */
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  /* Slow */
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  /* S-50 */
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  1,
-  /* S-40 */
-  2,
-  2,
-  2,
-  2,
-  2,
-  2,
-  2,
-  2,
-  2,
-  2,
-  /* S-30 */
-  2,
-  2,
-  2,
-  2,
-  2,
-  2,
-  2,
-  3,
-  3,
-  3,
-  /* S-20 */
-  3,
-  3,
-  3,
-  3,
-  3,
-  4,
-  4,
-  4,
-  4,
-  4,
-  /* S-10 */
-  5,
-  5,
-  5,
-  5,
-  6,
-  6,
-  7,
-  7,
-  8,
-  9,
-  /* Norm */
-  10,
-  11,
-  12,
-  13,
-  14,
-  15,
-  16,
-  17,
-  18,
-  19,
-  /* F+10 */
-  20,
-  21,
-  22,
-  23,
-  24,
-  25,
-  26,
-  27,
-  28,
-  29,
-  /* F+20 */
-  30,
-  31,
-  32,
-  33,
-  34,
-  35,
-  36,
-  36,
-  37,
-  37,
-  /* F+30 */
-  38,
-  38,
-  39,
-  39,
-  40,
-  40,
-  40,
-  41,
-  41,
-  41,
-  /* F+40 */
-  42,
-  42,
-  42,
-  43,
-  43,
-  43,
-  44,
-  44,
-  44,
-  44,
-  /* F+50 */
-  45,
-  45,
-  45,
-  45,
-  45,
-  46,
-  46,
-  46,
-  46,
-  46,
-  /* F+60 */
-  47,
-  47,
-  47,
-  47,
-  47,
-  48,
-  48,
-  48,
-  48,
-  48,
-  /* F+70 */
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  /* Fast */
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49,
-  49
-];
-function extractEnergy(speed) {
-  const s = speed < 0 ? 0 : speed > 199 ? 199 : speed;
-  return EXTRACT_ENERGY[s];
-}
-var ADJ_DEX_SAFE = [
-  0,
-  1,
-  2,
-  3,
-  4,
-  5,
-  5,
-  6,
-  6,
-  7,
-  7,
-  8,
-  8,
-  9,
-  9,
-  10,
-  10,
-  15,
-  15,
-  20,
-  25,
-  30,
-  35,
-  40,
-  45,
-  50,
-  60,
-  70,
-  80,
-  90,
-  100,
-  100,
-  100,
-  100,
-  100,
-  100,
-  100,
-  100
-];
-function adjDexSafe(dexIndex) {
-  const i = dexIndex < 0 ? 0 : dexIndex >= ADJ_DEX_SAFE.length ? ADJ_DEX_SAFE.length - 1 : dexIndex;
-  return ADJ_DEX_SAFE[i];
-}
-var BLOW_EFFECT_BY_NAME = {
-  NONE: 0 /* NONE */,
-  HURT: 1 /* HURT */,
-  POISON: 2 /* POISON */,
-  DISENCHANT: 3 /* DISENCHANT */,
-  DRAIN_CHARGES: 4 /* DRAIN_CHARGES */,
-  EAT_GOLD: 5 /* EAT_GOLD */,
-  EAT_ITEM: 6 /* EAT_ITEM */,
-  EAT_FOOD: 7 /* EAT_FOOD */,
-  EAT_LIGHT: 8 /* EAT_LIGHT */,
-  ACID: 9 /* ACID */,
-  ELEC: 10 /* ELEC */,
-  FIRE: 11 /* FIRE */,
-  COLD: 12 /* COLD */,
-  BLIND: 13 /* BLIND */,
-  CONFUSE: 14 /* CONFUSE */,
-  TERRIFY: 15 /* TERRIFY */,
-  PARALYZE: 16 /* PARALYZE */,
-  LOSE_STR: 17 /* LOSE_STR */,
-  LOSE_INT: 18 /* LOSE_INT */,
-  LOSE_WIS: 19 /* LOSE_WIS */,
-  LOSE_DEX: 20 /* LOSE_DEX */,
-  LOSE_CON: 21 /* LOSE_CON */,
-  LOSE_ALL: 22 /* LOSE_ALL */,
-  SHATTER: 23 /* SHATTER */,
-  EXP_10: 24 /* EXP_10 */,
-  EXP_20: 25 /* EXP_20 */,
-  EXP_40: 26 /* EXP_40 */,
-  EXP_80: 27 /* EXP_80 */,
-  HALLU: 28 /* HALLU */,
-  BLACK_BREATH: 29 /* BLACK_BREATH */
-};
-function borgMonBlowEffect(name) {
-  return BLOW_EFFECT_BY_NAME[name] ?? 0 /* NONE */;
-}
-
-// src/danger/geometry.ts
-function trait(world, bi) {
-  return world.self.trait[bi] ?? 0;
-}
-var ddx_ddd = [0, 0, 1, -1, 1, -1, 1, -1, 0];
-var ddy_ddd = [1, -1, 0, 0, 1, 1, -1, -1, 0];
-function distance(y1, x1, y2, x2) {
-  const ay = Math.abs(y2 - y1);
-  const ax = Math.abs(x2 - x1);
-  return ay > ax ? ay + (ax >> 1) : ax + (ay >> 1);
-}
-function borgDistance(y, x, y2, x2) {
-  return distance(y, x, y2, x2);
-}
-function squareInBounds(x, y) {
-  return x >= 0 && x < AUTO_MAX_X && y >= 0 && y < AUTO_MAX_Y;
-}
-function squareInBoundsFully(x, y) {
-  return x >= 1 && x < AUTO_MAX_X - 1 && y >= 1 && y < AUTO_MAX_Y - 1;
-}
-function borgCaveFloorBold(world, y, x) {
-  if (!squareInBoundsFully(x, y)) return false;
-  const g = world.map.at(x, y);
-  return g.feat === FEAT.FLOOR || g.trap || g.feat === FEAT.LESS || g.feat === FEAT.MORE || g.feat === FEAT.BROKEN || g.feat === FEAT.OPEN;
-}
-function borgCaveFloorGrid(ag) {
-  return ag.feat === FEAT.NONE || ag.feat === FEAT.FLOOR || ag.feat === FEAT.OPEN || ag.feat === FEAT.MORE || ag.feat === FEAT.LESS || ag.feat === FEAT.BROKEN || ag.feat === FEAT.PASS_RUBBLE || ag.feat === FEAT.LAVA;
-}
-function borgFeatureProtected(ag) {
-  return ag.glyph || ag.kill !== 0 || ag.feat >= FEAT.CLOSED && ag.feat <= FEAT.PERM;
-}
-function borgLos(world, y1, x1, y2, x2) {
-  const dy = y2 - y1;
-  const dx = x2 - x1;
-  const ay = Math.abs(dy);
-  const ax = Math.abs(dx);
-  if (ax < 2 && ay < 2) return true;
-  if (!squareInBoundsFully(x1, y1)) return false;
-  if (!dx) {
-    if (dy > 0) {
-      for (let ty2 = y1 + 1; ty2 < y2; ty2++) {
-        if (!borgCaveFloorBold(world, ty2, x1)) return false;
-      }
-    } else {
-      for (let ty2 = y1 - 1; ty2 > y2; ty2--) {
-        if (!borgCaveFloorBold(world, ty2, x1)) return false;
-      }
-    }
-    return true;
-  }
-  if (!dy) {
-    if (dx > 0) {
-      for (let tx2 = x1 + 1; tx2 < x2; tx2++) {
-        if (!borgCaveFloorBold(world, y1, tx2)) return false;
-      }
-    } else {
-      for (let tx2 = x1 - 1; tx2 > x2; tx2--) {
-        if (!borgCaveFloorBold(world, y1, tx2)) return false;
-      }
-    }
-    return true;
-  }
-  const sx = dx < 0 ? -1 : 1;
-  const sy = dy < 0 ? -1 : 1;
-  if (ax === 1) {
-    if (ay === 2) {
-      if (borgCaveFloorBold(world, y1 + sy, x1)) return true;
-    }
-  } else if (ay === 1) {
-    if (ax === 2) {
-      if (borgCaveFloorBold(world, y1, x1 + sx)) return true;
-    }
-  }
-  const f2 = ax * ay;
-  const f1 = f2 << 1;
-  let tx;
-  let ty;
-  if (ax >= ay) {
-    let qy = ay * ay;
-    const m = qy << 1;
-    tx = x1 + sx;
-    if (qy === f2) {
-      ty = y1 + sy;
-      qy -= f1;
-    } else {
-      ty = y1;
-    }
-    while (x2 - tx) {
-      if (!borgCaveFloorBold(world, ty, tx)) return false;
-      qy += m;
-      if (qy < f2) {
-        tx += sx;
-      } else if (qy > f2) {
-        ty += sy;
-        if (!borgCaveFloorBold(world, ty, tx)) return false;
-        qy -= f1;
-        tx += sx;
-      } else {
-        ty += sy;
-        qy -= f1;
-        tx += sx;
-      }
-    }
-  } else {
-    let qx = ax * ax;
-    const m = qx << 1;
-    ty = y1 + sy;
-    if (qx === f2) {
-      tx = x1 + sx;
-      qx -= f1;
-    } else {
-      tx = x1;
-    }
-    while (y2 - ty) {
-      if (!borgCaveFloorBold(world, ty, tx)) return false;
-      qx += m;
-      if (qx < f2) {
-        ty += sy;
-      } else if (qx > f2) {
-        tx += sx;
-        if (!borgCaveFloorBold(world, ty, tx)) return false;
-        qx -= f1;
-        ty += sy;
-      } else {
-        tx += sx;
-        qx -= f1;
-        ty += sy;
-      }
-    }
-  }
-  return true;
-}
-function borgIncMotion(py, px, y1, x1, y2, x2) {
-  let dy;
-  let dx;
-  let sy;
-  let sx;
-  if (y2 < y1) {
-    dy = y1 - y2;
-    sy = -1;
-  } else {
-    dy = y2 - y1;
-    sy = 1;
-  }
-  if (x2 < x1) {
-    dx = x1 - x2;
-    sx = -1;
-  } else {
-    dx = x2 - x1;
-    sx = 1;
-  }
-  if (!dy && !dx) return [py, px];
-  const half = dy * dx;
-  const full = half << 1;
-  if (px === x1 && py === y1) {
-    if (dy > dx) {
-      return [py + sy, px];
-    } else if (dx > dy) {
-      return [py, px + sx];
-    } else {
-      return [py + sy, px + sx];
-    }
-  }
-  let frac;
-  let m;
-  let y;
-  let x;
-  let k;
-  if (dy > dx) {
-    k = dy;
-    frac = dx * dx;
-    m = frac << 1;
-    y = y1 + sy;
-    x = x1;
-    for (; ; ) {
-      if (x === px && y === py) k = 1;
-      if (m) {
-        frac += m;
-        if (frac >= half) {
-          x += sx;
-          frac -= full;
-        }
-      }
-      y += sy;
-      k--;
-      if (!k) return [y, x];
-    }
-  } else if (dx > dy) {
-    frac = dy * dy;
-    m = frac << 1;
-    y = y1;
-    x = x1 + sx;
-    k = dx;
-    for (; ; ) {
-      if (x === px && y === py) k = 1;
-      if (m) {
-        frac += m;
-        if (frac >= half) {
-          y += sy;
-          frac -= full;
-        }
-      }
-      x += sx;
-      k--;
-      if (!k) return [y, x];
-    }
-  } else {
-    k = dy;
-    y = y1 + sy;
-    x = x1 + sx;
-    for (; ; ) {
-      if (x === px && y === py) k = 1;
-      y += sy;
-      x += sx;
-      k--;
-      if (!k) return [y, x];
-    }
-  }
-}
-function borgProjectable(world, g, maxRange3, y1, x1, y2, x2) {
-  let y = y1;
-  let x = x1;
-  const curhp = trait(world, 27 /* CURHP */);
-  const maxhp = trait(world, 28 /* MAXHP */);
-  const scary = world.facts.scaryGuyOnLevel;
-  const cy = world.self.c.y;
-  const cx = world.self.c.x;
-  for (let dist4 = 0; dist4 <= maxRange3; dist4++) {
-    if (!squareInBounds(x, y)) return false;
-    const ag = world.map.at(x, y);
-    if (curhp < Math.trunc(maxhp / 3) || g.morgothPosition || scary) {
-      if (dist4 > 20 && ag.feat === FEAT.NONE) break;
-    } else if (curhp < Math.trunc(maxhp / 2)) {
-      if (dist4 > 10 && ag.feat === FEAT.NONE) break;
-    } else if (fearRegionAt(world, g, cy, cx) >= Math.trunc(g.avoidance / 20)) {
-      if (dist4 > maxRange3 && ag.feat === FEAT.NONE) break;
-    } else {
-      if (dist4 > 2 && ag.feat === FEAT.NONE) break;
-    }
-    if (dist4 && !borgCaveFloorGrid(ag)) break;
-    if (x === x2 && y === y2) return true;
-    [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
-  }
-  return false;
-}
-function borgProjectablePure(world, maxRange3, y1, x1, y2, x2) {
-  let y = y1;
-  let x = x1;
-  for (let dist4 = 0; dist4 <= maxRange3; dist4++) {
-    if (!squareInBounds(x, y)) return false;
-    const ag = world.map.at(x, y);
-    if (dist4 && ag.feat === FEAT.NONE) break;
-    if (dist4 && !borgCaveFloorGrid(ag)) break;
-    if (x === x2 && y === y2) return true;
-    if (ag.kill) break;
-    [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
-  }
-  return false;
-}
-function fearRegionAt(world, g, y, x) {
-  return g.fearRegion ? g.fearRegion.region(y, x) : 0;
-}
-
-// src/danger/facts.ts
-function defaultResolveMonsterFacts(ctx, killIndex) {
-  const kill = ctx.world.kills.at(killIndex);
-  let mv;
-  for (const m of ctx.view.monsters()) {
-    if (m.id === kill.mIdx) {
-      mv = m;
-      break;
-    }
-  }
-  const flags = new Set(mv ? mv.raceFlags : []);
-  const level = mv ? mv.level : kill.level;
-  const spells = deriveSpellList(mv ? mv.spellFlags : []);
-  return {
-    rIdx: kill.rIdx,
-    flags,
-    level,
-    /* GAP: r_ptr->sleep not on MonsterView; 0 == "never asleep" default. */
-    sleep: 0,
-    /* GAP: r_ptr->spell_power not on MonsterView; upstream defaults it to level. */
-    spellPower: level,
-    /* GAP: freq not on MonsterView; 0 makes borg_danger_spell treat the monster
-     * as "never casts" (v2 == 0). Inject a real resolver for spell danger. */
-    freqInnate: 0,
-    freqSpell: 0,
-    /* GAP: r_ptr->friends not on MonsterView. */
-    hasFriends: false,
-    /* GAP: r_ptr->blow[] not on MonsterView; no blows -> physical danger 0.
-     * Inject a real resolver for melee danger. */
-    blows: [],
-    spells
-  };
-}
-function deriveSpellList(spellFlagNames) {
-  const rsf2 = RSF;
-  const out = [];
-  for (const name of spellFlagNames) {
-    const v = rsf2[name];
-    if (typeof v === "number" && v > 0) out.push(v);
-  }
-  out.sort((a, b) => a - b);
-  return out;
-}
-
-// src/danger/globals.ts
-var BORG_SPELL = {
-  RESTORATION: "RESTORATION",
-  REVITALIZE: "REVITALIZE",
-  UNHOLY_REPRIEVE: "UNHOLY_REPRIEVE",
-  REMEMBRANCE: "REMEMBRANCE"
-};
-function createDangerGlobals() {
-  return {
-    attacking: false,
-    fightingUnique: false,
-    createDoor: false,
-    onGlyph: false,
-    trackGlyph: [],
-    morgothPosition: false,
-    asPosition: false,
-    slowSpell: false,
-    sleepSpell: false,
-    sleepSpellIi: false,
-    confuseSpell: false,
-    crushSpell: false,
-    fearMonSpell: false,
-    tpOtherIndices: [],
-    avoidance: 0,
-    lightTimeout: 0,
-    lightNoFuel: false,
-    spellLegal: () => false,
-    fearRegion: null,
-    resolveFacts: defaultResolveMonsterFacts
-  };
-}
-
-// src/danger/fear.ts
-var FEAR_REGION_H = Math.trunc(AUTO_MAX_Y / 11) + 1;
-var FEAR_REGION_W = Math.trunc(AUTO_MAX_X / 11) + 1;
-var FearCaches = class _FearCaches {
-  /** borg_fear_region[FEAR_REGION_H][FEAR_REGION_W]. */
-  region2d;
-  /** borg_fear_monsters[AUTO_MAX_Y+1][AUTO_MAX_X+1]. */
-  monsters2d;
-  constructor() {
-    this.region2d = _FearCaches.makeGrid(FEAR_REGION_H, FEAR_REGION_W);
-    this.monsters2d = _FearCaches.makeGrid(AUTO_MAX_Y + 1, AUTO_MAX_X + 1);
-  }
-  static makeGrid(h, w) {
-    const g = new Array(h);
-    for (let y = 0; y < h; y++) g[y] = new Array(w).fill(0);
-    return g;
-  }
-  /** borg_fear_region[y/11][x/11]. */
-  region(y, x) {
-    const ry = Math.trunc(y / 11);
-    const rx = Math.trunc(x / 11);
-    if (ry < 0 || ry >= FEAR_REGION_H || rx < 0 || rx >= FEAR_REGION_W) return 0;
-    return this.region2d[ry][rx];
-  }
-  /** borg_fear_monsters[y][x]. */
-  monsters(y, x) {
-    if (y < 0 || y > AUTO_MAX_Y || x < 0 || x > AUTO_MAX_X) return 0;
-    return this.monsters2d[y][x];
-  }
-  /** Zero both caches (done each perceive pass before re-stamping). */
-  wipe() {
-    for (const row of this.region2d) row.fill(0);
-    for (const row of this.monsters2d) row.fill(0);
-  }
-};
-
-// src/danger/state.ts
-var STATES = /* @__PURE__ */ new WeakMap();
-function getDangerState(world) {
-  let st2 = STATES.get(world);
-  if (!st2) {
-    const globals = createDangerGlobals();
-    const fear = new FearCaches();
-    globals.fearRegion = fear;
-    st2 = { globals, fear, maxRange: 20 };
-    STATES.set(world, st2);
-  }
-  return st2;
-}
-function getDangerGlobals(world) {
-  return getDangerState(world).globals;
-}
-function getFearCaches(world) {
-  return getDangerState(world).fear;
-}
-
-// src/danger/danger.ts
-function div(a, b) {
-  return Math.trunc(a / b);
-}
-function hasFlag(facts, flag) {
-  return facts.flags.has(flag);
-}
-function borgDangerPhysical(world, g, facts, fullDamage) {
-  let n = 0;
-  let pfe = 0;
-  let ac = trait(world, 133 /* ARMOR */);
-  const temp = world.self.temp;
-  if (temp.shield) ac += 50;
-  if (temp.protFromEvil && hasFlag(facts, "EVIL") && trait(world, 35 /* CLEVEL */) >= facts.level) {
-    pfe = 1;
-  }
-  if (facts.rIdx === 0) return 1e3;
-  const attacking = g.attacking;
-  const clevel = trait(world, 35 /* CLEVEL */);
-  const spellStat = spellStatForClass(trait(world, 25 /* CLASS */));
-  for (let k = 0; k < facts.blows.length; k++) {
-    const blow = facts.blows[k];
-    const dDice = blow.dice;
-    const dSide = blow.sides;
-    let z = 0;
-    let power = 0;
-    switch (blow.effect) {
-      case 1 /* HURT */:
-        z = dDice * dSide;
-        if (dSide < 3 && z > dDice * dSide) n += 200;
-        if (dSide < 3 && dDice > 5) n += 400;
-        power = 60;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 2 /* POISON */:
-        z = dDice * dSide;
-        power = 5;
-        if (trait(world, 73 /* RPOIS */)) break;
-        if (temp.resPois) break;
-        z += 10;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 3 /* DISENCHANT */:
-        z = dDice * dSide;
-        power = 20;
-        if (trait(world, 84 /* RDIS */)) break;
-        z += 500;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 4 /* DRAIN_CHARGES */:
-        z = dDice * dSide;
-        z += 20;
-        power = 15;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 5 /* EAT_GOLD */:
-        z = dDice * dSide;
-        if (clevel < 5) z += 50;
-        power = 5;
-        if (100 <= adjDexSafe(trait(world, 18 /* DEX_INDEX */)) + clevel) break;
-        if (trait(world, 45 /* GOLD */) < 100) break;
-        if (trait(world, 45 /* GOLD */) > 1e5) break;
-        z += 5;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 6 /* EAT_ITEM */:
-        z = dDice * dSide;
-        power = 5;
-        if (100 <= adjDexSafe(trait(world, 18 /* DEX_INDEX */)) + clevel) break;
-        z += 5;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 7 /* EAT_FOOD */:
-        z = dDice * dSide;
-        power = 5;
-        if (trait(world, 39 /* FOOD */) > 5) break;
-        z += 5;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 8 /* EAT_LIGHT */:
-        z = dDice * dSide;
-        power = 5;
-        if (!g.lightTimeout || g.lightNoFuel) break;
-        if (trait(world, 213 /* AFUEL */) > 5) break;
-        z += 5;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 9 /* ACID */:
-        if (trait(world, 65 /* IACID */)) break;
-        z = dDice * dSide;
-        if (trait(world, 72 /* RACID */)) z = div(z + 2, 3);
-        if (temp.resAcid) z = div(z + 2, 3);
-        z += 200;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 10 /* ELEC */:
-        if (trait(world, 67 /* IELEC */)) break;
-        z = dDice * dSide;
-        power = 10;
-        if (trait(world, 71 /* RELEC */)) z = div(z + 2, 3);
-        if (temp.resElec) z = div(z + 2, 3);
-        z = z * 2;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 11 /* FIRE */:
-        if (trait(world, 64 /* IFIRE */)) break;
-        z = dDice * dSide;
-        power = 10;
-        if (trait(world, 69 /* RFIRE */)) z = div(z + 2, 3);
-        if (temp.resFire) z = div(z + 2, 3);
-        z = z * 2;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 12 /* COLD */:
-        if (trait(world, 66 /* ICOLD */)) break;
-        z = dDice * dSide;
-        power = 10;
-        if (trait(world, 70 /* RCOLD */)) z = div(z + 2, 3);
-        if (temp.resAcid) z = div(z + 2, 3);
-        z = z * 2;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 13 /* BLIND */:
-        z = dDice * dSide;
-        power = 2;
-        if (trait(world, 77 /* RBLIND */)) break;
-        z += 10;
-        if (trait(world, 25 /* CLASS */) === CLASS_MAGE) z += 75;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 14 /* CONFUSE */:
-        z = dDice * dSide;
-        power = 10;
-        if (trait(world, 78 /* RCONF */)) break;
-        z += 200;
-        if (trait(world, 25 /* CLASS */) === CLASS_MAGE) z += 200;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 15 /* TERRIFY */:
-        z = dDice * dSide;
-        power = 10;
-        if (trait(world, 74 /* RFEAR */)) break;
-        z = z * 2;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 16 /* PARALYZE */:
-        z = dDice * dSide;
-        power = 2;
-        if (trait(world, 86 /* FRACT */)) break;
-        z += 200;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 17 /* LOSE_STR */:
-        z = dDice * dSide;
-        if (trait(world, 20 /* SSTR */)) break;
-        if (trait(world, 10 /* CSTR */) <= 3) break;
-        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
-        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
-        if (g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE)) break;
-        z += 150;
-        if (trait(world, 10 /* CSTR */) < 10) z += 100;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 20 /* LOSE_DEX */:
-        z = dDice * dSide;
-        if (trait(world, 23 /* SDEX */)) break;
-        if (trait(world, 13 /* CDEX */) <= 3) break;
-        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
-        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
-        z += 150;
-        if (trait(world, 13 /* CDEX */) < 10) z += 100;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 21 /* LOSE_CON */:
-        z = dDice * dSide;
-        if (trait(world, 24 /* SCON */)) break;
-        if (trait(world, 14 /* CCON */) <= 3) break;
-        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
-        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
-        if (g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE)) break;
-        z += 150;
-        if (trait(world, 10 /* CSTR */) < 8) z += 100;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 18 /* LOSE_INT */:
-        z = dDice * dSide;
-        if (trait(world, 21 /* SINT */)) break;
-        if (trait(world, 11 /* CINT */) <= 3) break;
-        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
-        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
-        if (g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE)) break;
-        z += 150;
-        if (spellStat === STAT_INT) z += 50;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 19 /* LOSE_WIS */:
-        z = dDice * dSide;
-        if (trait(world, 22 /* SWIS */)) break;
-        if (trait(world, 12 /* CWIS */) <= 3) break;
-        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
-        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
-        z += 150;
-        if (spellStat === STAT_WIS) z += 50;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 22 /* LOSE_ALL */:
-        z = dDice * dSide;
-        power = 2;
-        break;
-      case 23 /* SHATTER */:
-        z = dDice * dSide;
-        z -= div(z * (ac < 150 ? ac : 150), 250);
-        power = 60;
-        z += 150;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 24 /* EXP_10 */:
-        z = dDice * dSide;
-        if (trait(world, 85 /* HLIFE */)) break;
-        if (clevel === 50) break;
-        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
-          break;
-        z += 100;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 25 /* EXP_20 */:
-        z = dDice * dSide;
-        if (trait(world, 85 /* HLIFE */)) break;
-        if (clevel >= 50) break;
-        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
-          break;
-        z += 150;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 26 /* EXP_40 */:
-        z = dDice * dSide;
-        if (trait(world, 85 /* HLIFE */)) break;
-        if (clevel >= 50) break;
-        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
-          break;
-        z += 200;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 27 /* EXP_80 */:
-        z = dDice * dSide;
-        if (trait(world, 85 /* HLIFE */)) break;
-        if (clevel >= 50) break;
-        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
-          break;
-        z += 250;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      case 28 /* HALLU */:
-        z = dDice * dSide;
-        z += 250;
-        if (pfe && !attacking) z = div(z, 2);
-        break;
-      default:
-        break;
-    }
-    z -= trait(world, 47 /* DAM_RED */);
-    if (z < 0) z = 0;
-    if (!fullDamage) {
-      let chance;
-      if (g.fightingUnique || facts.level + power > 0)
-        chance = 150 - (div(ac * 300, 4) + (facts.level + power) * 3);
-      else chance = -1;
-      if (chance < 5) chance = 5;
-      z = div(z * chance, 100);
-    }
-    n += z;
-  }
-  return n;
-}
-function borgDangerSpell(world, g, facts, kill, y, x, d, average) {
-  let n = 0;
-  let pfe = 0;
-  let glyph = 0;
-  let totalDam = 0;
-  const temp = world.self.temp;
-  const sp = facts.spellPower;
-  const isMage = trait(world, 25 /* CLASS */) === CLASS_MAGE;
-  if (temp.protFromEvil && hasFlag(facts, "EVIL") && trait(world, 35 /* CLEVEL */) >= facts.level) {
-    pfe = 1;
-  }
-  if (g.onGlyph) {
-    glyph = 1;
-  } else if (g.trackGlyph.length) {
-    for (const gp of g.trackGlyph) {
-      if (gp.y === y && gp.x === x) glyph = 1;
-    }
-  }
-  if (facts.rIdx === 0) return 1e3;
-  if (!facts.spells.length) return 0;
-  const hp = kill.power;
-  const isUnique = hasFlag(facts, "UNIQUE");
-  const spotSafe = () => {
-    let safe = 1;
-    for (let sx = -1; sx <= 1; sx++) {
-      for (let sy = -1; sy <= 1; sy++) {
-        const gx = sx + kill.pos.x;
-        const gy = sy + kill.pos.y;
-        if (gx === kill.pos.x && gy === kill.pos.y) continue;
-        if (!world.map.inBounds(gx, gy)) continue;
-        if (borgFeatureProtected(world.map.at(gx, gy))) {
-          safe++;
-          if (safe === 0) safe = 1;
-          if (safe === 8) safe = 100;
-          if (g.morgothPosition || g.asPosition) safe = 1e3;
-        }
-      }
-    }
-    return safe;
-  };
-  for (let q = 0; q < facts.spells.length; q++) {
-    let p = 0;
-    let z = 0;
-    let bolt = false;
-    switch (facts.spells[q]) {
-      case RSF.SHRIEK:
-        p += 5;
-        break;
-      case RSF.WHIP:
-        if (d < 3) z = 100;
-        break;
-      case RSF.SPIT:
-        if (d < 4) z = 100;
-        break;
-      case RSF.SHOT:
-        z = (div(sp, 8) + 1) * 5;
-        break;
-      case RSF.ARROW:
-        z = (div(sp, 8) + 1) * 6;
-        break;
-      case RSF.BOLT:
-        z = (div(sp, 8) + 1) * 7;
-        break;
-      case RSF.BR_ACID:
-        if (trait(world, 65 /* IACID */)) break;
-        z = div(hp, 3);
-        if (z > 1600) z = 1600;
-        if (trait(world, 72 /* RACID */)) z = div(z + 2, 3);
-        if (temp.resAcid) z = div(z + 2, 3);
-        p += 40;
-        break;
-      case RSF.BR_ELEC:
-        if (trait(world, 67 /* IELEC */)) break;
-        z = div(hp, 3);
-        if (z > 1600) z = 1600;
-        if (trait(world, 71 /* RELEC */)) z = div(z + 2, 3);
-        if (temp.resElec) z = div(z + 2, 3);
-        p += 20;
-        break;
-      case RSF.BR_FIRE:
-        if (trait(world, 64 /* IFIRE */)) break;
-        z = div(hp, 3);
-        if (z > 1600) z = 1600;
-        if (trait(world, 69 /* RFIRE */)) z = div(z + 2, 3);
-        if (temp.resFire) z = div(z + 2, 3);
-        p += 40;
-        break;
-      case RSF.BR_COLD:
-        if (trait(world, 66 /* ICOLD */)) break;
-        z = div(hp, 3);
-        if (z > 1600) z = 1600;
-        if (trait(world, 70 /* RCOLD */)) z = div(z + 2, 3);
-        if (temp.resCold) z = div(z + 2, 3);
-        p += 20;
-        break;
-      case RSF.BR_POIS:
-        z = div(hp, 3);
-        if (z > 800) z = 800;
-        if (trait(world, 73 /* RPOIS */)) z = div(z + 2, 3);
-        if (temp.resPois) z = div(z + 2, 3);
-        if (temp.resPois) break;
-        if (trait(world, 73 /* RPOIS */)) break;
-        p += 20;
-        break;
-      case RSF.BR_NETH:
-        z = div(hp, 6);
-        if (z > 600) z = 600;
-        if (trait(world, 82 /* RNTHR */)) {
-          z = div(z * 6, 9);
-          break;
-        }
-        p += 125;
-        break;
-      case RSF.BR_LIGHT:
-        z = div(hp, 6);
-        if (z > 500) z = 500;
-        if (trait(world, 75 /* RLITE */)) {
-          z = div(z * 2, 3);
-          break;
-        }
-        if (trait(world, 77 /* RBLIND */)) break;
-        p += 20;
-        if (isMage) p += 20;
-        break;
-      case RSF.BR_DARK:
-        z = div(hp, 6);
-        if (z > 500) z = 500;
-        if (trait(world, 76 /* RDARK */)) z = div(z * 2, 3);
-        if (trait(world, 76 /* RDARK */)) break;
-        if (trait(world, 77 /* RBLIND */)) break;
-        p += 20;
-        if (isMage) p += 20;
-        break;
-      case RSF.BR_SOUN:
-        z = div(hp, 6);
-        if (z > 500) z = 500;
-        if (trait(world, 79 /* RSND */)) z = div(z * 5, 9);
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) z += 500;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
-        p += 50;
-        break;
-      case RSF.BR_CHAO:
-        z = div(hp, 6);
-        if (z > 600) z = 600;
-        if (trait(world, 83 /* RKAOS */)) z = div(z * 6, 9);
-        p += 100;
-        if (trait(world, 83 /* RKAOS */)) break;
-        p += 200;
-        break;
-      case RSF.BR_DISE:
-        z = div(hp, 6);
-        if (z > 500) z = 500;
-        if (trait(world, 84 /* RDIS */)) z = div(z * 6, 10);
-        if (trait(world, 84 /* RDIS */)) break;
-        p += 500;
-        break;
-      case RSF.BR_NEXU:
-        z = div(hp, 6);
-        if (z > 400) z = 400;
-        if (trait(world, 81 /* RNXUS */)) z = div(z * 6, 10);
-        if (trait(world, 81 /* RNXUS */)) break;
-        p += 100;
-        break;
-      case RSF.BR_TIME:
-        z = div(hp, 3);
-        if (z > 150) z = 150;
-        p += 250;
-        break;
-      case RSF.BR_INER:
-        z = div(hp, 6);
-        if (z > 200) z = 200;
-        p += 100;
-        break;
-      case RSF.BR_GRAV:
-        z = div(hp, 3);
-        if (z > 200) z = 200;
-        p += 100;
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) z += 500;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
-        break;
-      case RSF.BR_SHAR:
-        z = div(hp, 6);
-        if (z > 500) z = 500;
-        if (trait(world, 80 /* RSHRD */)) z = div(z * 6, 9);
-        if (trait(world, 80 /* RSHRD */)) break;
-        p += 50;
-        break;
-      case RSF.BR_PLAS:
-        z = div(hp, 6);
-        if (z > 150) z = 150;
-        if (trait(world, 79 /* RSND */)) break;
-        p += 100;
-        if (trait(world, 117 /* ISSTUN */)) z += 500;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
-        break;
-      case RSF.BR_WALL:
-        z = div(hp, 6);
-        if (z > 200) z = 200;
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) z += 100;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) z += 500;
-        p += 50;
-        break;
-      case RSF.BR_MANA:
-        z = div(hp, 3);
-        if (z > 1600) z = 1600;
-        break;
-      case RSF.BOULDER:
-        z = (1 + div(sp, 7)) * 12;
-        bolt = true;
-        break;
-      case RSF.WEAVE:
-        break;
-      case RSF.BA_ACID:
-        if (trait(world, 65 /* IACID */)) break;
-        z = sp * 3 + 15;
-        if (trait(world, 72 /* RACID */)) z = div(z + 2, 3);
-        if (temp.resAcid) z = div(z + 2, 3);
-        p += 40;
-        break;
-      case RSF.BA_ELEC:
-        if (trait(world, 67 /* IELEC */)) break;
-        z = div(sp * 3, 2) + 8;
-        if (trait(world, 71 /* RELEC */)) z = div(z + 2, 3);
-        if (temp.resElec) z = div(z + 2, 3);
-        p += 20;
-        break;
-      case RSF.BA_FIRE:
-        if (trait(world, 64 /* IFIRE */)) break;
-        z = div(sp * 7, 2) + 10;
-        if (trait(world, 69 /* RFIRE */)) z = div(z + 2, 3);
-        if (temp.resFire) z = div(z + 2, 3);
-        p += 40;
-        break;
-      case RSF.BA_COLD:
-        if (trait(world, 66 /* ICOLD */)) break;
-        z = div(sp * 3, 2) + 10;
-        if (trait(world, 70 /* RCOLD */)) z = div(z + 2, 3);
-        if (temp.resCold) z = div(z + 2, 3);
-        p += 20;
-        break;
-      case RSF.BA_POIS:
-        z = (div(sp, 2) + 3) * 4;
-        if (trait(world, 73 /* RPOIS */)) z = div(z + 2, 3);
-        if (temp.resPois) z = div(z + 2, 3);
-        if (temp.resPois) break;
-        if (trait(world, 73 /* RPOIS */)) break;
-        p += 20;
-        break;
-      case RSF.BA_SHAR:
-        z = div(sp * 3, 2) + 10;
-        if (trait(world, 80 /* RSHRD */)) z = div(z * 6, 9);
-        if (trait(world, 80 /* RSHRD */)) break;
-        p += 20;
-        break;
-      case RSF.BA_NETH:
-        z = sp * 4 + 10 * 10;
-        if (trait(world, 82 /* RNTHR */)) z = div(z * 6, 8);
-        if (trait(world, 82 /* RNTHR */)) break;
-        p += 250;
-        break;
-      case RSF.BA_WATE:
-        z = div(sp * 5, 2) + 50;
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) p += 500;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) p += 1e3;
-        if (trait(world, 78 /* RCONF */)) break;
-        p += 50;
-        if (isMage) p += 20;
-        break;
-      case RSF.BA_MANA:
-        z = sp * 5 + 10 * 10;
-        p += 50;
-        break;
-      case RSF.BA_HOLY:
-        z = 10 + div(div(sp * 3, 2) + 1, 2);
-        p += 50;
-        break;
-      case RSF.BA_DARK:
-        z = sp * 4 + 10 * 10;
-        if (trait(world, 76 /* RDARK */)) z = div(z * 6, 9);
-        if (trait(world, 76 /* RDARK */)) break;
-        if (trait(world, 77 /* RBLIND */)) break;
-        p += 20;
-        if (isMage) p += 20;
-        break;
-      case RSF.BA_LIGHT:
-        z = 10 + div(sp * 3, 2);
-        if (trait(world, 75 /* RLITE */)) z = div(z * 6, 9);
-        if (trait(world, 75 /* RLITE */)) break;
-        if (trait(world, 77 /* RBLIND */)) break;
-        p += 20;
-        if (isMage) p += 20;
-        break;
-      case RSF.STORM:
-        z = 70 + sp * 5;
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) p += 500;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) p += 1e3;
-        if (trait(world, 78 /* RCONF */)) break;
-        break;
-      case RSF.DRAIN_MANA:
-        if (trait(world, 31 /* MAXSP */)) p += 100;
-        break;
-      case RSF.MIND_BLAST:
-        if (trait(world, 57 /* SAV */) < 100) z = div(sp, 2) + 1;
-        break;
-      case RSF.BRAIN_SMASH:
-        z = div(12 * (15 + 1), 2);
-        p += 200 - 2 * trait(world, 57 /* SAV */);
-        if (p < 0) p = 0;
-        break;
-      case RSF.WOUND:
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        z = div(sp, 3) * 2 * 5;
-        z = div(z * (120 - trait(world, 57 /* SAV */)), 100);
-        break;
-      case RSF.BO_ACID:
-        bolt = true;
-        if (trait(world, 65 /* IACID */)) break;
-        z = 7 * 8 + div(sp, 3);
-        if (trait(world, 72 /* RACID */)) z = div(z + 2, 3);
-        if (temp.resAcid) z = div(z + 2, 3);
-        p += 40;
-        break;
-      case RSF.BO_ELEC:
-        if (trait(world, 67 /* IELEC */)) break;
-        bolt = true;
-        z = 4 * 8 + div(sp, 3);
-        if (trait(world, 71 /* RELEC */)) z = div(z + 2, 3);
-        if (temp.resElec) z = div(z + 2, 3);
-        p += 20;
-        break;
-      case RSF.BO_FIRE:
-        if (trait(world, 64 /* IFIRE */)) break;
-        bolt = true;
-        z = 9 * 8 + div(sp, 3);
-        if (trait(world, 69 /* RFIRE */)) z = div(z + 2, 3);
-        if (temp.resFire) z = div(z + 2, 3);
-        p += 40;
-        break;
-      case RSF.BO_COLD:
-        if (trait(world, 66 /* ICOLD */)) break;
-        bolt = true;
-        z = 6 * 8 + div(sp, 3);
-        if (trait(world, 70 /* RCOLD */)) z = div(z + 2, 3);
-        if (temp.resCold) z = div(z + 2, 3);
-        p += 20;
-        break;
-      case RSF.BO_POIS:
-        if (trait(world, 68 /* IPOIS */)) break;
-        z = 9 * 8 + div(sp, 3);
-        if (trait(world, 73 /* RPOIS */)) z = div(z + 2, 3);
-        if (temp.resPois) z = div(z + 2, 3);
-        bolt = true;
-        break;
-      case RSF.BO_NETH:
-        bolt = true;
-        z = 5 * 5 + div(sp * 3, 2) + 50;
-        if (trait(world, 82 /* RNTHR */)) z = div(z * 6, 8);
-        if (trait(world, 82 /* RNTHR */)) break;
-        p += 200;
-        break;
-      case RSF.BO_WATE:
-        z = 10 * 10 + sp;
-        bolt = true;
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) p += 500;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) p += 1e3;
-        if (trait(world, 78 /* RCONF */)) break;
-        p += 20;
-        if (isMage) p += 20;
-        break;
-      case RSF.BO_MANA:
-        z = div(sp * 5, 2) + 50;
-        bolt = true;
-        p += 50;
-        break;
-      case RSF.BO_PLAS:
-        z = 10 + 8 * 7 + sp;
-        bolt = true;
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) z += 500;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
-        break;
-      case RSF.BO_ICE:
-        z = 6 * 6 + sp;
-        bolt = true;
-        p += 20;
-        if (trait(world, 79 /* RSND */)) break;
-        if (trait(world, 117 /* ISSTUN */)) z += 50;
-        if (trait(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
-        break;
-      case RSF.MISSILE:
-        z = 2 * 6 + div(sp, 3);
-        bolt = true;
-        break;
-      case RSF.BE_ELEC:
-        if (trait(world, 67 /* IELEC */)) break;
-        z = 5 * 5 + sp * 2 + 30;
-        if (trait(world, 71 /* RELEC */)) z = div(z + 2, 3);
-        if (temp.resElec) z = div(z + 2, 3);
-        bolt = true;
-        break;
-      case RSF.BE_NETH:
-        bolt = true;
-        z = 5 * 5 + sp * 2 + 30;
-        if (trait(world, 82 /* RNTHR */)) z = div(z * 6, 8);
-        if (trait(world, 82 /* RNTHR */)) break;
-        bolt = true;
-        break;
-      case RSF.SCARE:
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        p += 10;
-        break;
-      case RSF.BLIND:
-        if (trait(world, 77 /* RBLIND */)) break;
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        p += 10;
-        break;
-      case RSF.CONF:
-        if (trait(world, 78 /* RCONF */)) break;
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        p += 10;
-        break;
-      case RSF.SLOW:
-        if (trait(world, 86 /* FRACT */)) break;
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        p += 5;
-        break;
-      case RSF.HOLD:
-        if (trait(world, 86 /* FRACT */)) break;
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        p += 150;
-        break;
-      case RSF.HASTE:
-        p += 10;
-        break;
-      case RSF.HEAL:
-        p += 10;
-        break;
-      case RSF.HEAL_KIN:
-        break;
-      case RSF.BLINK:
-        break;
-      case RSF.TPORT:
-        p += 10;
-        break;
-      case RSF.TELE_TO:
-        p += 20;
-        break;
-      case RSF.TELE_SELF_TO:
-        p += 20;
-        break;
-      case RSF.TELE_AWAY:
-        p += 10;
-        break;
-      case RSF.TELE_LEVEL:
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        p += 50;
-        break;
-      case RSF.DARKNESS:
-        p += 5;
-        break;
-      case RSF.TRAPS:
-        p += 50;
-        break;
-      case RSF.FORGET:
-        if (trait(world, 57 /* SAV */) >= 100) break;
-        if (trait(world, 30 /* CURSP */) < 15) p += 500;
-        else p += 30;
-        break;
-      case RSF.SHAPECHANGE:
-        p += 200;
-        break;
-      case RSF.S_KIN: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 3;
-          p = div(p, safe);
-        } else {
-          p += sp * 7;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_HI_DEMON: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 6;
-          p = div(p, safe);
-        } else {
-          p += sp * 12;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_MONSTER: {
-        const safe = spotSafe();
-        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
-        else {
-          p += sp * 5;
-          p = div(p, safe);
-        }
-        break;
-      }
-      case RSF.S_MONSTERS: {
-        const safe = spotSafe();
-        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
-        else {
-          p += sp * 7;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_ANIMAL: {
-        const safe = spotSafe();
-        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
-        else {
-          p += sp * 5;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_SPIDER: {
-        const safe = spotSafe();
-        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
-        else {
-          p += sp * 5;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_HOUND: {
-        const safe = spotSafe();
-        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
-        else {
-          p += sp * 5;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_HYDRA: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 2;
-          p = div(p, safe);
-        } else {
-          p += sp * 5;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_AINU: {
-        const safe = spotSafe();
-        if (pfe || g.fightingUnique) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 3;
-          p = div(p, safe);
-        } else {
-          p += sp * 7;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_DEMON: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 3;
-          p = div(p, safe);
-        } else {
-          p += sp * 7;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_UNDEAD: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 3;
-          p = div(p, safe);
-        } else {
-          p += sp * 7;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_DRAGON: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 3;
-          p = div(p, safe);
-        } else {
-          p += sp * 7;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_HI_UNDEAD: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 6;
-          p = div(p, safe);
-        } else {
-          p += sp * 12;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_HI_DRAGON: {
-        const safe = spotSafe();
-        if (pfe) {
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 6;
-          p = div(p, safe);
-        } else {
-          p += sp * 12;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_WRAITH: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor || g.fightingUnique) {
-          p += sp * 6;
-          p = div(p, safe);
-        } else {
-          p += sp * 12;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      case RSF.S_UNIQUE: {
-        const safe = spotSafe();
-        if (pfe) {
-          p += sp;
-          p = div(p, safe);
-        } else if (glyph || g.createDoor) {
-          p += sp * 3;
-          p = div(p, safe);
-        } else {
-          p += sp * 6;
-          p = div(p, safe);
-        }
-        if (isUnique) p = div(p * 75, 100);
-        break;
-      }
-      default:
-        break;
-    }
-    if (bolt && !borgProjectablePure(
-      world,
-      maxRangeOf(world),
-      kill.pos.y,
-      kill.pos.x,
-      world.self.c.y,
-      world.self.c.x
-    ))
-      z = 0;
-    if (trait(world, 106 /* MAXDEPTH */) >= 75) p = 0;
-    p += z;
-    if (p > n) n = p;
-    totalDam += p;
-  }
-  totalDam -= trait(world, 47 /* DAM_RED */);
-  if (totalDam < 0) totalDam = 0;
-  if (g.morgothPosition || g.asPosition) totalDam = div(totalDam * 7, 10);
-  const av3 = div(totalDam, facts.spells.length);
-  if (!average) return av3;
-  if (n >= div(av3 * 15, 10) || n > div(trait(world, 27 /* CURHP */) * 8, 10)) return n;
-  return av3;
-}
-function maxRangeOf(world) {
-  const st2 = getDangerState(world);
-  return st2.maxRange;
-}
-function isBlockingFeat(feat) {
-  return feat === FEAT.CLOSED || feat === FEAT.PERM;
-}
-function isSeamFeat(feat) {
-  return feat === FEAT.MAGMA || feat === FEAT.QUARTZ || feat === FEAT.MAGMA_K || feat === FEAT.QUARTZ_K || feat === FEAT.RUBBLE;
-}
-function borgDangerOneKill(ctx, y, x, c, i, average, fullDamage) {
-  const world = ctx.world;
-  const st2 = getDangerState(world);
-  st2.maxRange = ctx.view.constants().maxRange ?? 20;
-  const g = st2.globals;
-  const kill = world.kills.at(i);
-  const facts = g.resolveFacts(ctx, i);
-  const x9 = kill.pos.x;
-  const y9 = kill.pos.y;
-  if (!kill.rIdx) return 0;
-  for (const idx of g.tpOtherIndices) {
-    if (i === idx) return 0;
-  }
-  const ax = x9 > x ? x9 - x : x - x9;
-  const ay = y9 > y ? y9 - y : y - y9;
-  let d = Math.max(ax, ay);
-  if (d < 1) d = 1;
-  if (d > 20) return 0;
-  const temp = world.self.temp;
-  const clevel = trait(world, 35 /* CLEVEL */);
-  let fakeSpeed = trait(world, 44 /* SPEED */);
-  let monsterSpeed = kill.speed;
-  if (trait(world, 44 /* SPEED */) >= 135) fakeSpeed = g.fightingUnique ? 120 : 125;
-  if (temp.fast) fakeSpeed += 10;
-  if (g.slowSpell) monsterSpeed -= 10;
-  if (trait(world, 28 /* MAXHP */) < 20 && trait(world, 105 /* CDEPTH */)) monsterSpeed += 3;
-  let e = extractEnergy(fakeSpeed);
-  const t = div(100 + (e - 1), e);
-  e = extractEnergy(monsterSpeed);
-  let q = c * div(t * e, 10);
-  if (fullDamage) q = div(q + 9, 10) * 10;
-  if (q <= 10) q = 10;
-  let v1 = borgDangerPhysical(world, g, facts, fullDamage);
-  if (world.self.timeThisPanel > 1200 || world.clock > 25e3) v1 = div(v1, 5);
-  if (hasFlag(facts, "NEVER_BLOW")) v1 = 0;
-  if (hasFlag(facts, "NEVER_MOVE") && d > 1) v1 = 0;
-  if (hasFlag(facts, "MULTIPLY") && clevel < 20) v1 = v1 + div(v1 * 15, 10);
-  if (facts.hasFriends && clevel < 20) {
-    if (clevel < 15) v1 = v1 + div(v1 * 18, 10);
-    else v1 = v1 + div(v1 * 13, 10);
-  }
-  if (!kill.awake) {
-    const inc = facts.sleep + 5;
-    if (clevel >= 25) v1 = div(v1, 2);
-    v1 = v1 + div(v1 * inc, 100);
-  }
-  if (g.sleepSpellIi) {
-    if (d === 1 && kill.awake && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= clevel - 15) {
-      if (clevel < 20 && trait(world, 27 /* CURHP */) < div(trait(world, 28 /* MAXHP */), 2))
-        v1 = 0;
-      else v1 = div(v1, 3);
-    }
-  }
-  if (g.sleepSpell) {
-    if (kill.awake && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= clevel - 15) {
-      if (clevel < 20 && trait(world, 27 /* CURHP */) < div(trait(world, 28 /* MAXHP */), 2))
-        v1 = 0;
-      else v1 = div(v1, d + 2);
-    }
-  }
-  if (g.crushSpell) {
-    if (div(kill.power * (100 - kill.injury), 100) < clevel * 4) {
-      const ag = world.map.inBounds(x9, y9) ? world.map.at(x9, y9) : null;
-      if (ag && ag.info & BORG_VIEW && borgCaveFloorGridForKill(ag.feat)) v1 = 0;
-    }
-  }
-  if (kill.confused) v1 = div(v1, 2);
-  if (kill.stunned) v1 = div(v1 * 10, 13);
-  if (g.confuseSpell) {
-    if (kill.awake && !kill.confused && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= clevel - 15) {
-      if (clevel < 20 && trait(world, 27 /* CURHP */) < div(trait(world, 28 /* MAXHP */), 2))
-        v1 = 0;
-      else v1 = div(v1, d + 2);
-    }
-  }
-  if (g.fearMonSpell) v1 = 0;
-  if (q > 10 && d !== 1 && !hasFlag(facts, "NEVER_MOVE")) {
-    let bV1 = 0;
-    for (let ii = 0; ii < 8; ii++) {
-      const yTemp = y9 + ddy_ddd[ii];
-      const xTemp = x9 + ddx_ddd[ii];
-      if (!squareInBoundsFully(xTemp, yTemp)) continue;
-      const ag = world.map.at(xTemp, yTemp);
-      if (ag.kill) continue;
-      if (isBlockingFeat(ag.feat)) continue;
-      if (ag.feat === FEAT.GRANITE || isSeamFeat(ag.feat)) {
-        if (hasFlag(facts, "PASS_WALL")) {
-          if (borgDistance(yTemp, xTemp, y, x) === 1) bV1 = v1;
-        }
-        if (hasFlag(facts, "KILL_WALL")) {
-          if (borgDistance(yTemp, xTemp, y, x) === 1) bV1 = v1;
-        }
-      }
-      if (borgDistance(yTemp, xTemp, y, x) > 1) continue;
-      if (borgCaveFloorBold(world, yTemp, xTemp)) {
-        bV1 = v1 * div(q, d * 10);
-      }
-    }
-    v1 = bV1;
-  }
-  if (q > 10 && d === 1) v1 = div(v1 * q, 10);
-  if (q === 10 && d > 1) v1 = 0;
-  let v2 = borgDangerSpell(world, g, facts, kill, y, x, d, average);
-  if (!facts.freqInnate && !facts.freqSpell) v2 = 0;
-  const maxRange3 = getDangerState(world).maxRange;
-  if (borgDistance(y9, x9, y, x) > maxRange3) v2 = 0;
-  if (q <= 10 && !borgProjectable(world, g, maxRange3, y9, x9, y, x) && !borgProjectable(world, g, maxRange3, y, x, y9, x9))
-    v2 = 0;
-  if (q >= 20) {
-    const bQ = q;
-    let bV2 = 0;
-    if (q > 20) q = 20;
-    for (let ii = 0; ii < 8; ii++) {
-      const yTemp = y9 + ddy_ddd[ii];
-      const xTemp = x9 + ddx_ddd[ii];
-      if (!squareInBoundsFully(xTemp, yTemp)) continue;
-      const ag = world.map.at(xTemp, yTemp);
-      if (ag.kill) continue;
-      if (isBlockingFeat(ag.feat)) continue;
-      if (ag.feat >= FEAT.GRANITE || isSeamFeat(ag.feat)) {
-        if (hasFlag(facts, "PASS_WALL")) {
-          if (borgProjectable(world, g, maxRange3, yTemp, xTemp, y, x))
-            bV2 = div(v2 * bQ, 10);
-        }
-        if (hasFlag(facts, "KILL_WALL")) {
-          if (borgProjectable(world, g, maxRange3, yTemp, xTemp, y, x))
-            bV2 = div(v2 * bQ, 10);
-        }
-      } else if (borgProjectable(world, g, maxRange3, yTemp, xTemp, y, x)) {
-        bV2 = div(v2 * bQ, 10);
-      }
-    }
-    v2 = bV2;
-  }
-  if (world.self.timeThisPanel > 1200 || world.clock > 25e3) v2 = div(v2, 5);
-  if (hasFlag(facts, "MULTIPLY") && clevel < 20) v2 = v2 + div(v2 * 12, 10);
-  if (facts.hasFriends && clevel < 20) v2 = v2 + div(v2 * 12, 10);
-  if (!kill.awake) {
-    const inc = facts.sleep + 5;
-    if (clevel >= 25) v2 = div(v2, 2);
-    v2 = v2 + div(v2 * inc, 100);
-  }
-  if (g.sleepSpellIi) {
-    const cap = clevel < 15 ? clevel : div(clevel - 10, 4) * 3 + 10;
-    if (d === 1 && kill.awake && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= cap) {
-      v2 = div(v2, 3);
-    }
-  }
-  if (g.crushSpell) {
-    if (div(kill.power * (100 - kill.injury), 100) < clevel * 4) {
-      const ag = world.map.inBounds(x9, y9) ? world.map.at(x9, y9) : null;
-      if (ag && ag.info & BORG_VIEW && borgCaveFloorGridForKill(ag.feat)) v1 = 0;
-    }
-  }
-  if (g.sleepSpell) v2 = div(v2, d + 2);
-  if (kill.confused) v2 = div(v2, 2);
-  if (kill.stunned) v2 = div(v2 * 10, 13);
-  if (g.confuseSpell) v2 = div(v2, 6);
-  if (!fullDamage) {
-    const chance = div(facts.freqInnate + facts.freqSpell, 2);
-    if (chance < 11) v2 = div(v2 * 4, 10);
-    else if (chance < 26) v2 = div(v2 * 6, 10);
-    else if (chance < 51) v2 = div(v2 * 8, 10);
-  }
-  if (v2) {
-    const r = q;
-    v2 = div(v2 * r, 10);
-  }
-  let p = Math.max(v1, v2);
-  if (p > 2e3) p = 2e3;
-  return p;
-}
-function borgCaveFloorGridForKill(feat) {
-  return feat === FEAT.NONE || feat === FEAT.FLOOR || feat === FEAT.OPEN || feat === FEAT.MORE || feat === FEAT.LESS || feat === FEAT.BROKEN || feat === FEAT.PASS_RUBBLE || feat === FEAT.LAVA;
-}
-function borgDanger(ctx, y, x, c, average, fullDamage) {
-  void fullDamage;
-  const world = ctx.world;
-  const st2 = getDangerState(world);
-  st2.maxRange = ctx.view.constants().maxRange ?? 20;
-  let p = 0;
-  if (x < 0 || x >= AUTO_MAX_X || y < 0 || y >= AUTO_MAX_Y) return 2e3;
-  const cdepth = trait(world, 105 /* CDEPTH */);
-  const isVaultHere = false;
-  if (!isVaultHere && cdepth <= 80) {
-    p += st2.fear.region(y, x) * c;
-  }
-  if (cdepth === 100 && p >= 300) p = 300;
-  if (world.self.timeThisPanel <= 200 && !isVaultHere) {
-    p += st2.fear.monsters(y, x) * c;
-  }
-  const forcedFull = true;
-  for (const [i] of world.kills.entries()) {
-    p += borgDangerOneKill(ctx, y, x, c, i, average, forcedFull);
-  }
-  return p > 2e3 ? 2e3 : p;
 }
 
 // src/trait/tables.ts
@@ -2781,17 +883,17 @@ var AUTO_FLOW_MAX = 1536;
 var AUTO_TEMP_MAX = 9e3;
 var BORG_DIG_MOD = 20;
 var BORG_DIG_HARD = 40;
-function trait2(world, bi) {
+function trait(world, bi) {
   return world.self.trait[bi] ?? 0;
 }
 var ddx = [0, -1, 0, 1, -1, 0, 1, -1, 0, 1];
 var ddy = [0, 1, 1, 1, 0, 0, 0, -1, -1, -1];
-var ddx_ddd2 = [0, 0, 1, -1, 1, -1, 1, -1, 0];
-var ddy_ddd2 = [1, -1, 0, 0, 1, 1, -1, -1, 0];
-function borgCaveFloorGrid2(ag) {
+var ddx_ddd = [0, 0, 1, -1, 1, -1, 1, -1, 0];
+var ddy_ddd = [1, -1, 0, 0, 1, 1, -1, -1, 0];
+function borgCaveFloorGrid(ag) {
   return ag.feat === FEAT.NONE || ag.feat === FEAT.FLOOR || ag.feat === FEAT.OPEN || ag.feat === FEAT.MORE || ag.feat === FEAT.LESS || ag.feat === FEAT.BROKEN || ag.feat === FEAT.PASS_RUBBLE || ag.feat === FEAT.LAVA;
 }
-function borgCaveFloorBold2(world, y, x) {
+function borgCaveFloorBold(world, y, x) {
   if (!inBoundsFully(x, y)) return false;
   const ag = world.map.at(x, y);
   return ag.feat === FEAT.FLOOR || ag.trap || ag.feat === FEAT.LESS || ag.feat === FEAT.MORE || ag.feat === FEAT.BROKEN || ag.feat === FEAT.OPEN;
@@ -2821,35 +923,2014 @@ function borgGotoDir(world, y1, x1, y2, x2) {
   let d;
   if (ay > ax) {
     d = y1 < y2 ? 2 : 8;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
   }
   if (ay < ax) {
     d = x1 < x2 ? 6 : 4;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
   }
   d = borgExtractDir(y1, x1, y2, x2);
-  if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+  if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
   if (ay <= ax) {
     d = y1 < y2 ? 2 : 8;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
   }
   if (ay >= ax) {
     d = x1 < x2 ? 6 : 4;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
   }
   if (!ay) {
     d = x1 < x2 ? 3 : 1;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
     d = x1 < x2 ? 9 : 7;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
   }
   if (!ax) {
     d = y1 < y2 ? 3 : 9;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
     d = y1 < y2 ? 1 : 7;
-    if (borgCaveFloorBold2(world, y1 + ddy[d], x1 + ddx[d])) return d;
+    if (borgCaveFloorBold(world, y1 + ddy[d], x1 + ddx[d])) return d;
   }
   return e;
+}
+
+// src/danger/tables.ts
+var EXTRACT_ENERGY = [
+  /* Slow */
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  /* Slow */
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  /* Slow */
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  /* Slow */
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  /* Slow */
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  /* Slow */
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  /* S-50 */
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  /* S-40 */
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  /* S-30 */
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  /* S-20 */
+  3,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  4,
+  4,
+  4,
+  /* S-10 */
+  5,
+  5,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  9,
+  /* Norm */
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  /* F+10 */
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  /* F+20 */
+  30,
+  31,
+  32,
+  33,
+  34,
+  35,
+  36,
+  36,
+  37,
+  37,
+  /* F+30 */
+  38,
+  38,
+  39,
+  39,
+  40,
+  40,
+  40,
+  41,
+  41,
+  41,
+  /* F+40 */
+  42,
+  42,
+  42,
+  43,
+  43,
+  43,
+  44,
+  44,
+  44,
+  44,
+  /* F+50 */
+  45,
+  45,
+  45,
+  45,
+  45,
+  46,
+  46,
+  46,
+  46,
+  46,
+  /* F+60 */
+  47,
+  47,
+  47,
+  47,
+  47,
+  48,
+  48,
+  48,
+  48,
+  48,
+  /* F+70 */
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  /* Fast */
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49,
+  49
+];
+function extractEnergy(speed) {
+  const s = speed < 0 ? 0 : speed > 199 ? 199 : speed;
+  return EXTRACT_ENERGY[s];
+}
+var ADJ_DEX_SAFE = [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  9,
+  9,
+  10,
+  10,
+  15,
+  15,
+  20,
+  25,
+  30,
+  35,
+  40,
+  45,
+  50,
+  60,
+  70,
+  80,
+  90,
+  100,
+  100,
+  100,
+  100,
+  100,
+  100,
+  100,
+  100
+];
+function adjDexSafe(dexIndex) {
+  const i = dexIndex < 0 ? 0 : dexIndex >= ADJ_DEX_SAFE.length ? ADJ_DEX_SAFE.length - 1 : dexIndex;
+  return ADJ_DEX_SAFE[i];
+}
+var BLOW_EFFECT_BY_NAME = {
+  NONE: 0 /* NONE */,
+  HURT: 1 /* HURT */,
+  POISON: 2 /* POISON */,
+  DISENCHANT: 3 /* DISENCHANT */,
+  DRAIN_CHARGES: 4 /* DRAIN_CHARGES */,
+  EAT_GOLD: 5 /* EAT_GOLD */,
+  EAT_ITEM: 6 /* EAT_ITEM */,
+  EAT_FOOD: 7 /* EAT_FOOD */,
+  EAT_LIGHT: 8 /* EAT_LIGHT */,
+  ACID: 9 /* ACID */,
+  ELEC: 10 /* ELEC */,
+  FIRE: 11 /* FIRE */,
+  COLD: 12 /* COLD */,
+  BLIND: 13 /* BLIND */,
+  CONFUSE: 14 /* CONFUSE */,
+  TERRIFY: 15 /* TERRIFY */,
+  PARALYZE: 16 /* PARALYZE */,
+  LOSE_STR: 17 /* LOSE_STR */,
+  LOSE_INT: 18 /* LOSE_INT */,
+  LOSE_WIS: 19 /* LOSE_WIS */,
+  LOSE_DEX: 20 /* LOSE_DEX */,
+  LOSE_CON: 21 /* LOSE_CON */,
+  LOSE_ALL: 22 /* LOSE_ALL */,
+  SHATTER: 23 /* SHATTER */,
+  EXP_10: 24 /* EXP_10 */,
+  EXP_20: 25 /* EXP_20 */,
+  EXP_40: 26 /* EXP_40 */,
+  EXP_80: 27 /* EXP_80 */,
+  HALLU: 28 /* HALLU */,
+  BLACK_BREATH: 29 /* BLACK_BREATH */
+};
+function borgMonBlowEffect(name) {
+  return BLOW_EFFECT_BY_NAME[name] ?? 0 /* NONE */;
+}
+
+// src/danger/geometry.ts
+function trait2(world, bi) {
+  return world.self.trait[bi] ?? 0;
+}
+var ddx_ddd2 = [0, 0, 1, -1, 1, -1, 1, -1, 0];
+var ddy_ddd2 = [1, -1, 0, 0, 1, 1, -1, -1, 0];
+function distance(y1, x1, y2, x2) {
+  const ay = Math.abs(y2 - y1);
+  const ax = Math.abs(x2 - x1);
+  return ay > ax ? ay + (ax >> 1) : ax + (ay >> 1);
+}
+function borgDistance(y, x, y2, x2) {
+  return distance(y, x, y2, x2);
+}
+function squareInBounds(x, y) {
+  return x >= 0 && x < AUTO_MAX_X && y >= 0 && y < AUTO_MAX_Y;
+}
+function squareInBoundsFully(x, y) {
+  return x >= 1 && x < AUTO_MAX_X - 1 && y >= 1 && y < AUTO_MAX_Y - 1;
+}
+function borgCaveFloorBold2(world, y, x) {
+  if (!squareInBoundsFully(x, y)) return false;
+  const g = world.map.at(x, y);
+  return g.feat === FEAT.FLOOR || g.trap || g.feat === FEAT.LESS || g.feat === FEAT.MORE || g.feat === FEAT.BROKEN || g.feat === FEAT.OPEN;
+}
+function borgCaveFloorGrid2(ag) {
+  return ag.feat === FEAT.NONE || ag.feat === FEAT.FLOOR || ag.feat === FEAT.OPEN || ag.feat === FEAT.MORE || ag.feat === FEAT.LESS || ag.feat === FEAT.BROKEN || ag.feat === FEAT.PASS_RUBBLE || ag.feat === FEAT.LAVA;
+}
+function borgFeatureProtected(ag) {
+  return ag.glyph || ag.kill !== 0 || ag.feat >= FEAT.CLOSED && ag.feat <= FEAT.PERM;
+}
+function borgLos(world, y1, x1, y2, x2) {
+  const dy = y2 - y1;
+  const dx = x2 - x1;
+  const ay = Math.abs(dy);
+  const ax = Math.abs(dx);
+  if (ax < 2 && ay < 2) return true;
+  if (!squareInBoundsFully(x1, y1)) return false;
+  if (!dx) {
+    if (dy > 0) {
+      for (let ty2 = y1 + 1; ty2 < y2; ty2++) {
+        if (!borgCaveFloorBold2(world, ty2, x1)) return false;
+      }
+    } else {
+      for (let ty2 = y1 - 1; ty2 > y2; ty2--) {
+        if (!borgCaveFloorBold2(world, ty2, x1)) return false;
+      }
+    }
+    return true;
+  }
+  if (!dy) {
+    if (dx > 0) {
+      for (let tx2 = x1 + 1; tx2 < x2; tx2++) {
+        if (!borgCaveFloorBold2(world, y1, tx2)) return false;
+      }
+    } else {
+      for (let tx2 = x1 - 1; tx2 > x2; tx2--) {
+        if (!borgCaveFloorBold2(world, y1, tx2)) return false;
+      }
+    }
+    return true;
+  }
+  const sx = dx < 0 ? -1 : 1;
+  const sy = dy < 0 ? -1 : 1;
+  if (ax === 1) {
+    if (ay === 2) {
+      if (borgCaveFloorBold2(world, y1 + sy, x1)) return true;
+    }
+  } else if (ay === 1) {
+    if (ax === 2) {
+      if (borgCaveFloorBold2(world, y1, x1 + sx)) return true;
+    }
+  }
+  const f2 = ax * ay;
+  const f1 = f2 << 1;
+  let tx;
+  let ty;
+  if (ax >= ay) {
+    let qy = ay * ay;
+    const m = qy << 1;
+    tx = x1 + sx;
+    if (qy === f2) {
+      ty = y1 + sy;
+      qy -= f1;
+    } else {
+      ty = y1;
+    }
+    while (x2 - tx) {
+      if (!borgCaveFloorBold2(world, ty, tx)) return false;
+      qy += m;
+      if (qy < f2) {
+        tx += sx;
+      } else if (qy > f2) {
+        ty += sy;
+        if (!borgCaveFloorBold2(world, ty, tx)) return false;
+        qy -= f1;
+        tx += sx;
+      } else {
+        ty += sy;
+        qy -= f1;
+        tx += sx;
+      }
+    }
+  } else {
+    let qx = ax * ax;
+    const m = qx << 1;
+    ty = y1 + sy;
+    if (qx === f2) {
+      tx = x1 + sx;
+      qx -= f1;
+    } else {
+      tx = x1;
+    }
+    while (y2 - ty) {
+      if (!borgCaveFloorBold2(world, ty, tx)) return false;
+      qx += m;
+      if (qx < f2) {
+        ty += sy;
+      } else if (qx > f2) {
+        tx += sx;
+        if (!borgCaveFloorBold2(world, ty, tx)) return false;
+        qx -= f1;
+        ty += sy;
+      } else {
+        tx += sx;
+        qx -= f1;
+        ty += sy;
+      }
+    }
+  }
+  return true;
+}
+function borgIncMotion(py, px, y1, x1, y2, x2) {
+  let dy;
+  let dx;
+  let sy;
+  let sx;
+  if (y2 < y1) {
+    dy = y1 - y2;
+    sy = -1;
+  } else {
+    dy = y2 - y1;
+    sy = 1;
+  }
+  if (x2 < x1) {
+    dx = x1 - x2;
+    sx = -1;
+  } else {
+    dx = x2 - x1;
+    sx = 1;
+  }
+  if (!dy && !dx) return [py, px];
+  const half = dy * dx;
+  const full = half << 1;
+  if (px === x1 && py === y1) {
+    if (dy > dx) {
+      return [py + sy, px];
+    } else if (dx > dy) {
+      return [py, px + sx];
+    } else {
+      return [py + sy, px + sx];
+    }
+  }
+  let frac;
+  let m;
+  let y;
+  let x;
+  let k;
+  if (dy > dx) {
+    k = dy;
+    frac = dx * dx;
+    m = frac << 1;
+    y = y1 + sy;
+    x = x1;
+    for (; ; ) {
+      if (x === px && y === py) k = 1;
+      if (m) {
+        frac += m;
+        if (frac >= half) {
+          x += sx;
+          frac -= full;
+        }
+      }
+      y += sy;
+      k--;
+      if (!k) return [y, x];
+    }
+  } else if (dx > dy) {
+    frac = dy * dy;
+    m = frac << 1;
+    y = y1;
+    x = x1 + sx;
+    k = dx;
+    for (; ; ) {
+      if (x === px && y === py) k = 1;
+      if (m) {
+        frac += m;
+        if (frac >= half) {
+          y += sy;
+          frac -= full;
+        }
+      }
+      x += sx;
+      k--;
+      if (!k) return [y, x];
+    }
+  } else {
+    k = dy;
+    y = y1 + sy;
+    x = x1 + sx;
+    for (; ; ) {
+      if (x === px && y === py) k = 1;
+      y += sy;
+      x += sx;
+      k--;
+      if (!k) return [y, x];
+    }
+  }
+}
+function borgProjectable(world, g, maxRange3, y1, x1, y2, x2) {
+  let y = y1;
+  let x = x1;
+  const curhp = trait2(world, 27 /* CURHP */);
+  const maxhp = trait2(world, 28 /* MAXHP */);
+  const scary = world.facts.scaryGuyOnLevel;
+  const cy = world.self.c.y;
+  const cx = world.self.c.x;
+  for (let dist4 = 0; dist4 <= maxRange3; dist4++) {
+    if (!squareInBounds(x, y)) return false;
+    const ag = world.map.at(x, y);
+    if (curhp < Math.trunc(maxhp / 3) || g.morgothPosition || scary) {
+      if (dist4 > 20 && ag.feat === FEAT.NONE) break;
+    } else if (curhp < Math.trunc(maxhp / 2)) {
+      if (dist4 > 10 && ag.feat === FEAT.NONE) break;
+    } else if (fearRegionAt(world, g, cy, cx) >= Math.trunc(g.avoidance / 20)) {
+      if (dist4 > maxRange3 && ag.feat === FEAT.NONE) break;
+    } else {
+      if (dist4 > 2 && ag.feat === FEAT.NONE) break;
+    }
+    if (dist4 && !borgCaveFloorGrid2(ag)) break;
+    if (x === x2 && y === y2) return true;
+    [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
+  }
+  return false;
+}
+function borgProjectablePure(world, maxRange3, y1, x1, y2, x2) {
+  let y = y1;
+  let x = x1;
+  for (let dist4 = 0; dist4 <= maxRange3; dist4++) {
+    if (!squareInBounds(x, y)) return false;
+    const ag = world.map.at(x, y);
+    if (dist4 && ag.feat === FEAT.NONE) break;
+    if (dist4 && !borgCaveFloorGrid2(ag)) break;
+    if (x === x2 && y === y2) return true;
+    if (ag.kill) break;
+    [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
+  }
+  return false;
+}
+function fearRegionAt(world, g, y, x) {
+  return g.fearRegion ? g.fearRegion.region(y, x) : 0;
+}
+
+// src/danger/facts.ts
+function defaultResolveMonsterFacts(ctx, killIndex) {
+  const kill = ctx.world.kills.at(killIndex);
+  let mv;
+  for (const m of ctx.view.monsters()) {
+    if (m.id === kill.mIdx) {
+      mv = m;
+      break;
+    }
+  }
+  const flags = new Set(mv ? mv.raceFlags : []);
+  const level = mv ? mv.level : kill.level;
+  const spells = deriveSpellList(mv ? mv.spellFlags : []);
+  return {
+    rIdx: kill.rIdx,
+    flags,
+    level,
+    /* GAP: r_ptr->sleep not on MonsterView; 0 == "never asleep" default. */
+    sleep: 0,
+    /* GAP: r_ptr->spell_power not on MonsterView; upstream defaults it to level. */
+    spellPower: level,
+    /* GAP: freq not on MonsterView; 0 makes borg_danger_spell treat the monster
+     * as "never casts" (v2 == 0). Inject a real resolver for spell danger. */
+    freqInnate: 0,
+    freqSpell: 0,
+    /* GAP: r_ptr->friends not on MonsterView. */
+    hasFriends: false,
+    /* GAP: r_ptr->blow[] not on MonsterView; no blows -> physical danger 0.
+     * Inject a real resolver for melee danger. */
+    blows: [],
+    spells
+  };
+}
+function deriveSpellList(spellFlagNames) {
+  const rsf2 = RSF;
+  const out = [];
+  for (const name of spellFlagNames) {
+    const v = rsf2[name];
+    if (typeof v === "number" && v > 0) out.push(v);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+
+// src/danger/globals.ts
+var BORG_SPELL = {
+  RESTORATION: "RESTORATION",
+  REVITALIZE: "REVITALIZE",
+  UNHOLY_REPRIEVE: "UNHOLY_REPRIEVE",
+  REMEMBRANCE: "REMEMBRANCE"
+};
+function createDangerGlobals() {
+  return {
+    attacking: false,
+    fightingUnique: false,
+    createDoor: false,
+    onGlyph: false,
+    trackGlyph: [],
+    morgothPosition: false,
+    asPosition: false,
+    slowSpell: false,
+    sleepSpell: false,
+    sleepSpellIi: false,
+    confuseSpell: false,
+    crushSpell: false,
+    fearMonSpell: false,
+    tpOtherIndices: [],
+    avoidance: 0,
+    lightTimeout: 0,
+    lightNoFuel: false,
+    spellLegal: () => false,
+    fearRegion: null,
+    resolveFacts: defaultResolveMonsterFacts
+  };
+}
+
+// src/danger/fear.ts
+var FEAR_REGION_H = Math.trunc(AUTO_MAX_Y / 11) + 1;
+var FEAR_REGION_W = Math.trunc(AUTO_MAX_X / 11) + 1;
+var FearCaches = class _FearCaches {
+  /** borg_fear_region[FEAR_REGION_H][FEAR_REGION_W]. */
+  region2d;
+  /** borg_fear_monsters[AUTO_MAX_Y+1][AUTO_MAX_X+1]. */
+  monsters2d;
+  constructor() {
+    this.region2d = _FearCaches.makeGrid(FEAR_REGION_H, FEAR_REGION_W);
+    this.monsters2d = _FearCaches.makeGrid(AUTO_MAX_Y + 1, AUTO_MAX_X + 1);
+  }
+  static makeGrid(h, w) {
+    const g = new Array(h);
+    for (let y = 0; y < h; y++) g[y] = new Array(w).fill(0);
+    return g;
+  }
+  /** borg_fear_region[y/11][x/11]. */
+  region(y, x) {
+    const ry = Math.trunc(y / 11);
+    const rx = Math.trunc(x / 11);
+    if (ry < 0 || ry >= FEAR_REGION_H || rx < 0 || rx >= FEAR_REGION_W) return 0;
+    return this.region2d[ry][rx];
+  }
+  /** borg_fear_monsters[y][x]. */
+  monsters(y, x) {
+    if (y < 0 || y > AUTO_MAX_Y || x < 0 || x > AUTO_MAX_X) return 0;
+    return this.monsters2d[y][x];
+  }
+  /** Zero both caches (done each perceive pass before re-stamping). */
+  wipe() {
+    for (const row of this.region2d) row.fill(0);
+    for (const row of this.monsters2d) row.fill(0);
+  }
+};
+function isVault(_world, _y, _x) {
+  return false;
+}
+function borgFearGrid(world, g, fear, y, x, k) {
+  if (trait2(world, 105 /* CDEPTH */) === 0) return;
+  if (g.morgothPosition || g.asPosition) return;
+  if (isVault(world, y, x)) return;
+  const ag = world.map.inBounds(x, y) ? world.map.at(x, y) : null;
+  const killIdx = ag ? ag.kill : 0;
+  const kill = killIdx ? world.kills.at(killIdx) : null;
+  const ky = kill ? kill.pos.y : y;
+  const kx = kill ? kill.pos.x : x;
+  if (trait2(world, 35 /* CLEVEL */) === 50) k = Math.trunc(k * 5 / 10);
+  const addMon = (yy, xx, val) => {
+    const row = fear.monsters2d[yy];
+    if (row) row[xx] = (row[xx] ?? 0) + val;
+  };
+  for (let x1 = -6; x1 <= 6; x1++) {
+    for (let y1 = -6; y1 <= 6; y1++) {
+      if (x + x1 <= 0 || x1 + x >= AUTO_MAX_X) continue;
+      if (y + y1 <= 0 || y1 + y >= AUTO_MAX_Y) continue;
+      if (borgLos(world, ky, kx, y + y1, x + x1))
+        addMon(y + y1, x + x1, Math.trunc(k / 8));
+      if (x1 <= -5 || x1 >= 5) continue;
+      if (y1 <= -5 || y1 >= 5) continue;
+      if (borgLos(world, ky, kx, y + y1, x + x1))
+        addMon(y + y1, x + x1, Math.trunc(k / 5));
+      if (x1 <= -3 || x1 >= 3) continue;
+      if (y1 <= -3 || y1 >= 3) continue;
+      if (borgLos(world, ky, kx, y + y1, x + x1))
+        addMon(y + y1, x + x1, Math.trunc(k / 3));
+      if (x1 <= -2 || x1 >= 2) continue;
+      if (y1 <= -2 || y1 >= 2) continue;
+      if (borgLos(world, ky, kx, y + y1, x + x1))
+        addMon(y + y1, x + x1, Math.trunc(k / 2));
+      if (x1 <= -1 || x1 >= 1) continue;
+      if (y1 <= -1 || y1 >= 1) continue;
+      if (borgLos(world, ky, kx, y + y1, x + x1)) addMon(y + y1, x + x1, k);
+    }
+  }
+}
+function borgFearRegional(world, fear, y, x, k, seenGuy) {
+  if (isVault(world, y, x)) return;
+  if (!seenGuy) {
+    world.self.needShiftPanel = true;
+  }
+  const y0 = Math.trunc(y / 11);
+  const x0 = Math.trunc(x / 11);
+  const y1 = y0 > 0 ? y0 - 1 : 0;
+  const x1 = x0 > 0 ? x0 - 1 : 0;
+  const y2 = x0 < 5 ? x0 + 1 : 5;
+  const x2 = x0 < 17 ? x0 + 1 : 17;
+  const addReg = (ry, rx, val) => {
+    const row = fear.region2d[ry];
+    if (row) row[rx] = (row[rx] ?? 0) + val;
+  };
+  addReg(y0, x0, k);
+  addReg(y0, x1, k);
+  addReg(y0, x2, k);
+  addReg(y1, x0, Math.trunc(k / 2));
+  addReg(y2, x0, Math.trunc(k / 2));
+  addReg(y1, x1, Math.trunc(k / 2));
+  addReg(y1, x2, Math.trunc(k / 3));
+  addReg(y2, x1, Math.trunc(k / 3));
+  addReg(y2, x2, Math.trunc(k / 3));
+}
+
+// src/danger/state.ts
+var STATES = /* @__PURE__ */ new WeakMap();
+function getDangerState(world) {
+  let st2 = STATES.get(world);
+  if (!st2) {
+    const globals = createDangerGlobals();
+    const fear = new FearCaches();
+    globals.fearRegion = fear;
+    st2 = { globals, fear, maxRange: 20 };
+    STATES.set(world, st2);
+  }
+  return st2;
+}
+function getDangerGlobals(world) {
+  return getDangerState(world).globals;
+}
+function getFearCaches(world) {
+  return getDangerState(world).fear;
+}
+
+// src/danger/danger.ts
+function div(a, b) {
+  return Math.trunc(a / b);
+}
+function hasFlag(facts, flag) {
+  return facts.flags.has(flag);
+}
+function borgDangerPhysical(world, g, facts, fullDamage) {
+  let n = 0;
+  let pfe = 0;
+  let ac = trait2(world, 133 /* ARMOR */);
+  const temp = world.self.temp;
+  if (temp.shield) ac += 50;
+  if (temp.protFromEvil && hasFlag(facts, "EVIL") && trait2(world, 35 /* CLEVEL */) >= facts.level) {
+    pfe = 1;
+  }
+  if (facts.rIdx === 0) return 1e3;
+  const attacking = g.attacking;
+  const clevel = trait2(world, 35 /* CLEVEL */);
+  const spellStat = spellStatForClass(trait2(world, 25 /* CLASS */));
+  for (let k = 0; k < facts.blows.length; k++) {
+    const blow = facts.blows[k];
+    const dDice = blow.dice;
+    const dSide = blow.sides;
+    let z = 0;
+    let power = 0;
+    switch (blow.effect) {
+      case 1 /* HURT */:
+        z = dDice * dSide;
+        if (dSide < 3 && z > dDice * dSide) n += 200;
+        if (dSide < 3 && dDice > 5) n += 400;
+        power = 60;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 2 /* POISON */:
+        z = dDice * dSide;
+        power = 5;
+        if (trait2(world, 73 /* RPOIS */)) break;
+        if (temp.resPois) break;
+        z += 10;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 3 /* DISENCHANT */:
+        z = dDice * dSide;
+        power = 20;
+        if (trait2(world, 84 /* RDIS */)) break;
+        z += 500;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 4 /* DRAIN_CHARGES */:
+        z = dDice * dSide;
+        z += 20;
+        power = 15;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 5 /* EAT_GOLD */:
+        z = dDice * dSide;
+        if (clevel < 5) z += 50;
+        power = 5;
+        if (100 <= adjDexSafe(trait2(world, 18 /* DEX_INDEX */)) + clevel) break;
+        if (trait2(world, 45 /* GOLD */) < 100) break;
+        if (trait2(world, 45 /* GOLD */) > 1e5) break;
+        z += 5;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 6 /* EAT_ITEM */:
+        z = dDice * dSide;
+        power = 5;
+        if (100 <= adjDexSafe(trait2(world, 18 /* DEX_INDEX */)) + clevel) break;
+        z += 5;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 7 /* EAT_FOOD */:
+        z = dDice * dSide;
+        power = 5;
+        if (trait2(world, 39 /* FOOD */) > 5) break;
+        z += 5;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 8 /* EAT_LIGHT */:
+        z = dDice * dSide;
+        power = 5;
+        if (!g.lightTimeout || g.lightNoFuel) break;
+        if (trait2(world, 213 /* AFUEL */) > 5) break;
+        z += 5;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 9 /* ACID */:
+        if (trait2(world, 65 /* IACID */)) break;
+        z = dDice * dSide;
+        if (trait2(world, 72 /* RACID */)) z = div(z + 2, 3);
+        if (temp.resAcid) z = div(z + 2, 3);
+        z += 200;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 10 /* ELEC */:
+        if (trait2(world, 67 /* IELEC */)) break;
+        z = dDice * dSide;
+        power = 10;
+        if (trait2(world, 71 /* RELEC */)) z = div(z + 2, 3);
+        if (temp.resElec) z = div(z + 2, 3);
+        z = z * 2;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 11 /* FIRE */:
+        if (trait2(world, 64 /* IFIRE */)) break;
+        z = dDice * dSide;
+        power = 10;
+        if (trait2(world, 69 /* RFIRE */)) z = div(z + 2, 3);
+        if (temp.resFire) z = div(z + 2, 3);
+        z = z * 2;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 12 /* COLD */:
+        if (trait2(world, 66 /* ICOLD */)) break;
+        z = dDice * dSide;
+        power = 10;
+        if (trait2(world, 70 /* RCOLD */)) z = div(z + 2, 3);
+        if (temp.resAcid) z = div(z + 2, 3);
+        z = z * 2;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 13 /* BLIND */:
+        z = dDice * dSide;
+        power = 2;
+        if (trait2(world, 77 /* RBLIND */)) break;
+        z += 10;
+        if (trait2(world, 25 /* CLASS */) === CLASS_MAGE) z += 75;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 14 /* CONFUSE */:
+        z = dDice * dSide;
+        power = 10;
+        if (trait2(world, 78 /* RCONF */)) break;
+        z += 200;
+        if (trait2(world, 25 /* CLASS */) === CLASS_MAGE) z += 200;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 15 /* TERRIFY */:
+        z = dDice * dSide;
+        power = 10;
+        if (trait2(world, 74 /* RFEAR */)) break;
+        z = z * 2;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 16 /* PARALYZE */:
+        z = dDice * dSide;
+        power = 2;
+        if (trait2(world, 86 /* FRACT */)) break;
+        z += 200;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 17 /* LOSE_STR */:
+        z = dDice * dSide;
+        if (trait2(world, 20 /* SSTR */)) break;
+        if (trait2(world, 10 /* CSTR */) <= 3) break;
+        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
+        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
+        if (g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE)) break;
+        z += 150;
+        if (trait2(world, 10 /* CSTR */) < 10) z += 100;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 20 /* LOSE_DEX */:
+        z = dDice * dSide;
+        if (trait2(world, 23 /* SDEX */)) break;
+        if (trait2(world, 13 /* CDEX */) <= 3) break;
+        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
+        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
+        z += 150;
+        if (trait2(world, 13 /* CDEX */) < 10) z += 100;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 21 /* LOSE_CON */:
+        z = dDice * dSide;
+        if (trait2(world, 24 /* SCON */)) break;
+        if (trait2(world, 14 /* CCON */) <= 3) break;
+        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
+        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
+        if (g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE)) break;
+        z += 150;
+        if (trait2(world, 10 /* CSTR */) < 8) z += 100;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 18 /* LOSE_INT */:
+        z = dDice * dSide;
+        if (trait2(world, 21 /* SINT */)) break;
+        if (trait2(world, 11 /* CINT */) <= 3) break;
+        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
+        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
+        if (g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE)) break;
+        z += 150;
+        if (spellStat === STAT_INT) z += 50;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 19 /* LOSE_WIS */:
+        z = dDice * dSide;
+        if (trait2(world, 22 /* SWIS */)) break;
+        if (trait2(world, 12 /* CWIS */) <= 3) break;
+        if (g.spellLegal(BORG_SPELL.RESTORATION)) break;
+        if (g.spellLegal(BORG_SPELL.REVITALIZE)) break;
+        z += 150;
+        if (spellStat === STAT_WIS) z += 50;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 22 /* LOSE_ALL */:
+        z = dDice * dSide;
+        power = 2;
+        break;
+      case 23 /* SHATTER */:
+        z = dDice * dSide;
+        z -= div(z * (ac < 150 ? ac : 150), 250);
+        power = 60;
+        z += 150;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 24 /* EXP_10 */:
+        z = dDice * dSide;
+        if (trait2(world, 85 /* HLIFE */)) break;
+        if (clevel === 50) break;
+        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
+          break;
+        z += 100;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 25 /* EXP_20 */:
+        z = dDice * dSide;
+        if (trait2(world, 85 /* HLIFE */)) break;
+        if (clevel >= 50) break;
+        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
+          break;
+        z += 150;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 26 /* EXP_40 */:
+        z = dDice * dSide;
+        if (trait2(world, 85 /* HLIFE */)) break;
+        if (clevel >= 50) break;
+        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
+          break;
+        z += 200;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 27 /* EXP_80 */:
+        z = dDice * dSide;
+        if (trait2(world, 85 /* HLIFE */)) break;
+        if (clevel >= 50) break;
+        if (g.spellLegal(BORG_SPELL.REMEMBRANCE) || g.spellLegal(BORG_SPELL.UNHOLY_REPRIEVE) || g.spellLegal(BORG_SPELL.REVITALIZE))
+          break;
+        z += 250;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      case 28 /* HALLU */:
+        z = dDice * dSide;
+        z += 250;
+        if (pfe && !attacking) z = div(z, 2);
+        break;
+      default:
+        break;
+    }
+    z -= trait2(world, 47 /* DAM_RED */);
+    if (z < 0) z = 0;
+    if (!fullDamage) {
+      let chance;
+      if (g.fightingUnique || facts.level + power > 0)
+        chance = 150 - (div(ac * 300, 4) + (facts.level + power) * 3);
+      else chance = -1;
+      if (chance < 5) chance = 5;
+      z = div(z * chance, 100);
+    }
+    n += z;
+  }
+  return n;
+}
+function borgDangerSpell(world, g, facts, kill, y, x, d, average) {
+  let n = 0;
+  let pfe = 0;
+  let glyph = 0;
+  let totalDam = 0;
+  const temp = world.self.temp;
+  const sp = facts.spellPower;
+  const isMage = trait2(world, 25 /* CLASS */) === CLASS_MAGE;
+  if (temp.protFromEvil && hasFlag(facts, "EVIL") && trait2(world, 35 /* CLEVEL */) >= facts.level) {
+    pfe = 1;
+  }
+  if (g.onGlyph) {
+    glyph = 1;
+  } else if (g.trackGlyph.length) {
+    for (const gp of g.trackGlyph) {
+      if (gp.y === y && gp.x === x) glyph = 1;
+    }
+  }
+  if (facts.rIdx === 0) return 1e3;
+  if (!facts.spells.length) return 0;
+  const hp = kill.power;
+  const isUnique = hasFlag(facts, "UNIQUE");
+  const spotSafe = () => {
+    let safe = 1;
+    for (let sx = -1; sx <= 1; sx++) {
+      for (let sy = -1; sy <= 1; sy++) {
+        const gx = sx + kill.pos.x;
+        const gy = sy + kill.pos.y;
+        if (gx === kill.pos.x && gy === kill.pos.y) continue;
+        if (!world.map.inBounds(gx, gy)) continue;
+        if (borgFeatureProtected(world.map.at(gx, gy))) {
+          safe++;
+          if (safe === 0) safe = 1;
+          if (safe === 8) safe = 100;
+          if (g.morgothPosition || g.asPosition) safe = 1e3;
+        }
+      }
+    }
+    return safe;
+  };
+  for (let q = 0; q < facts.spells.length; q++) {
+    let p = 0;
+    let z = 0;
+    let bolt = false;
+    switch (facts.spells[q]) {
+      case RSF.SHRIEK:
+        p += 5;
+        break;
+      case RSF.WHIP:
+        if (d < 3) z = 100;
+        break;
+      case RSF.SPIT:
+        if (d < 4) z = 100;
+        break;
+      case RSF.SHOT:
+        z = (div(sp, 8) + 1) * 5;
+        break;
+      case RSF.ARROW:
+        z = (div(sp, 8) + 1) * 6;
+        break;
+      case RSF.BOLT:
+        z = (div(sp, 8) + 1) * 7;
+        break;
+      case RSF.BR_ACID:
+        if (trait2(world, 65 /* IACID */)) break;
+        z = div(hp, 3);
+        if (z > 1600) z = 1600;
+        if (trait2(world, 72 /* RACID */)) z = div(z + 2, 3);
+        if (temp.resAcid) z = div(z + 2, 3);
+        p += 40;
+        break;
+      case RSF.BR_ELEC:
+        if (trait2(world, 67 /* IELEC */)) break;
+        z = div(hp, 3);
+        if (z > 1600) z = 1600;
+        if (trait2(world, 71 /* RELEC */)) z = div(z + 2, 3);
+        if (temp.resElec) z = div(z + 2, 3);
+        p += 20;
+        break;
+      case RSF.BR_FIRE:
+        if (trait2(world, 64 /* IFIRE */)) break;
+        z = div(hp, 3);
+        if (z > 1600) z = 1600;
+        if (trait2(world, 69 /* RFIRE */)) z = div(z + 2, 3);
+        if (temp.resFire) z = div(z + 2, 3);
+        p += 40;
+        break;
+      case RSF.BR_COLD:
+        if (trait2(world, 66 /* ICOLD */)) break;
+        z = div(hp, 3);
+        if (z > 1600) z = 1600;
+        if (trait2(world, 70 /* RCOLD */)) z = div(z + 2, 3);
+        if (temp.resCold) z = div(z + 2, 3);
+        p += 20;
+        break;
+      case RSF.BR_POIS:
+        z = div(hp, 3);
+        if (z > 800) z = 800;
+        if (trait2(world, 73 /* RPOIS */)) z = div(z + 2, 3);
+        if (temp.resPois) z = div(z + 2, 3);
+        if (temp.resPois) break;
+        if (trait2(world, 73 /* RPOIS */)) break;
+        p += 20;
+        break;
+      case RSF.BR_NETH:
+        z = div(hp, 6);
+        if (z > 600) z = 600;
+        if (trait2(world, 82 /* RNTHR */)) {
+          z = div(z * 6, 9);
+          break;
+        }
+        p += 125;
+        break;
+      case RSF.BR_LIGHT:
+        z = div(hp, 6);
+        if (z > 500) z = 500;
+        if (trait2(world, 75 /* RLITE */)) {
+          z = div(z * 2, 3);
+          break;
+        }
+        if (trait2(world, 77 /* RBLIND */)) break;
+        p += 20;
+        if (isMage) p += 20;
+        break;
+      case RSF.BR_DARK:
+        z = div(hp, 6);
+        if (z > 500) z = 500;
+        if (trait2(world, 76 /* RDARK */)) z = div(z * 2, 3);
+        if (trait2(world, 76 /* RDARK */)) break;
+        if (trait2(world, 77 /* RBLIND */)) break;
+        p += 20;
+        if (isMage) p += 20;
+        break;
+      case RSF.BR_SOUN:
+        z = div(hp, 6);
+        if (z > 500) z = 500;
+        if (trait2(world, 79 /* RSND */)) z = div(z * 5, 9);
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) z += 500;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
+        p += 50;
+        break;
+      case RSF.BR_CHAO:
+        z = div(hp, 6);
+        if (z > 600) z = 600;
+        if (trait2(world, 83 /* RKAOS */)) z = div(z * 6, 9);
+        p += 100;
+        if (trait2(world, 83 /* RKAOS */)) break;
+        p += 200;
+        break;
+      case RSF.BR_DISE:
+        z = div(hp, 6);
+        if (z > 500) z = 500;
+        if (trait2(world, 84 /* RDIS */)) z = div(z * 6, 10);
+        if (trait2(world, 84 /* RDIS */)) break;
+        p += 500;
+        break;
+      case RSF.BR_NEXU:
+        z = div(hp, 6);
+        if (z > 400) z = 400;
+        if (trait2(world, 81 /* RNXUS */)) z = div(z * 6, 10);
+        if (trait2(world, 81 /* RNXUS */)) break;
+        p += 100;
+        break;
+      case RSF.BR_TIME:
+        z = div(hp, 3);
+        if (z > 150) z = 150;
+        p += 250;
+        break;
+      case RSF.BR_INER:
+        z = div(hp, 6);
+        if (z > 200) z = 200;
+        p += 100;
+        break;
+      case RSF.BR_GRAV:
+        z = div(hp, 3);
+        if (z > 200) z = 200;
+        p += 100;
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) z += 500;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
+        break;
+      case RSF.BR_SHAR:
+        z = div(hp, 6);
+        if (z > 500) z = 500;
+        if (trait2(world, 80 /* RSHRD */)) z = div(z * 6, 9);
+        if (trait2(world, 80 /* RSHRD */)) break;
+        p += 50;
+        break;
+      case RSF.BR_PLAS:
+        z = div(hp, 6);
+        if (z > 150) z = 150;
+        if (trait2(world, 79 /* RSND */)) break;
+        p += 100;
+        if (trait2(world, 117 /* ISSTUN */)) z += 500;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
+        break;
+      case RSF.BR_WALL:
+        z = div(hp, 6);
+        if (z > 200) z = 200;
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) z += 100;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) z += 500;
+        p += 50;
+        break;
+      case RSF.BR_MANA:
+        z = div(hp, 3);
+        if (z > 1600) z = 1600;
+        break;
+      case RSF.BOULDER:
+        z = (1 + div(sp, 7)) * 12;
+        bolt = true;
+        break;
+      case RSF.WEAVE:
+        break;
+      case RSF.BA_ACID:
+        if (trait2(world, 65 /* IACID */)) break;
+        z = sp * 3 + 15;
+        if (trait2(world, 72 /* RACID */)) z = div(z + 2, 3);
+        if (temp.resAcid) z = div(z + 2, 3);
+        p += 40;
+        break;
+      case RSF.BA_ELEC:
+        if (trait2(world, 67 /* IELEC */)) break;
+        z = div(sp * 3, 2) + 8;
+        if (trait2(world, 71 /* RELEC */)) z = div(z + 2, 3);
+        if (temp.resElec) z = div(z + 2, 3);
+        p += 20;
+        break;
+      case RSF.BA_FIRE:
+        if (trait2(world, 64 /* IFIRE */)) break;
+        z = div(sp * 7, 2) + 10;
+        if (trait2(world, 69 /* RFIRE */)) z = div(z + 2, 3);
+        if (temp.resFire) z = div(z + 2, 3);
+        p += 40;
+        break;
+      case RSF.BA_COLD:
+        if (trait2(world, 66 /* ICOLD */)) break;
+        z = div(sp * 3, 2) + 10;
+        if (trait2(world, 70 /* RCOLD */)) z = div(z + 2, 3);
+        if (temp.resCold) z = div(z + 2, 3);
+        p += 20;
+        break;
+      case RSF.BA_POIS:
+        z = (div(sp, 2) + 3) * 4;
+        if (trait2(world, 73 /* RPOIS */)) z = div(z + 2, 3);
+        if (temp.resPois) z = div(z + 2, 3);
+        if (temp.resPois) break;
+        if (trait2(world, 73 /* RPOIS */)) break;
+        p += 20;
+        break;
+      case RSF.BA_SHAR:
+        z = div(sp * 3, 2) + 10;
+        if (trait2(world, 80 /* RSHRD */)) z = div(z * 6, 9);
+        if (trait2(world, 80 /* RSHRD */)) break;
+        p += 20;
+        break;
+      case RSF.BA_NETH:
+        z = sp * 4 + 10 * 10;
+        if (trait2(world, 82 /* RNTHR */)) z = div(z * 6, 8);
+        if (trait2(world, 82 /* RNTHR */)) break;
+        p += 250;
+        break;
+      case RSF.BA_WATE:
+        z = div(sp * 5, 2) + 50;
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) p += 500;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) p += 1e3;
+        if (trait2(world, 78 /* RCONF */)) break;
+        p += 50;
+        if (isMage) p += 20;
+        break;
+      case RSF.BA_MANA:
+        z = sp * 5 + 10 * 10;
+        p += 50;
+        break;
+      case RSF.BA_HOLY:
+        z = 10 + div(div(sp * 3, 2) + 1, 2);
+        p += 50;
+        break;
+      case RSF.BA_DARK:
+        z = sp * 4 + 10 * 10;
+        if (trait2(world, 76 /* RDARK */)) z = div(z * 6, 9);
+        if (trait2(world, 76 /* RDARK */)) break;
+        if (trait2(world, 77 /* RBLIND */)) break;
+        p += 20;
+        if (isMage) p += 20;
+        break;
+      case RSF.BA_LIGHT:
+        z = 10 + div(sp * 3, 2);
+        if (trait2(world, 75 /* RLITE */)) z = div(z * 6, 9);
+        if (trait2(world, 75 /* RLITE */)) break;
+        if (trait2(world, 77 /* RBLIND */)) break;
+        p += 20;
+        if (isMage) p += 20;
+        break;
+      case RSF.STORM:
+        z = 70 + sp * 5;
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) p += 500;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) p += 1e3;
+        if (trait2(world, 78 /* RCONF */)) break;
+        break;
+      case RSF.DRAIN_MANA:
+        if (trait2(world, 31 /* MAXSP */)) p += 100;
+        break;
+      case RSF.MIND_BLAST:
+        if (trait2(world, 57 /* SAV */) < 100) z = div(sp, 2) + 1;
+        break;
+      case RSF.BRAIN_SMASH:
+        z = div(12 * (15 + 1), 2);
+        p += 200 - 2 * trait2(world, 57 /* SAV */);
+        if (p < 0) p = 0;
+        break;
+      case RSF.WOUND:
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        z = div(sp, 3) * 2 * 5;
+        z = div(z * (120 - trait2(world, 57 /* SAV */)), 100);
+        break;
+      case RSF.BO_ACID:
+        bolt = true;
+        if (trait2(world, 65 /* IACID */)) break;
+        z = 7 * 8 + div(sp, 3);
+        if (trait2(world, 72 /* RACID */)) z = div(z + 2, 3);
+        if (temp.resAcid) z = div(z + 2, 3);
+        p += 40;
+        break;
+      case RSF.BO_ELEC:
+        if (trait2(world, 67 /* IELEC */)) break;
+        bolt = true;
+        z = 4 * 8 + div(sp, 3);
+        if (trait2(world, 71 /* RELEC */)) z = div(z + 2, 3);
+        if (temp.resElec) z = div(z + 2, 3);
+        p += 20;
+        break;
+      case RSF.BO_FIRE:
+        if (trait2(world, 64 /* IFIRE */)) break;
+        bolt = true;
+        z = 9 * 8 + div(sp, 3);
+        if (trait2(world, 69 /* RFIRE */)) z = div(z + 2, 3);
+        if (temp.resFire) z = div(z + 2, 3);
+        p += 40;
+        break;
+      case RSF.BO_COLD:
+        if (trait2(world, 66 /* ICOLD */)) break;
+        bolt = true;
+        z = 6 * 8 + div(sp, 3);
+        if (trait2(world, 70 /* RCOLD */)) z = div(z + 2, 3);
+        if (temp.resCold) z = div(z + 2, 3);
+        p += 20;
+        break;
+      case RSF.BO_POIS:
+        if (trait2(world, 68 /* IPOIS */)) break;
+        z = 9 * 8 + div(sp, 3);
+        if (trait2(world, 73 /* RPOIS */)) z = div(z + 2, 3);
+        if (temp.resPois) z = div(z + 2, 3);
+        bolt = true;
+        break;
+      case RSF.BO_NETH:
+        bolt = true;
+        z = 5 * 5 + div(sp * 3, 2) + 50;
+        if (trait2(world, 82 /* RNTHR */)) z = div(z * 6, 8);
+        if (trait2(world, 82 /* RNTHR */)) break;
+        p += 200;
+        break;
+      case RSF.BO_WATE:
+        z = 10 * 10 + sp;
+        bolt = true;
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) p += 500;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) p += 1e3;
+        if (trait2(world, 78 /* RCONF */)) break;
+        p += 20;
+        if (isMage) p += 20;
+        break;
+      case RSF.BO_MANA:
+        z = div(sp * 5, 2) + 50;
+        bolt = true;
+        p += 50;
+        break;
+      case RSF.BO_PLAS:
+        z = 10 + 8 * 7 + sp;
+        bolt = true;
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) z += 500;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
+        break;
+      case RSF.BO_ICE:
+        z = 6 * 6 + sp;
+        bolt = true;
+        p += 20;
+        if (trait2(world, 79 /* RSND */)) break;
+        if (trait2(world, 117 /* ISSTUN */)) z += 50;
+        if (trait2(world, 118 /* ISHEAVYSTUN */)) z += 1e3;
+        break;
+      case RSF.MISSILE:
+        z = 2 * 6 + div(sp, 3);
+        bolt = true;
+        break;
+      case RSF.BE_ELEC:
+        if (trait2(world, 67 /* IELEC */)) break;
+        z = 5 * 5 + sp * 2 + 30;
+        if (trait2(world, 71 /* RELEC */)) z = div(z + 2, 3);
+        if (temp.resElec) z = div(z + 2, 3);
+        bolt = true;
+        break;
+      case RSF.BE_NETH:
+        bolt = true;
+        z = 5 * 5 + sp * 2 + 30;
+        if (trait2(world, 82 /* RNTHR */)) z = div(z * 6, 8);
+        if (trait2(world, 82 /* RNTHR */)) break;
+        bolt = true;
+        break;
+      case RSF.SCARE:
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        p += 10;
+        break;
+      case RSF.BLIND:
+        if (trait2(world, 77 /* RBLIND */)) break;
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        p += 10;
+        break;
+      case RSF.CONF:
+        if (trait2(world, 78 /* RCONF */)) break;
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        p += 10;
+        break;
+      case RSF.SLOW:
+        if (trait2(world, 86 /* FRACT */)) break;
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        p += 5;
+        break;
+      case RSF.HOLD:
+        if (trait2(world, 86 /* FRACT */)) break;
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        p += 150;
+        break;
+      case RSF.HASTE:
+        p += 10;
+        break;
+      case RSF.HEAL:
+        p += 10;
+        break;
+      case RSF.HEAL_KIN:
+        break;
+      case RSF.BLINK:
+        break;
+      case RSF.TPORT:
+        p += 10;
+        break;
+      case RSF.TELE_TO:
+        p += 20;
+        break;
+      case RSF.TELE_SELF_TO:
+        p += 20;
+        break;
+      case RSF.TELE_AWAY:
+        p += 10;
+        break;
+      case RSF.TELE_LEVEL:
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        p += 50;
+        break;
+      case RSF.DARKNESS:
+        p += 5;
+        break;
+      case RSF.TRAPS:
+        p += 50;
+        break;
+      case RSF.FORGET:
+        if (trait2(world, 57 /* SAV */) >= 100) break;
+        if (trait2(world, 30 /* CURSP */) < 15) p += 500;
+        else p += 30;
+        break;
+      case RSF.SHAPECHANGE:
+        p += 200;
+        break;
+      case RSF.S_KIN: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 3;
+          p = div(p, safe);
+        } else {
+          p += sp * 7;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_HI_DEMON: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 6;
+          p = div(p, safe);
+        } else {
+          p += sp * 12;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_MONSTER: {
+        const safe = spotSafe();
+        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
+        else {
+          p += sp * 5;
+          p = div(p, safe);
+        }
+        break;
+      }
+      case RSF.S_MONSTERS: {
+        const safe = spotSafe();
+        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
+        else {
+          p += sp * 7;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_ANIMAL: {
+        const safe = spotSafe();
+        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
+        else {
+          p += sp * 5;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_SPIDER: {
+        const safe = spotSafe();
+        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
+        else {
+          p += sp * 5;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_HOUND: {
+        const safe = spotSafe();
+        if (pfe || glyph || g.createDoor || g.fightingUnique) p += 0;
+        else {
+          p += sp * 5;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_HYDRA: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 2;
+          p = div(p, safe);
+        } else {
+          p += sp * 5;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_AINU: {
+        const safe = spotSafe();
+        if (pfe || g.fightingUnique) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 3;
+          p = div(p, safe);
+        } else {
+          p += sp * 7;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_DEMON: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 3;
+          p = div(p, safe);
+        } else {
+          p += sp * 7;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_UNDEAD: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 3;
+          p = div(p, safe);
+        } else {
+          p += sp * 7;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_DRAGON: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 3;
+          p = div(p, safe);
+        } else {
+          p += sp * 7;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_HI_UNDEAD: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 6;
+          p = div(p, safe);
+        } else {
+          p += sp * 12;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_HI_DRAGON: {
+        const safe = spotSafe();
+        if (pfe) {
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 6;
+          p = div(p, safe);
+        } else {
+          p += sp * 12;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_WRAITH: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor || g.fightingUnique) {
+          p += sp * 6;
+          p = div(p, safe);
+        } else {
+          p += sp * 12;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      case RSF.S_UNIQUE: {
+        const safe = spotSafe();
+        if (pfe) {
+          p += sp;
+          p = div(p, safe);
+        } else if (glyph || g.createDoor) {
+          p += sp * 3;
+          p = div(p, safe);
+        } else {
+          p += sp * 6;
+          p = div(p, safe);
+        }
+        if (isUnique) p = div(p * 75, 100);
+        break;
+      }
+      default:
+        break;
+    }
+    if (bolt && !borgProjectablePure(
+      world,
+      maxRangeOf(world),
+      kill.pos.y,
+      kill.pos.x,
+      world.self.c.y,
+      world.self.c.x
+    ))
+      z = 0;
+    if (trait2(world, 106 /* MAXDEPTH */) >= 75) p = 0;
+    p += z;
+    if (p > n) n = p;
+    totalDam += p;
+  }
+  totalDam -= trait2(world, 47 /* DAM_RED */);
+  if (totalDam < 0) totalDam = 0;
+  if (g.morgothPosition || g.asPosition) totalDam = div(totalDam * 7, 10);
+  const av3 = div(totalDam, facts.spells.length);
+  if (!average) return av3;
+  if (n >= div(av3 * 15, 10) || n > div(trait2(world, 27 /* CURHP */) * 8, 10)) return n;
+  return av3;
+}
+function maxRangeOf(world) {
+  const st2 = getDangerState(world);
+  return st2.maxRange;
+}
+function isBlockingFeat(feat) {
+  return feat === FEAT.CLOSED || feat === FEAT.PERM;
+}
+function isSeamFeat(feat) {
+  return feat === FEAT.MAGMA || feat === FEAT.QUARTZ || feat === FEAT.MAGMA_K || feat === FEAT.QUARTZ_K || feat === FEAT.RUBBLE;
+}
+function borgDangerOneKill(ctx, y, x, c, i, average, fullDamage) {
+  const world = ctx.world;
+  const st2 = getDangerState(world);
+  st2.maxRange = ctx.view.constants().maxRange ?? 20;
+  const g = st2.globals;
+  const kill = world.kills.at(i);
+  const facts = g.resolveFacts(ctx, i);
+  const x9 = kill.pos.x;
+  const y9 = kill.pos.y;
+  if (!kill.rIdx) return 0;
+  for (const idx of g.tpOtherIndices) {
+    if (i === idx) return 0;
+  }
+  const ax = x9 > x ? x9 - x : x - x9;
+  const ay = y9 > y ? y9 - y : y - y9;
+  let d = Math.max(ax, ay);
+  if (d < 1) d = 1;
+  if (d > 20) return 0;
+  const temp = world.self.temp;
+  const clevel = trait2(world, 35 /* CLEVEL */);
+  let fakeSpeed = trait2(world, 44 /* SPEED */);
+  let monsterSpeed = kill.speed;
+  if (trait2(world, 44 /* SPEED */) >= 135) fakeSpeed = g.fightingUnique ? 120 : 125;
+  if (temp.fast) fakeSpeed += 10;
+  if (g.slowSpell) monsterSpeed -= 10;
+  if (trait2(world, 28 /* MAXHP */) < 20 && trait2(world, 105 /* CDEPTH */)) monsterSpeed += 3;
+  let e = extractEnergy(fakeSpeed);
+  const t = div(100 + (e - 1), e);
+  e = extractEnergy(monsterSpeed);
+  let q = c * div(t * e, 10);
+  if (fullDamage) q = div(q + 9, 10) * 10;
+  if (q <= 10) q = 10;
+  let v1 = borgDangerPhysical(world, g, facts, fullDamage);
+  if (world.self.timeThisPanel > 1200 || world.clock > 25e3) v1 = div(v1, 5);
+  if (hasFlag(facts, "NEVER_BLOW")) v1 = 0;
+  if (hasFlag(facts, "NEVER_MOVE") && d > 1) v1 = 0;
+  if (hasFlag(facts, "MULTIPLY") && clevel < 20) v1 = v1 + div(v1 * 15, 10);
+  if (facts.hasFriends && clevel < 20) {
+    if (clevel < 15) v1 = v1 + div(v1 * 18, 10);
+    else v1 = v1 + div(v1 * 13, 10);
+  }
+  if (!kill.awake) {
+    const inc = facts.sleep + 5;
+    if (clevel >= 25) v1 = div(v1, 2);
+    v1 = v1 + div(v1 * inc, 100);
+  }
+  if (g.sleepSpellIi) {
+    if (d === 1 && kill.awake && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= clevel - 15) {
+      if (clevel < 20 && trait2(world, 27 /* CURHP */) < div(trait2(world, 28 /* MAXHP */), 2))
+        v1 = 0;
+      else v1 = div(v1, 3);
+    }
+  }
+  if (g.sleepSpell) {
+    if (kill.awake && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= clevel - 15) {
+      if (clevel < 20 && trait2(world, 27 /* CURHP */) < div(trait2(world, 28 /* MAXHP */), 2))
+        v1 = 0;
+      else v1 = div(v1, d + 2);
+    }
+  }
+  if (g.crushSpell) {
+    if (div(kill.power * (100 - kill.injury), 100) < clevel * 4) {
+      const ag = world.map.inBounds(x9, y9) ? world.map.at(x9, y9) : null;
+      if (ag && ag.info & BORG_VIEW && borgCaveFloorGridForKill(ag.feat)) v1 = 0;
+    }
+  }
+  if (kill.confused) v1 = div(v1, 2);
+  if (kill.stunned) v1 = div(v1 * 10, 13);
+  if (g.confuseSpell) {
+    if (kill.awake && !kill.confused && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= clevel - 15) {
+      if (clevel < 20 && trait2(world, 27 /* CURHP */) < div(trait2(world, 28 /* MAXHP */), 2))
+        v1 = 0;
+      else v1 = div(v1, d + 2);
+    }
+  }
+  if (g.fearMonSpell) v1 = 0;
+  if (q > 10 && d !== 1 && !hasFlag(facts, "NEVER_MOVE")) {
+    let bV1 = 0;
+    for (let ii = 0; ii < 8; ii++) {
+      const yTemp = y9 + ddy_ddd2[ii];
+      const xTemp = x9 + ddx_ddd2[ii];
+      if (!squareInBoundsFully(xTemp, yTemp)) continue;
+      const ag = world.map.at(xTemp, yTemp);
+      if (ag.kill) continue;
+      if (isBlockingFeat(ag.feat)) continue;
+      if (ag.feat === FEAT.GRANITE || isSeamFeat(ag.feat)) {
+        if (hasFlag(facts, "PASS_WALL")) {
+          if (borgDistance(yTemp, xTemp, y, x) === 1) bV1 = v1;
+        }
+        if (hasFlag(facts, "KILL_WALL")) {
+          if (borgDistance(yTemp, xTemp, y, x) === 1) bV1 = v1;
+        }
+      }
+      if (borgDistance(yTemp, xTemp, y, x) > 1) continue;
+      if (borgCaveFloorBold2(world, yTemp, xTemp)) {
+        bV1 = v1 * div(q, d * 10);
+      }
+    }
+    v1 = bV1;
+  }
+  if (q > 10 && d === 1) v1 = div(v1 * q, 10);
+  if (q === 10 && d > 1) v1 = 0;
+  let v2 = borgDangerSpell(world, g, facts, kill, y, x, d, average);
+  if (!facts.freqInnate && !facts.freqSpell) v2 = 0;
+  const maxRange3 = getDangerState(world).maxRange;
+  if (borgDistance(y9, x9, y, x) > maxRange3) v2 = 0;
+  if (q <= 10 && !borgProjectable(world, g, maxRange3, y9, x9, y, x) && !borgProjectable(world, g, maxRange3, y, x, y9, x9))
+    v2 = 0;
+  if (q >= 20) {
+    const bQ = q;
+    let bV2 = 0;
+    if (q > 20) q = 20;
+    for (let ii = 0; ii < 8; ii++) {
+      const yTemp = y9 + ddy_ddd2[ii];
+      const xTemp = x9 + ddx_ddd2[ii];
+      if (!squareInBoundsFully(xTemp, yTemp)) continue;
+      const ag = world.map.at(xTemp, yTemp);
+      if (ag.kill) continue;
+      if (isBlockingFeat(ag.feat)) continue;
+      if (ag.feat >= FEAT.GRANITE || isSeamFeat(ag.feat)) {
+        if (hasFlag(facts, "PASS_WALL")) {
+          if (borgProjectable(world, g, maxRange3, yTemp, xTemp, y, x))
+            bV2 = div(v2 * bQ, 10);
+        }
+        if (hasFlag(facts, "KILL_WALL")) {
+          if (borgProjectable(world, g, maxRange3, yTemp, xTemp, y, x))
+            bV2 = div(v2 * bQ, 10);
+        }
+      } else if (borgProjectable(world, g, maxRange3, yTemp, xTemp, y, x)) {
+        bV2 = div(v2 * bQ, 10);
+      }
+    }
+    v2 = bV2;
+  }
+  if (world.self.timeThisPanel > 1200 || world.clock > 25e3) v2 = div(v2, 5);
+  if (hasFlag(facts, "MULTIPLY") && clevel < 20) v2 = v2 + div(v2 * 12, 10);
+  if (facts.hasFriends && clevel < 20) v2 = v2 + div(v2 * 12, 10);
+  if (!kill.awake) {
+    const inc = facts.sleep + 5;
+    if (clevel >= 25) v2 = div(v2, 2);
+    v2 = v2 + div(v2 * inc, 100);
+  }
+  if (g.sleepSpellIi) {
+    const cap = clevel < 15 ? clevel : div(clevel - 10, 4) * 3 + 10;
+    if (d === 1 && kill.awake && !hasFlag(facts, "NO_SLEEP") && !hasFlag(facts, "UNIQUE") && kill.level <= cap) {
+      v2 = div(v2, 3);
+    }
+  }
+  if (g.crushSpell) {
+    if (div(kill.power * (100 - kill.injury), 100) < clevel * 4) {
+      const ag = world.map.inBounds(x9, y9) ? world.map.at(x9, y9) : null;
+      if (ag && ag.info & BORG_VIEW && borgCaveFloorGridForKill(ag.feat)) v1 = 0;
+    }
+  }
+  if (g.sleepSpell) v2 = div(v2, d + 2);
+  if (kill.confused) v2 = div(v2, 2);
+  if (kill.stunned) v2 = div(v2 * 10, 13);
+  if (g.confuseSpell) v2 = div(v2, 6);
+  if (!fullDamage) {
+    const chance = div(facts.freqInnate + facts.freqSpell, 2);
+    if (chance < 11) v2 = div(v2 * 4, 10);
+    else if (chance < 26) v2 = div(v2 * 6, 10);
+    else if (chance < 51) v2 = div(v2 * 8, 10);
+  }
+  if (v2) {
+    const r = q;
+    v2 = div(v2 * r, 10);
+  }
+  let p = Math.max(v1, v2);
+  if (p > 2e3) p = 2e3;
+  return p;
+}
+function borgCaveFloorGridForKill(feat) {
+  return feat === FEAT.NONE || feat === FEAT.FLOOR || feat === FEAT.OPEN || feat === FEAT.MORE || feat === FEAT.LESS || feat === FEAT.BROKEN || feat === FEAT.PASS_RUBBLE || feat === FEAT.LAVA;
+}
+function borgDanger(ctx, y, x, c, average, fullDamage) {
+  void fullDamage;
+  const world = ctx.world;
+  const st2 = getDangerState(world);
+  st2.maxRange = ctx.view.constants().maxRange ?? 20;
+  let p = 0;
+  if (x < 0 || x >= AUTO_MAX_X || y < 0 || y >= AUTO_MAX_Y) return 2e3;
+  const cdepth = trait2(world, 105 /* CDEPTH */);
+  const isVaultHere = false;
+  if (!isVaultHere && cdepth <= 80) {
+    p += st2.fear.region(y, x) * c;
+  }
+  if (cdepth === 100 && p >= 300) p = 300;
+  if (world.self.timeThisPanel <= 200 && !isVaultHere) {
+    p += st2.fear.monsters(y, x) * c;
+  }
+  const forcedFull = true;
+  for (const [i] of world.kills.entries()) {
+    p += borgDangerOneKill(ctx, y, x, c, i, average, forcedFull);
+  }
+  return p > 2e3 ? 2e3 : p;
+}
+function borgUpdateMonsterFear(ctx) {
+  const world = ctx.world;
+  const st2 = getDangerState(world);
+  const g = st2.globals;
+  for (const row of st2.fear.monsters2d) row.fill(0);
+  const px = world.self.c.x;
+  const py = world.self.c.y;
+  for (const [i, kill] of world.kills.entries()) {
+    if (g.resolveFacts(ctx, i).flags.has("NEVER_MOVE")) continue;
+    if (borgDistance(kill.pos.y, kill.pos.x, py, px) >= 20) continue;
+    const p = Math.trunc(borgDanger(ctx, kill.pos.y, kill.pos.x, 1, false, false) / 10);
+    borgFearGrid(world, g, st2.fear, kill.pos.y, kill.pos.x, p);
+  }
 }
 
 // src/flow/flow.ts
@@ -2890,6 +2971,7 @@ function defaultFlowHooks() {
     countSell: () => 0,
     packFull: () => false,
     monsterHasFlag: () => false,
+    dangerOneKill: () => 0,
     los: () => true
   };
 }
@@ -2938,16 +3020,16 @@ function createFlowState(hooks = defaultFlowHooks()) {
 function computeFear(world, flow, townTenths) {
   const av3 = flow.avoidance;
   let fear = 0;
-  if (trait2(world, 36 /* MAXCLEVEL */) === 50) fear = Math.trunc(av3 * 5 / 10);
-  if (trait2(world, 36 /* MAXCLEVEL */) !== 50) fear = Math.trunc(av3 * 3 / 10);
+  if (trait(world, 36 /* MAXCLEVEL */) === 50) fear = Math.trunc(av3 * 5 / 10);
+  if (trait(world, 36 /* MAXCLEVEL */) !== 50) fear = Math.trunc(av3 * 3 / 10);
   if (world.facts.scaryGuyOnLevel) fear = av3 * 2;
-  if (world.facts.uniqueOnLevel && world.facts.vaultOnLevel && trait2(world, 36 /* MAXCLEVEL */) === 50)
+  if (world.facts.uniqueOnLevel && world.facts.vaultOnLevel && trait(world, 36 /* MAXCLEVEL */) === 50)
     fear = av3 * 3;
-  if (world.facts.scaryGuyOnLevel && trait2(world, 35 /* CLEVEL */) <= 5) fear = av3 * 3;
+  if (world.facts.scaryGuyOnLevel && trait(world, 35 /* CLEVEL */) <= 5) fear = av3 * 3;
   if (world.self.goal.ignoring) fear = av3 * 5;
   if (world.clock - flow.borgBegan > 5e3) fear = av3 * 25;
-  if (trait2(world, 39 /* FOOD */) === 0) fear = av3 * 100;
-  if (trait2(world, 35 /* CLEVEL */) === 0) fear = Math.trunc(av3 * townTenths / 10);
+  if (trait(world, 39 /* FOOD */) === 0) fear = av3 * 100;
+  if (trait(world, 35 /* CLEVEL */) === 0) fear = Math.trunc(av3 * townTenths / 10);
   return fear;
 }
 function skipDangerMarking(world, flow) {
@@ -2955,7 +3037,7 @@ function skipDangerMarking(world, flow) {
 }
 function borgCanDig(ctx, flow, checkFail, feat) {
   const w = ctx.world;
-  if (trait2(w, 109 /* ISHUNGRY */)) return false;
+  if (trait(w, 109 /* ISHUNGRY */)) return false;
   if (feat === FEAT.PERM || feat === FEAT.LAVA || feat < FEAT.SECRET && feat !== FEAT.CLOSED)
     return false;
   let digCheck;
@@ -2968,8 +3050,8 @@ function borgCanDig(ctx, flow, checkFail, feat) {
   }
   if (w.self.timesTwitch > 10)
     digCheck -= Math.min(w.self.timesTwitch - 10, 19);
-  if (trait2(w, 63 /* DIG */) >= digCheck + 20) return true;
-  if ((feat === FEAT.RUBBLE || feat === FEAT.PASS_RUBBLE) && !trait2(w, 108 /* ISWEAK */))
+  if (trait(w, 63 /* DIG */) >= digCheck + 20) return true;
+  if ((feat === FEAT.RUBBLE || feat === FEAT.PASS_RUBBLE) && !trait(w, 108 /* ISWEAK */))
     return true;
   if (flow.hooks.canDigMagic(w, checkFail)) return true;
   return false;
@@ -3010,8 +3092,8 @@ function borgFlowSpread(ctx, flow, depth, optimize, avoid, tunneling, stairIdx, 
   let o = 0;
   let originY = w.self.c.y;
   let originX = w.self.c.x;
-  const twitchy = flow.avoidance > trait2(w, 27 /* CURHP */);
-  if (stairIdx >= 0 && trait2(w, 35 /* CLEVEL */) < 15) {
+  const twitchy = flow.avoidance > trait(w, 27 /* CURHP */);
+  if (stairIdx >= 0 && trait(w, 35 /* CLEVEL */) < 15) {
     originY = flow.less.y[stairIdx];
     originX = flow.less.x[stairIdx];
     optimize = false;
@@ -3028,16 +3110,16 @@ function borgFlowSpread(ctx, flow, depth, optimize, avoid, tunneling, stairIdx, 
     }
     for (let i = 0; i < 8; i++) {
       let badSneak = false;
-      const x = x1 + ddx_ddd2[i];
-      const y = y1 + ddy_ddd2[i];
+      const x = x1 + ddx_ddd[i];
+      const y = y1 + ddy_ddd[i];
       if (!inBoundsFully(x, y)) continue;
       const gi = dataIdx(x, y);
       if (flow.cost[gi] <= n) continue;
       const ag = w.map.at(x, y);
       if (sneak && !flow.borgDesperate && !twitchy) {
         for (let ii = 0; ii < 8; ii++) {
-          const xx = x + ddx_ddd2[ii];
-          const yy = y + ddy_ddd2[ii];
+          const xx = x + ddx_ddd[ii];
+          const yy = y + ddy_ddd[ii];
           if (!inBoundsFully(xx, yy)) continue;
           if (w.map.at(xx, yy).kill) {
             badSneak = true;
@@ -3049,24 +3131,24 @@ function borgFlowSpread(ctx, flow, depth, optimize, avoid, tunneling, stairIdx, 
       if (!tunneling && ag.feat >= FEAT.SECRET && ag.feat !== FEAT.PASS_RUBBLE && ag.feat !== FEAT.LAVA)
         continue;
       if (ag.feat === FEAT.PERM) continue;
-      if (ag.feat === FEAT.LAVA && !trait2(w, 64 /* IFIRE */)) continue;
+      if (ag.feat === FEAT.LAVA && !trait(w, 64 /* IFIRE */)) continue;
       if ((avoid || flow.borgDesperate) && ag.feat === FEAT.NONE && !twitchy)
         continue;
       if (ag.kill) {
         if (flow.borgDesperate || w.self.lunalMode || w.self.munchkinMode)
           continue;
-        if (trait2(w, 113 /* ISAFRAID */)) continue;
-        if (!twitchy && trait2(w, 39 /* FOOD */) >= 2 && trait2(w, 36 /* MAXCLEVEL */) < 5)
+        if (trait(w, 113 /* ISAFRAID */)) continue;
+        if (!twitchy && trait(w, 39 /* FOOD */) >= 2 && trait(w, 36 /* MAXCLEVEL */) < 5)
           continue;
       }
       if (w.self.goal.shop >= 0 && featIsShop(ag.feat) && ag.store !== w.self.goal.shop && y !== w.self.c.y && x !== w.self.c.x)
         continue;
       if (ag.trap && !ag.glyph && !twitchy) {
-        if (trait2(w, 27 /* CURHP */) < 60) continue;
-        if (trait2(w, 54 /* DISP */) < 30 && trait2(w, 35 /* CLEVEL */) < 20) continue;
-        if (trait2(w, 54 /* DISP */) < 45 && trait2(w, 35 /* CLEVEL */) < 10) continue;
-        if (trait2(w, 55 /* DISM */) < 30 && trait2(w, 35 /* CLEVEL */) < 20) continue;
-        if (trait2(w, 55 /* DISM */) < 45 && trait2(w, 35 /* CLEVEL */) < 10) continue;
+        if (trait(w, 27 /* CURHP */) < 60) continue;
+        if (trait(w, 54 /* DISP */) < 30 && trait(w, 35 /* CLEVEL */) < 20) continue;
+        if (trait(w, 54 /* DISP */) < 45 && trait(w, 35 /* CLEVEL */) < 10) continue;
+        if (trait(w, 55 /* DISM */) < 30 && trait(w, 35 /* CLEVEL */) < 20) continue;
+        if (trait(w, 55 /* DISM */) < 45 && trait(w, 35 /* CLEVEL */) < 10) continue;
       }
       if (flow.icky[gi]) continue;
       if (!flow.know[gi]) {
@@ -3157,8 +3239,8 @@ function borgPlayStep(ctx, flow, y2, x2) {
   if (ag.kill) {
     const kill = w.kills.at(ag.kill);
     if (kill.rIdx === 0) return null;
-    if (trait2(w, 113 /* ISAFRAID */) || trait2(w, 186 /* CRSFEAR */)) return null;
-    if (trait2(w, 105 /* CDEPTH */) === 0 && trait2(w, 35 /* CLEVEL */) < 5) {
+    if (trait(w, 113 /* ISAFRAID */) || trait(w, 186 /* CRSFEAR */)) return null;
+    if (trait(w, 105 /* CDEPTH */) === 0 && trait(w, 35 /* CLEVEL */) < 5) {
       return null;
     }
     return act.melee(dir);
@@ -3169,25 +3251,25 @@ function borgPlayStep(ctx, flow, y2, x2) {
     return act.move(dir);
   }
   if (ag.glyph) return act.move(dir);
-  if (trait2(w, 26 /* LIGHT */) && !trait2(w, 112 /* ISBLIND */) && !trait2(w, 114 /* ISCONFUSED */) && !w.facts.scaryGuyOnLevel && ag.trap) {
+  if (trait(w, 26 /* LIGHT */) && !trait(w, 112 /* ISBLIND */) && !trait(w, 114 /* ISCONFUSED */) && !w.facts.scaryGuyOnLevel && ag.trap) {
     ag.trap = false;
     return act.disarm(dir);
   }
   if (ag.feat === FEAT.CLOSED) {
     if (ctx.rng.randint0(100) === 0) return null;
     for (let i = 0; i < 8; i++) {
-      const ax = cx + ddx_ddd2[i];
-      const ay = cy + ddy_ddd2[i];
+      const ax = cx + ddx_ddd[i];
+      const ay = cy + ddy_ddd[i];
       if (!w.map.inBounds(ax, ay)) continue;
       const ag2 = w.map.at(ax, ay);
-      if (ag2.kill && trait2(w, 35 /* CLEVEL */) < 15 && !trait2(w, 113 /* ISAFRAID */))
+      if (ag2.kill && trait(w, 35 /* CLEVEL */) < 15 && !trait(w, 113 /* ISAFRAID */))
         return null;
     }
     if (flow.closed.num) flow.closed.wipe();
     return act.open(dir);
   }
   if (ag.feat === FEAT.PERM) return null;
-  if (ag.feat === FEAT.LAVA && !trait2(w, 64 /* IFIRE */)) return null;
+  if (ag.feat === FEAT.LAVA && !trait(w, 64 /* IFIRE */)) return null;
   if (ag.feat >= FEAT.SECRET && ag.feat <= FEAT.GRANITE) {
     if (ag.feat !== FEAT.RUBBLE && w.self.goal.type === GOAL_DARK) return null;
     if (!borgCanDig(ctx, flow, false, ag.feat)) {
@@ -3211,17 +3293,17 @@ function borgFlowOld(ctx, flow, why) {
     let bC = flow.flow[dataIdx(w.self.c.x, w.self.c.y)] * 10;
     bC = bC - 5;
     for (let i = 0; i < 8; i++) {
-      const x = w.self.c.x + ddx_ddd2[i];
-      const y = w.self.c.y + ddy_ddd2[i];
+      const x = w.self.c.x + ddx_ddd[i];
+      const y = w.self.c.y + ddy_ddd[i];
       if (!w.map.inBounds(x, y)) continue;
       const c = flow.flow[dataIdx(x, y)] * 10;
       if (c > bC) continue;
       if (x > AUTO_MAX_X - 1 || x < 1 || y > AUTO_MAX_Y - 1 || y < 1) continue;
       if (c < bC) bN = 0;
-      if (trait2(w, 105 /* CDEPTH */) === 0 && ++bN >= 2 && ctx.rng.randint0(bN) !== 0)
+      if (trait(w, 105 /* CDEPTH */) === 0 && ++bN >= 2 && ctx.rng.randint0(bN) !== 0)
         continue;
-      else if (trait2(w, 105 /* CDEPTH */) >= 1 && ++bN >= 2) continue;
-      if (w.self.goal.type === GOAL_DIGGING && (ddx_ddd2[i] === 0 || ddy_ddd2[i] === 0)) {
+      else if (trait(w, 105 /* CDEPTH */) >= 1 && ++bN >= 2) continue;
+      if (w.self.goal.type === GOAL_DIGGING && (ddx_ddd[i] === 0 || ddy_ddd[i] === 0)) {
         if (distance2(w.self.c.x, w.self.c.y, flow.flowX[0], flow.flowY[0]) <= 2)
           continue;
       }
@@ -3229,8 +3311,8 @@ function borgFlowOld(ctx, flow, why) {
       bC = c;
     }
     if (bI >= 0) {
-      const x = w.self.c.x + ddx_ddd2[bI];
-      const y = w.self.c.y + ddy_ddd2[bI];
+      const x = w.self.c.x + ddx_ddd[bI];
+      const y = w.self.c.y + ddy_ddd[bI];
       const cmd = borgPlayStep(ctx, flow, y, x);
       if (cmd) return cmd;
     }
@@ -3708,9 +3790,9 @@ function borgFlowStairBoth(ctx, flow, why, sneak) {
   const w = ctx.world;
   syncStairsFromMap(ctx, flow);
   if (!flow.less.num && !flow.more.num) return null;
-  if (!w.self.goal.fleeing && !w.facts.scaryGuyOnLevel && !flow.less.num && flow.avoidance <= Math.trunc(trait2(w, 27 /* CURHP */) * 15 / 10) && (trait2(w, 108 /* ISWEAK */) || trait2(w, 109 /* ISHUNGRY */) || trait2(w, 39 /* FOOD */) < 2))
+  if (!w.self.goal.fleeing && !w.facts.scaryGuyOnLevel && !flow.less.num && flow.avoidance <= Math.trunc(trait(w, 27 /* CURHP */) * 15 / 10) && (trait(w, 108 /* ISWEAK */) || trait(w, 109 /* ISHUNGRY */) || trait(w, 39 /* FOOD */) < 2))
     return null;
-  if (trait2(w, 26 /* LIGHT */) === 0 && trait2(w, 105 /* CDEPTH */) !== 0 && w.self.munchkinMode === false)
+  if (trait(w, 26 /* LIGHT */) === 0 && trait(w, 105 /* CDEPTH */) !== 0 && w.self.munchkinMode === false)
     return null;
   borgFlowClear(flow);
   for (let i = 0; i < flow.less.num; i++) {
@@ -3735,7 +3817,7 @@ function borgFlowStairLess(ctx, flow, why, sneak) {
     if (w.map.at(flow.less.x[i], flow.less.y[i]).kill) continue;
     borgFlowEnqueueGrid(ctx, flow, flow.less.y[i], flow.less.x[i]);
   }
-  if (trait2(w, 35 /* CLEVEL */) > 35 || trait2(w, 26 /* LIGHT */) === 0) {
+  if (trait(w, 35 /* CLEVEL */) > 35 || trait(w, 26 /* LIGHT */) === 0) {
     borgFlowSpread(ctx, flow, 250, true, false, false, -1, sneak);
   } else {
     borgFlowSpread(ctx, flow, 250, false, !flow.borgDesperate, false, -1, sneak);
@@ -3750,11 +3832,11 @@ function borgFlowStairMore(ctx, flow, why, sneak, brave) {
   if (flow.less.num) {
     if (!w.self.lunalMode && !w.self.munchkinMode && !brave && !flow.hooks.preparedToDescend(w))
       return null;
-    if (!brave && trait2(w, 105 /* CDEPTH */) && !w.facts.scaryGuyOnLevel && (trait2(w, 108 /* ISWEAK */) || trait2(w, 109 /* ISHUNGRY */) || trait2(w, 39 /* FOOD */) < 2))
+    if (!brave && trait(w, 105 /* CDEPTH */) && !w.facts.scaryGuyOnLevel && (trait(w, 108 /* ISWEAK */) || trait(w, 109 /* ISHUNGRY */) || trait(w, 39 /* FOOD */) < 2))
       return null;
-    if (trait2(w, 105 /* CDEPTH */) && trait2(w, 35 /* CLEVEL */) < 25 && trait2(w, 45 /* GOLD */) < 25e3 && flow.hooks.countSell(w) >= 13 && !w.self.munchkinMode)
+    if (trait(w, 105 /* CDEPTH */) && trait(w, 35 /* CLEVEL */) < 25 && trait(w, 45 /* GOLD */) < 25e3 && flow.hooks.countSell(w) >= 13 && !w.self.munchkinMode)
       return null;
-    if (trait2(w, 26 /* LIGHT */) === 0 && w.self.munchkinMode === false) return null;
+    if (trait(w, 26 /* LIGHT */) === 0 && w.self.munchkinMode === false) return null;
   }
   if (w.self.goal.recalling) return null;
   borgFlowClear(flow);
@@ -3771,7 +3853,7 @@ function borgPrepLeaveLevelSpells(ctx) {
   const self = w.self;
   const temp = self.temp;
   if (self.goal.fleeing) return null;
-  if (trait2(w, 30 /* CURSP */) < Math.trunc(trait2(w, 31 /* MAXSP */) * 6 / 10)) return null;
+  if (trait(w, 30 /* CURSP */) < Math.trunc(trait(w, 31 /* MAXSP */) * 6 / 10)) return null;
   if (!temp.fast) {
     const cmd = borgSpellFail(ctx, 48 /* HASTE_SELF */, 15);
     if (cmd) {
@@ -3800,7 +3882,7 @@ function borgPrepLeaveLevelSpells(ctx) {
       return cmd;
     }
   }
-  if (!temp.hero && trait2(w, 35 /* CLEVEL */) > borgHeroismLevel(ctx)) {
+  if (!temp.hero && trait(w, 35 /* CLEVEL */) > borgHeroismLevel(ctx)) {
     const cmd = borgSpellFail(ctx, 62 /* HEROISM */, 15);
     if (cmd) {
       self.noRestPrep = 3e3;
@@ -3814,14 +3896,14 @@ function borgPrepLeaveLevelSpells(ctx) {
       return cmd;
     }
   }
-  if (!temp.smiteEvil && !trait2(w, 194 /* WS_EVIL */)) {
+  if (!temp.smiteEvil && !trait(w, 194 /* WS_EVIL */)) {
     const cmd = borgSpellFail(ctx, 77 /* SMITE_EVIL */, 15);
     if (cmd) {
       self.noRestPrep = 21e3;
       return cmd;
     }
   }
-  if (!temp.venom && !trait2(w, 209 /* WB_POIS */)) {
+  if (!temp.venom && !trait(w, 209 /* WB_POIS */)) {
     const cmd = borgSpellFail(ctx, 127 /* VENOM */, 15);
     if (cmd) {
       self.noRestPrep = 18e3;
@@ -3835,9 +3917,9 @@ function borgPrepLeaveLevelSpells(ctx) {
 function borgGetLeash(ctx, flow, pickUp) {
   const w = ctx.world;
   let leash = 250;
-  if (pickUp && trait2(w, 35 /* CLEVEL */) < 20) leash = trait2(w, 35 /* CLEVEL */) * 3 + 9;
-  if (!pickUp && trait2(w, 105 /* CDEPTH */) >= trait2(w, 35 /* CLEVEL */) - 5)
-    leash = trait2(w, 35 /* CLEVEL */) * 3 + 9;
+  if (pickUp && trait(w, 35 /* CLEVEL */) < 20) leash = trait(w, 35 /* CLEVEL */) * 3 + 9;
+  if (!pickUp && trait(w, 105 /* CDEPTH */) >= trait(w, 35 /* CLEVEL */) - 5)
+    leash = trait(w, 35 /* CLEVEL */) * 3 + 9;
   if (w.self.timesTwitch > 21) leash += w.self.timesTwitch;
   return leash;
 }
@@ -3848,7 +3930,7 @@ function borgFlowReverse(ctx, flow, depth, optimize, avoid, tunneling, stairIdx,
 }
 function borgFlowFarFromStairsDist(ctx, flow, x, y, bStair, dist4) {
   const w = ctx.world;
-  if (trait2(w, 105 /* CDEPTH */) >= trait2(w, 35 /* CLEVEL */) - 5 && trait2(w, 35 /* CLEVEL */) < 20) {
+  if (trait(w, 105 /* CDEPTH */) >= trait(w, 35 /* CLEVEL */) - 5 && trait(w, 35 /* CLEVEL */) < 20) {
     const cost = borgFlowCostStair(ctx, flow, y, x, bStair);
     if (cost > dist4) return true;
   }
@@ -3871,14 +3953,14 @@ function nearestUpStair(ctx, flow) {
 }
 function borgHappyGridBold(ctx, flow, y, x) {
   const w = ctx.world;
-  const fl = (yy, xx) => borgCaveFloorBold2(w, yy, xx);
+  const fl = (yy, xx) => borgCaveFloorBold(w, yy, xx);
   if (y >= AUTO_MAX_Y - 2 || y <= 2 || x >= AUTO_MAX_X - 2 || x <= 2) return false;
   const ag = w.map.at(x, y);
   if (ag.feat === FEAT.LESS) return true;
   if (ag.feat === FEAT.MORE) return true;
   if (ag.glyph) return true;
-  if (ag.feat === FEAT.LAVA && !trait2(w, 64 /* IFIRE */)) return false;
-  if (trait2(w, 108 /* ISWEAK */) || trait2(w, 26 /* LIGHT */) === 0) return false;
+  if (ag.feat === FEAT.LAVA && !trait(w, 64 /* IFIRE */)) return false;
+  if (trait(w, 108 /* ISWEAK */) || trait(w, 26 /* LIGHT */) === 0) return false;
   if (w.clock - flow.borgBegan >= 2e3) return false;
   if (fl(y - 1, x) && fl(y + 1, x) && !fl(y, x - 1) && !fl(y, x + 1) && !fl(y + 1, x - 1) && !fl(y + 1, x + 1) && !fl(y - 1, x - 1) && !fl(y - 1, x + 1))
     return true;
@@ -3897,41 +3979,59 @@ function borgHappyGridBold(ctx, flow, y, x) {
 }
 function borgCheckRest(ctx, flow, y, x) {
   const w = ctx.world;
-  if (w.map.at(x, y).feat === FEAT.LAVA && !trait2(w, 64 /* IFIRE */)) return false;
-  if (flow.hooks.danger(w, y, x) > Math.trunc(trait2(w, 27 /* CURHP */) / 40) && trait2(w, 105 /* CDEPTH */) >= 85)
+  const t = w.self.temp;
+  if ((t.bless || t.hero || t.berserk || t.fastcast || t.regen || t.smiteEvil) && !w.self.munchkinMode && trait(w, 27 /* CURHP */) >= Math.trunc(trait(w, 28 /* MAXHP */) * 8 / 10) && trait(w, 30 /* CURSP */) >= Math.trunc(trait(w, 31 /* MAXSP */) * 7 / 10))
     return false;
-  if ((trait2(w, 26 /* LIGHT */) === 0 || trait2(w, 108 /* ISWEAK */) || trait2(w, 39 /* FOOD */) < 2) && !w.self.munchkinMode)
+  if (w.self.noRestPrep >= 1 && !w.self.munchkinMode && trait(w, 30 /* CURSP */) > Math.trunc(trait(w, 31 /* MAXSP */) / 4) && trait(w, 105 /* CDEPTH */) < 85)
     return false;
-  for (const [, kill] of w.kills.entries()) {
+  if (w.map.at(x, y).feat === FEAT.LAVA && !trait(w, 64 /* IFIRE */)) return false;
+  const fear = getFearCaches(w);
+  if (fear.region(y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 20) && trait(w, 105 /* CDEPTH */) !== 100)
+    return false;
+  if (fear.monsters(y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 10) && trait(w, 105 /* CDEPTH */) !== 100)
+    return false;
+  if (flow.hooks.danger(w, y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 40) && trait(w, 105 /* CDEPTH */) >= 85)
+    return false;
+  if ((trait(w, 26 /* LIGHT */) === 0 || trait(w, 108 /* ISWEAK */) || trait(w, 39 /* FOOD */) < 2) && !w.self.munchkinMode)
+    return false;
+  for (const [i, kill] of w.kills.entries()) {
     const x9 = kill.pos.x;
     const y9 = kill.pos.y;
     const ax = Math.abs(x9 - x);
     const ay = Math.abs(y9 - y);
     const d = Math.max(ax, ay);
+    const has2 = (f) => flow.hooks.monsterHasFlag(w, i, f);
     if (d > 20) continue;
+    if (d < 2 && !has2("NEVER_MOVE")) return false;
     if (d === 1) return false;
+    if (d < 10 && has2("MULTIPLY")) return false;
     if (!kill.awake && d > 8 && !w.self.munchkinMode) continue;
-    const p = flow.hooks.danger(w, y9, x9);
+    const p = flow.hooks.dangerOneKill(w, y9, x9, i);
     if (d < 5 && p > Math.trunc(flow.avoidance / 3) && !w.self.munchkinMode)
       return false;
+    if (flow.hooks.los(w, y9, x9, y, x) && kill.rangedAttack) return false;
+    if (w.self.munchkinMode && flow.hooks.los(w, y9, x9, y, x) && kill.awake && !has2("NEVER_MOVE"))
+      return false;
+    if (has2("PASS_WALL")) return false;
+    if (has2("KILL_WALL")) return false;
   }
   return true;
 }
 function borgFlowRecover(ctx, flow, dist4) {
   const w = ctx.world;
   if (w.self.timeThisPanel > 500) return null;
-  if (trait2(w, 35 /* CLEVEL */) <= 5) return null;
-  const caster = trait2(w, 31 /* MAXSP */) > 0;
+  if (trait(w, 35 /* CLEVEL */) <= 5) return null;
+  const caster = trait(w, 31 /* MAXSP */) > 0;
   if (caster) {
-    if (trait2(w, 27 /* CURHP */) > Math.trunc(trait2(w, 28 /* MAXHP */) / 3) && (trait2(w, 30 /* CURSP */) > Math.trunc(trait2(w, 31 /* MAXSP */) / 4) || trait2(w, 31 /* MAXSP */) === 0) && !trait2(w, 116 /* ISCUT */) && !trait2(w, 117 /* ISSTUN */) && !trait2(w, 118 /* ISHEAVYSTUN */) && !trait2(w, 113 /* ISAFRAID */))
+    if (trait(w, 27 /* CURHP */) > Math.trunc(trait(w, 28 /* MAXHP */) / 3) && (trait(w, 30 /* CURSP */) > Math.trunc(trait(w, 31 /* MAXSP */) / 4) || trait(w, 31 /* MAXSP */) === 0) && !trait(w, 116 /* ISCUT */) && !trait(w, 117 /* ISSTUN */) && !trait(w, 118 /* ISHEAVYSTUN */) && !trait(w, 113 /* ISAFRAID */))
       return null;
   } else {
-    if (trait2(w, 27 /* CURHP */) > Math.trunc(trait2(w, 28 /* MAXHP */) / 3) && !trait2(w, 116 /* ISCUT */) && !trait2(w, 117 /* ISSTUN */) && !trait2(w, 118 /* ISHEAVYSTUN */) && !trait2(w, 113 /* ISAFRAID */))
+    if (trait(w, 27 /* CURHP */) > Math.trunc(trait(w, 28 /* MAXHP */) / 3) && !trait(w, 116 /* ISCUT */) && !trait(w, 117 /* ISSTUN */) && !trait(w, 118 /* ISHEAVYSTUN */) && !trait(w, 113 /* ISAFRAID */))
       return null;
   }
   if (w.self.goal.fleeing) return null;
   if (w.self.lunalMode || w.self.munchkinMode) return null;
-  if (trait2(w, 109 /* ISHUNGRY */)) return null;
+  if (trait(w, 109 /* ISHUNGRY */)) return null;
   flow.tempN = 0;
   for (let y = w.self.c.y - 25; y < w.self.c.y + 25; y++) {
     for (let x = w.self.c.x - 25; x < w.self.c.x + 25; x++) {
@@ -3959,7 +4059,7 @@ function borgFlowRecover(ctx, flow, dist4) {
 function borgFlowVein(ctx, flow, viewable, nearness) {
   const w = ctx.world;
   if (!flow.vein.num) return null;
-  if (trait2(w, 45 /* GOLD */) >= 1e5) return null;
+  if (trait(w, 45 /* GOLD */) >= 1e5) return null;
   let minFeat = FEAT.QUARTZ_K;
   if (w.self.timesTwitch > 21) minFeat = FEAT.MAGMA_K;
   if (!borgCanDig(ctx, flow, true, minFeat)) return null;
@@ -3973,7 +4073,7 @@ function borgFlowVein(ctx, flow, viewable, nearness) {
     const ag = w.map.at(x, y);
     if (viewable && !(ag.info & BORG_VIEW)) continue;
     borgFlowClear(flow);
-    if (nearness > 5 && trait2(w, 35 /* CLEVEL */) < 20) {
+    if (nearness > 5 && trait(w, 35 /* CLEVEL */) < 20) {
       const cost = borgFlowCostStair(ctx, flow, y, x, bStair);
       if (cost > leash) continue;
     }
@@ -3992,7 +4092,7 @@ function borgFlowVein(ctx, flow, viewable, nearness) {
 }
 function borgFlowShopEntry(ctx, flow, i) {
   const w = ctx.world;
-  if (trait2(w, 105 /* CDEPTH */)) return null;
+  if (trait(w, 105 /* CDEPTH */)) return null;
   const x = flow.shopX[i];
   const y = flow.shopY[i];
   if (!x || !y) return null;
@@ -4039,8 +4139,8 @@ function borgFlowVault(ctx, flow, nearness) {
         if (!canDigHard || feat !== FEAT.GRANITE) continue;
       }
       for (let i = 0; i < 8; i++) {
-        const bx = x + ddx_ddd2[i];
-        const by = y + ddy_ddd2[i];
+        const bx = x + ddx_ddd[i];
+        const by = y + ddy_ddd[i];
         if (!inBoundsFully(bx, by)) continue;
         if (w.map.at(bx, by).feat !== FEAT.PERM) continue;
         flow.tempX[flow.tempN] = x;
@@ -4059,9 +4159,9 @@ function borgFlowVault(ctx, flow, nearness) {
 }
 function borgFlowSpastic(ctx, flow, bored) {
   const w = ctx.world;
-  if (!trait2(w, 105 /* CDEPTH */)) return null;
-  if (trait2(w, 108 /* ISWEAK */)) return null;
-  if (w.clock - flow.borgBegan > 3e3 && flow.avoidance <= trait2(w, 27 /* CURHP */)) return null;
+  if (!trait(w, 105 /* CDEPTH */)) return null;
+  if (trait(w, 108 /* ISWEAK */)) return null;
+  if (w.clock - flow.borgBegan > 3e3 && flow.avoidance <= trait(w, 27 /* CURHP */)) return null;
   if (!bored) {
     const p = flow.hooks.danger(w, w.self.c.y, w.self.c.x);
     if (p > Math.trunc(flow.avoidance / 4)) return null;
@@ -4079,8 +4179,8 @@ function borgFlowSpastic(ctx, flow, bored) {
     flow.spasticX = 0;
     flow.spasticY = 0;
     for (let i = 0; i < 9; i++) {
-      const xx = w.self.c.x + ddx_ddd2[i];
-      const yy = w.self.c.y + ddy_ddd2[i];
+      const xx = w.self.c.x + ddx_ddd[i];
+      const yy = w.self.c.y + ddy_ddd[i];
       if (!w.map.inBounds(xx, yy)) continue;
       const g = w.map.at(xx, yy);
       if (g.xtra < 100) g.xtra += 5;
@@ -4096,21 +4196,21 @@ function borgFlowSpastic(ctx, flow, bored) {
       const ag = w.map.at(x, y);
       if (ag.feat === FEAT.NONE) continue;
       if (ag.trap) continue;
-      if (!borgCaveFloorGrid2(ag)) continue;
+      if (!borgCaveFloorGrid(ag)) continue;
       const cost = flow.cost[dataIdx(x, y)];
       if (cost >= 250) continue;
-      if (cost >= 25 && trait2(w, 35 /* CLEVEL */) < 30) continue;
+      if (cost >= 25 && trait(w, 35 /* CLEVEL */) < 30) continue;
       if (cost >= 50) continue;
       if (ag.xtra >= 50) continue;
-      if (ag.xtra >= trait2(w, 35 /* CLEVEL */)) continue;
+      if (ag.xtra >= trait(w, 35 /* CLEVEL */)) continue;
       if (!bored && ag.xtra > 5) continue;
-      if (bStair !== -1 && trait2(w, 35 /* CLEVEL */) < 15 && flow.avoidance <= trait2(w, 27 /* CURHP */)) {
+      if (bStair !== -1 && trait(w, 35 /* CLEVEL */) < 15 && flow.avoidance <= trait(w, 27 /* CURHP */)) {
         const j = distance2(flow.less.x[bStair], flow.less.y[bStair], x, y);
         const bj = distance2(w.self.c.x, w.self.c.y, flow.less.x[bStair], flow.less.y[bStair]);
-        if (bj <= trait2(w, 35 /* CLEVEL */) * 3 + 9 && j >= trait2(w, 35 /* CLEVEL */) * 3 + 9) continue;
-        if (trait2(w, 35 /* CLEVEL */) <= 3 && bj <= trait2(w, 35 /* CLEVEL */) + 9 && j >= trait2(w, 35 /* CLEVEL */) + 9) continue;
-        if (trait2(w, 35 /* CLEVEL */) <= 3 && j >= trait2(w, 35 /* CLEVEL */) + 5) continue;
-        if (trait2(w, 35 /* CLEVEL */) <= 10 && j >= trait2(w, 35 /* CLEVEL */) + 9) continue;
+        if (bj <= trait(w, 35 /* CLEVEL */) * 3 + 9 && j >= trait(w, 35 /* CLEVEL */) * 3 + 9) continue;
+        if (trait(w, 35 /* CLEVEL */) <= 3 && bj <= trait(w, 35 /* CLEVEL */) + 9 && j >= trait(w, 35 /* CLEVEL */) + 9) continue;
+        if (trait(w, 35 /* CLEVEL */) <= 3 && j >= trait(w, 35 /* CLEVEL */) + 5) continue;
+        if (trait(w, 35 /* CLEVEL */) <= 10 && j >= trait(w, 35 /* CLEVEL */) + 9) continue;
       }
       let wall = 0;
       let supp = 0;
@@ -4118,13 +4218,13 @@ function borgFlowSpastic(ctx, flow, bored) {
       let monsters = 0;
       const feats = [];
       for (let i = 0; i < 8; i++) {
-        const xx = x + ddx_ddd2[i];
-        const yy = y + ddy_ddd2[i];
+        const xx = x + ddx_ddd[i];
+        const yy = y + ddy_ddd[i];
         feats[i] = w.map.inBounds(xx, yy) ? w.map.at(xx, yy).feat : FEAT.GRANITE;
       }
       const killAt2 = (i) => {
-        const xx = x + ddx_ddd2[i];
-        const yy = y + ddy_ddd2[i];
+        const xx = x + ddx_ddd[i];
+        const yy = y + ddy_ddd[i];
         return w.map.inBounds(xx, yy) ? w.map.at(xx, yy).kill : 0;
       };
       for (let i = 0; i < 4; i++) if (feats[i] >= FEAT.GRANITE) wall++;
@@ -4144,7 +4244,7 @@ function borgFlowSpastic(ctx, flow, bored) {
       for (let i = 0; i < 8; i++) if (killAt2(i)) monsters++;
       if (monsters >= 1) continue;
       let v = supp * 500 + diag * 100 - ag.xtra * 40 - cost * 2 - (w.clock - flow.borgBegan);
-      v -= (50 - trait2(w, 35 /* CLEVEL */)) * 5;
+      v -= (50 - trait(w, 35 /* CLEVEL */)) * 5;
       if (v <= 0) continue;
       if (!bored && v < 1500) continue;
       if (bV >= 0 && v < bV) continue;
@@ -4179,7 +4279,7 @@ function borgTwitchy(ctx, flow) {
     if (!inBoundsFully(gx, gy)) continue;
     const grid = w.map.at(gx, gy);
     if (grid.feat >= FEAT.SECRET && grid.feat <= FEAT.PERM) continue;
-    if (grid.kill && trait2(w, 113 /* ISAFRAID */)) continue;
+    if (grid.kill && trait(w, 113 /* ISAFRAID */)) continue;
     break;
   }
   if (!count) {
@@ -4191,9 +4291,9 @@ function borgTwitchy(ctx, flow) {
       if (!inBoundsFully(lx, ly)) continue;
       const grid = w.map.at(lx, ly);
       if (grid.feat >= FEAT.SECRET && grid.feat <= FEAT.PERM) {
-        if (!trait2(w, 113 /* ISAFRAID */) || grid.feat === FEAT.PERM) continue;
+        if (!trait(w, 113 /* ISAFRAID */) || grid.feat === FEAT.PERM) continue;
       }
-      if (grid.kill && trait2(w, 113 /* ISAFRAID */)) continue;
+      if (grid.kill && trait(w, 113 /* ISAFRAID */)) continue;
       allWalls = false;
       break;
     }
@@ -4201,7 +4301,7 @@ function borgTwitchy(ctx, flow) {
       return ctx.act.rest();
     }
   }
-  if (trait2(w, 113 /* ISAFRAID */)) return ctx.act.tunnel(dir);
+  if (trait(w, 113 /* ISAFRAID */)) return ctx.act.tunnel(dir);
   return ctx.act.move(dir);
 }
 
@@ -4209,11 +4309,11 @@ function borgTwitchy(ctx, flow) {
 var QUIVER_SLOT_SIZE = 40;
 function borgFlowTake(ctx, flow, viewable, nearness) {
   const w = ctx.world;
-  const fullQuiver = trait2(w, 53 /* FAST_SHOTS */) ? (QUIVER_SLOT_SIZE - 1) * 2 : QUIVER_SLOT_SIZE - 1;
+  const fullQuiver = trait(w, 53 /* FAST_SHOTS */) ? (QUIVER_SLOT_SIZE - 1) * 2 : QUIVER_SLOT_SIZE - 1;
   if (!w.takes.count || w.takes.count <= 1) return null;
   if (flow.hooks.packFull(w)) return null;
   if (w.facts.scaryGuyOnLevel) return null;
-  if (!trait2(w, 26 /* LIGHT */)) return null;
+  if (!trait(w, 26 /* LIGHT */)) return null;
   if (flow.borgMorgothPosition) return null;
   flow.tempN = 0;
   syncStairsFromMap(ctx, flow);
@@ -4223,17 +4323,17 @@ function borgFlowTake(ctx, flow, viewable, nearness) {
   for (const [, take] of w.takes.entries()) {
     const x = take.pos.x;
     const y = take.pos.y;
-    if (bStair !== -1 && trait2(w, 35 /* CLEVEL */) < 10) {
+    if (bStair !== -1 && trait(w, 35 /* CLEVEL */) < 10) {
       const j = distance2(flow.less.x[bStair], flow.less.y[bStair], x, y);
       if (j !== 255 && bJ <= leash && j >= leash) continue;
     }
     if (!take.wanted) continue;
     const ag = w.map.at(x, y);
     if (viewable && !(ag.info & BORG_VIEW)) continue;
-    if (take.tval === trait2(w, 152 /* AMMO_TVAL */) && trait2(w, 155 /* AMISSILES */) >= fullQuiver)
+    if (take.tval === trait(w, 152 /* AMMO_TVAL */) && trait(w, 155 /* AMISSILES */) >= fullQuiver)
       continue;
     borgFlowClear(flow);
-    if (nearness > 5 && trait2(w, 35 /* CLEVEL */) < 20 && borgFlowCostStair(ctx, flow, y, x, bStair) > leash)
+    if (nearness > 5 && trait(w, 35 /* CLEVEL */) < 20 && borgFlowCostStair(ctx, flow, y, x, bStair) > leash)
       continue;
     flow.tempX[flow.tempN] = x;
     flow.tempY[flow.tempN] = y;
@@ -4280,10 +4380,10 @@ function borgFlowTakeScum(ctx, flow, viewable, nearness) {
 function borgFlowKill(ctx, flow, viewable, nearness) {
   const w = ctx.world;
   if (!w.kills.count || w.kills.count <= 1) return null;
-  if (trait2(w, 105 /* CDEPTH */) === 0 && trait2(w, 35 /* CLEVEL */) < 20) return null;
-  if ((trait2(w, 25 /* CLASS */) === 1 || trait2(w, 25 /* CLASS */) === 4) && trait2(w, 35 /* CLEVEL */) < (trait2(w, 105 /* CDEPTH */) ? 35 : 25))
+  if (trait(w, 105 /* CDEPTH */) === 0 && trait(w, 35 /* CLEVEL */) < 20) return null;
+  if ((trait(w, 25 /* CLASS */) === 1 || trait(w, 25 /* CLASS */) === 4) && trait(w, 35 /* CLEVEL */) < (trait(w, 105 /* CDEPTH */) ? 35 : 25))
     return null;
-  if (trait2(w, 109 /* ISHUNGRY */) || trait2(w, 108 /* ISWEAK */) || trait2(w, 39 /* FOOD */) === 0)
+  if (trait(w, 109 /* ISHUNGRY */) || trait(w, 108 /* ISWEAK */) || trait(w, 39 /* FOOD */) === 0)
     return null;
   if (flow.borgMorgothPosition) return null;
   flow.tempN = 0;
@@ -4309,27 +4409,27 @@ function borgFlowKill(ctx, flow, viewable, nearness) {
     const ay = Math.abs(y9 - w.self.c.y);
     const d = Math.max(ax, ay);
     let skipMonster = false;
-    if (d === 1 && (trait2(w, 113 /* ISAFRAID */) || trait2(w, 186 /* CRSFEAR */))) continue;
-    if (w.self.goal.ignoring && !trait2(w, 113 /* ISAFRAID */) && flow.hooks.monsterHasFlag(w, ki, "MULTIPLY"))
+    if (d === 1 && (trait(w, 113 /* ISAFRAID */) || trait(w, 186 /* CRSFEAR */))) continue;
+    if (w.self.goal.ignoring && !trait(w, 113 /* ISAFRAID */) && flow.hooks.monsterHasFlag(w, ki, "MULTIPLY"))
       continue;
-    if (trait2(w, 36 /* MAXCLEVEL */) < 10 && flow.hooks.monsterHasFlag(w, ki, "NEVER_MOVE"))
+    if (trait(w, 36 /* MAXCLEVEL */) < 10 && flow.hooks.monsterHasFlag(w, ki, "NEVER_MOVE"))
       continue;
     if (w.facts.scaryGuyOnLevel) continue;
-    if (trait2(w, 35 /* CLEVEL */) < 10 && flow.hooks.monsterHasFlag(w, ki, "MULTIPLY"))
+    if (trait(w, 35 /* CLEVEL */) < 10 && flow.hooks.monsterHasFlag(w, ki, "MULTIPLY"))
       continue;
-    if (flow.hooks.monsterHasFlag(w, ki, "UNIQUE") && trait2(w, 105 /* CDEPTH */) === 0 && trait2(w, 35 /* CLEVEL */) < 5)
+    if (flow.hooks.monsterHasFlag(w, ki, "UNIQUE") && trait(w, 105 /* CDEPTH */) === 0 && trait(w, 35 /* CLEVEL */) < 5)
       continue;
     const x = x9;
     const y = y9;
     const ag = w.map.at(x, y);
     if (viewable && !(ag.info & BORG_VIEW)) continue;
     const p = flow.hooks.danger(w, y, x);
-    if (trait2(w, 35 /* CLEVEL */) > 25 && !flow.hooks.monsterHasFlag(w, ki, "UNIQUE") && p > Math.trunc(flow.avoidance / 2))
+    if (trait(w, 35 /* CLEVEL */) > 25 && !flow.hooks.monsterHasFlag(w, ki, "UNIQUE") && p > Math.trunc(flow.avoidance / 2))
       continue;
-    if (trait2(w, 35 /* CLEVEL */) <= 15 && p > Math.trunc(flow.avoidance / 3)) continue;
-    if (bStair !== -1 && trait2(w, 35 /* CLEVEL */) < 10) {
+    if (trait(w, 35 /* CLEVEL */) <= 15 && p > Math.trunc(flow.avoidance / 3)) continue;
+    if (bStair !== -1 && trait(w, 35 /* CLEVEL */) < 10) {
       const j = distance2(flow.less.x[bStair], flow.less.y[bStair], x, y);
-      if (bJ <= trait2(w, 35 /* CLEVEL */) * 5 + 9 && j >= trait2(w, 35 /* CLEVEL */) * 5 + 9)
+      if (bJ <= trait(w, 35 /* CLEVEL */) * 5 + 9 && j >= trait(w, 35 /* CLEVEL */) * 5 + 9)
         continue;
     }
     if (borgInHall && flow.hooks.monsterHasFlag(w, ki, "GROUP_AI")) {
@@ -4364,7 +4464,7 @@ function borgFlowKillAim(ctx, flow, viewable) {
   const w = ctx.world;
   if (!w.kills.count || w.kills.count <= 1) return null;
   if (w.self.timeThisPanel > 500) return null;
-  if (trait2(w, 109 /* ISHUNGRY */) || trait2(w, 108 /* ISWEAK */) || trait2(w, 39 /* FOOD */) === 0) return null;
+  if (trait(w, 109 /* ISHUNGRY */) || trait(w, 108 /* ISWEAK */) || trait(w, 39 /* FOOD */) === 0) return null;
   if (flow.hooks.hasDistanceAttack(w)) return null;
   const sy = w.self.c.y;
   const sx = w.self.c.x;
@@ -4435,10 +4535,10 @@ function borgFlowKillCorridor(ctx, flow) {
   if (!w.kills.count || w.kills.count <= 1) return null;
   const summoner = w.kills.summoner;
   if (summoner <= 0 || !w.kills.has(summoner)) return null;
-  if (trait2(w, 109 /* ISHUNGRY */) || trait2(w, 108 /* ISWEAK */)) return null;
+  if (trait(w, 109 /* ISHUNGRY */) || trait(w, 108 /* ISWEAK */)) return null;
   if (w.self.timeThisPanel > 500) return null;
-  if (trait2(w, 114 /* ISCONFUSED */)) return null;
-  if (trait2(w, 26 /* LIGHT */) === 0) return null;
+  if (trait(w, 114 /* ISCONFUSED */)) return null;
+  if (trait(w, 26 /* LIGHT */) === 0) return null;
   if (flow.borgMorgothPosition) return null;
   if (flow.borgAsPosition) return null;
   const kill = w.kills.at(summoner);
@@ -4552,12 +4652,12 @@ function borgFlowKillCorridor(ctx, flow) {
 function borgFlowKillDirect(ctx, flow, twitchy) {
   const w = ctx.world;
   if (!borgCanDig(ctx, flow, false, FEAT.GRANITE)) return null;
-  if (!twitchy && (trait2(w, 109 /* ISHUNGRY */) || trait2(w, 108 /* ISWEAK */) || trait2(w, 39 /* FOOD */) === 0))
+  if (!twitchy && (trait(w, 109 /* ISHUNGRY */) || trait(w, 108 /* ISWEAK */) || trait(w, 39 /* FOOD */) === 0))
     return null;
   if (!twitchy && w.clock - flow.borgBegan < 3e3 && w.self.timesTwitch < 5)
     return null;
-  if (trait2(w, 114 /* ISCONFUSED */)) return null;
-  if (trait2(w, 26 /* LIGHT */) === 0) return null;
+  if (trait(w, 114 /* ISCONFUSED */)) return null;
+  if (trait(w, 26 /* LIGHT */) === 0) return null;
   let bI = -1;
   let bD = 20;
   if (w.kills.count > 1) {
@@ -4582,6 +4682,95 @@ function borgFlowKillDirect(ctx, flow, twitchy) {
   if (!borgFlowCommit(ctx, flow, GOAL_DIGGING)) return null;
   return borgFlowOld(ctx, flow, GOAL_DIGGING);
 }
+function killWouldBeVisible(ctx, flow, killIndex, y, x) {
+  const w = ctx.world;
+  const has2 = (f) => flow.hooks.monsterHasFlag(w, killIndex, f);
+  const d = distance2(w.self.c.x, w.self.c.y, x, y);
+  if (d > (ctx.view.constants().maxSight ?? 20)) return false;
+  if (!w.map.inBounds(x, y)) return false;
+  const ag = w.map.at(x, y);
+  if (ag.info & BORG_VIEW) {
+    if (ag.info & (BORG_LIGHT | BORG_GLOW)) {
+      if (trait(w, 51 /* SINV */) || w.self.temp.seeInv) return true;
+      if (!has2("INVISIBLE")) return true;
+    }
+    if (d <= trait(w, 52 /* INFRA */) && !has2("COLD_BLOOD")) return true;
+  }
+  if (trait(w, 37 /* ESP */)) {
+    if (has2("EMPTY_MIND")) return false;
+    if (has2("WEIRD_MIND")) return false;
+    return true;
+  }
+  return false;
+}
+function borgFollowKill(ctx, flow, i) {
+  const w = ctx.world;
+  const kill = w.kills.at(i);
+  const ox = kill.pos.x;
+  const oy = kill.pos.y;
+  const has2 = (f) => flow.hooks.monsterHasFlag(w, i, f);
+  if (!killWouldBeVisible(ctx, flow, i, oy, ox)) return;
+  if (!borgCaveFloorBold(w, oy, ox)) {
+    w.kills.delete(i);
+    return;
+  }
+  if (w.clock > 2e4) {
+    w.kills.delete(i);
+    return;
+  }
+  if (has2("NEVER_MOVE") || !kill.awake) {
+    if (oy === w.self.c.y && ox === w.self.c.x) w.kills.delete(i);
+    return;
+  }
+  let bDx = 0;
+  let bDy = 0;
+  for (let j = 0; j < 8; j++) {
+    const dx = ddx_ddd[j];
+    const dy = ddy_ddd[j];
+    const x = ox + dx;
+    const y = oy + dy;
+    if (!inBoundsFully(x, y)) continue;
+    if (!borgCaveFloorBold(w, y, x)) continue;
+    if (w.map.at(x, y).kill) continue;
+    if (killWouldBeVisible(ctx, flow, i, y, x)) continue;
+    bDx += dx;
+    bDy += dy;
+  }
+  bDx = Math.max(-1, Math.min(1, bDx));
+  bDy = Math.max(-1, Math.min(1, bDy));
+  const nx = ox + bDx;
+  const ny = oy + bDy;
+  if (!w.map.inBounds(nx, ny) || !borgCaveFloorBold(w, ny, nx)) {
+    w.kills.delete(i);
+    return;
+  }
+  if (w.map.at(nx, ny).kill !== i) {
+    w.kills.delete(i);
+    return;
+  }
+  if (ny === oy && nx === ox) {
+    w.kills.delete(i);
+    return;
+  }
+  w.map.at(kill.pos.x, kill.pos.y).kill = 0;
+  kill.ox = ox;
+  kill.oy = oy;
+  kill.pos.x = nx;
+  kill.pos.y = ny;
+  w.map.at(nx, ny).kill = i;
+  if (!trait(w, 37 /* ESP */) && w.self.goal.type === GOAL_KILL && w.self.goal.g.y === kill.pos.y && w.self.goal.g.x === kill.pos.x) {
+    w.self.goal.type = 0;
+  }
+}
+function borgFollowMissingKills(ctx, flow) {
+  const w = ctx.world;
+  if (trait(w, 112 /* ISBLIND */)) return;
+  for (const [i, kill] of w.kills.entries()) {
+    if (kill.when === w.clock) continue;
+    if (kill.seen) continue;
+    borgFollowKill(ctx, flow, i);
+  }
+}
 
 // src/flow/flow-dark.ts
 function borgFlowDarkInteresting(ctx, flow, y, x) {
@@ -4590,14 +4779,14 @@ function borgFlowDarkInteresting(ctx, flow, y, x) {
   if (ag.feat === FEAT.NONE) return true;
   if (ag.feat < FEAT.SECRET && ag.feat !== FEAT.CLOSED) return false;
   if (ag.feat === FEAT.MAGMA_K || ag.feat === FEAT.QUARTZ_K) {
-    if (trait2(w, 114 /* ISCONFUSED */)) return false;
-    if (trait2(w, 45 /* GOLD */) >= 1e5) return false;
-    if (trait2(w, 26 /* LIGHT */) === 0) return false;
+    if (trait(w, 114 /* ISCONFUSED */)) return false;
+    if (trait(w, 45 /* GOLD */) >= 1e5) return false;
+    if (trait(w, 26 /* LIGHT */) === 0) return false;
     if (!borgCanDig(ctx, flow, false, ag.feat)) return false;
     return true;
   }
   if (ag.feat === FEAT.GRANITE || ag.feat === FEAT.MAGMA || ag.feat === FEAT.QUARTZ) {
-    if (trait2(w, 114 /* ISCONFUSED */)) return false;
+    if (trait(w, 114 /* ISCONFUSED */)) return false;
     if (!w.facts.vaultOnLevel) return false;
     if (!borgCanDig(ctx, flow, false, ag.feat)) return false;
     if (x < AUTO_MAX_X - 1 && y < AUTO_MAX_Y - 1 && x > 1 && y > 1) {
@@ -4608,7 +4797,7 @@ function borgFlowDarkInteresting(ctx, flow, y, x) {
       }
     }
   }
-  if (ag.feat === FEAT.RUBBLE && !trait2(w, 108 /* ISWEAK */)) return true;
+  if (ag.feat === FEAT.RUBBLE && !trait(w, 108 /* ISWEAK */)) return true;
   if (ag.feat === FEAT.CLOSED) {
     if (w.facts.breederLevel) {
       for (let i = 0; i < flow.door.num; i++) {
@@ -4618,16 +4807,16 @@ function borgFlowDarkInteresting(ctx, flow, y, x) {
     return true;
   }
   if (featIsTrapHolding(ag.feat)) {
-    if (trait2(w, 112 /* ISBLIND */)) return false;
-    if (trait2(w, 114 /* ISCONFUSED */)) return false;
-    if (trait2(w, 120 /* ISIMAGE */)) return false;
-    if (trait2(w, 26 /* LIGHT */) === 0) return false;
-    if (trait2(w, 105 /* CDEPTH */) === 99 && ag.trap && !ag.glyph) return false;
-    if (trait2(w, 27 /* CURHP */) < 60) return false;
-    if (trait2(w, 54 /* DISP */) < 30 && trait2(w, 35 /* CLEVEL */) < 20) return false;
-    if (trait2(w, 54 /* DISP */) < 45 && trait2(w, 35 /* CLEVEL */) < 10) return false;
-    if (trait2(w, 55 /* DISM */) < 30 && trait2(w, 35 /* CLEVEL */) < 20) return false;
-    if (trait2(w, 55 /* DISM */) < 45 && trait2(w, 35 /* CLEVEL */) < 10) return false;
+    if (trait(w, 112 /* ISBLIND */)) return false;
+    if (trait(w, 114 /* ISCONFUSED */)) return false;
+    if (trait(w, 120 /* ISIMAGE */)) return false;
+    if (trait(w, 26 /* LIGHT */) === 0) return false;
+    if (trait(w, 105 /* CDEPTH */) === 99 && ag.trap && !ag.glyph) return false;
+    if (trait(w, 27 /* CURHP */) < 60) return false;
+    if (trait(w, 54 /* DISP */) < 30 && trait(w, 35 /* CLEVEL */) < 20) return false;
+    if (trait(w, 54 /* DISP */) < 45 && trait(w, 35 /* CLEVEL */) < 10) return false;
+    if (trait(w, 55 /* DISM */) < 30 && trait(w, 35 /* CLEVEL */) < 20) return false;
+    if (trait(w, 55 /* DISM */) < 45 && trait(w, 35 /* CLEVEL */) < 10) return false;
     if (w.facts.scaryGuyOnLevel) return false;
     return true;
   }
@@ -4636,12 +4825,12 @@ function borgFlowDarkInteresting(ctx, flow, y, x) {
 function borgFlowDarkReachable(ctx, y, x) {
   const w = ctx.world;
   for (let j = 0; j < 8; j++) {
-    const y2 = y + ddy_ddd2[j];
-    const x2 = x + ddx_ddd2[j];
+    const y2 = y + ddy_ddd[j];
+    const x2 = x + ddx_ddd[j];
     if (!w.map.inBounds(x2, y2)) continue;
     const ag = w.map.at(x2, y2);
     if (ag.feat === FEAT.NONE) continue;
-    if (borgCaveFloorGrid2(ag)) return true;
+    if (borgCaveFloorGrid(ag)) return true;
   }
   return false;
 }
@@ -4681,13 +4870,13 @@ function borgFlowDirect(ctx, flow, y, x) {
     }
     if (!(cx >= 0 && cy >= 0 && cx < AUTO_MAX_X && cy < AUTO_MAX_Y)) return;
     const ag = w.map.at(cx, cy);
-    if (!borgCaveFloorGrid2(ag) || ag.feat === FEAT.LAVA && !trait2(w, 64 /* IFIRE */)) return;
-    if (ag.trap && flow.avoidance <= trait2(w, 27 /* CURHP */) && !w.facts.scaryGuyOnLevel) {
-      if (trait2(w, 27 /* CURHP */) < 60) return;
-      if (trait2(w, 54 /* DISP */) < 30 && trait2(w, 35 /* CLEVEL */) < 20) return;
-      if (trait2(w, 54 /* DISP */) < 45 && trait2(w, 35 /* CLEVEL */) < 10) return;
-      if (trait2(w, 55 /* DISM */) < 30 && trait2(w, 35 /* CLEVEL */) < 20) return;
-      if (trait2(w, 55 /* DISM */) < 45 && trait2(w, 35 /* CLEVEL */) < 10) return;
+    if (!borgCaveFloorGrid(ag) || ag.feat === FEAT.LAVA && !trait(w, 64 /* IFIRE */)) return;
+    if (ag.trap && flow.avoidance <= trait(w, 27 /* CURHP */) && !w.facts.scaryGuyOnLevel) {
+      if (trait(w, 27 /* CURHP */) < 60) return;
+      if (trait(w, 54 /* DISP */) < 30 && trait(w, 35 /* CLEVEL */) < 20) return;
+      if (trait(w, 54 /* DISP */) < 45 && trait(w, 35 /* CLEVEL */) < 10) return;
+      if (trait(w, 55 /* DISM */) < 30 && trait(w, 35 /* CLEVEL */) < 20) return;
+      if (trait(w, 55 /* DISM */) < 45 && trait(w, 35 /* CLEVEL */) < 10) return;
     }
     if (flow.icky[dataIdx(cx, cy)]) return;
     if (!flow.know[dataIdx(cx, cy)]) {
@@ -4730,7 +4919,7 @@ function collectLightGrids(ctx) {
 }
 function borgFlowDark1(ctx, flow, bStair) {
   const w = ctx.world;
-  if (!trait2(w, 105 /* CDEPTH */)) return null;
+  if (!trait(w, 105 /* CDEPTH */)) return null;
   flow.tempN = 0;
   for (const [x, y] of collectLightGrids(ctx)) {
     if (!borgFlowDarkInteresting(ctx, flow, y, x)) continue;
@@ -4748,12 +4937,12 @@ function borgFlowDark1(ctx, flow, bStair) {
 }
 function borgFlowDark2(ctx, flow, bStair) {
   const w = ctx.world;
-  if (!trait2(w, 105 /* CDEPTH */)) return null;
-  const r = trait2(w, 26 /* LIGHT */) + 1;
+  if (!trait(w, 105 /* CDEPTH */)) return null;
+  const r = trait(w, 26 /* LIGHT */) + 1;
   flow.tempN = 0;
   for (let i = 0; i < 4; i++) {
-    const y = w.self.c.y + ddy_ddd2[i] * r;
-    const x = w.self.c.x + ddx_ddd2[i] * r;
+    const y = w.self.c.y + ddy_ddd[i] * r;
+    const x = w.self.c.x + ddx_ddd[i] * r;
     if (y < 1 || x < 1 || y > AUTO_MAX_Y - 2 || x > AUTO_MAX_X - 2) continue;
     const ag = w.map.at(x, y);
     if (ag.feat !== FEAT.NONE) continue;
@@ -4772,7 +4961,7 @@ function borgFlowDark2(ctx, flow, bStair) {
 }
 function borgFlowDark3(ctx, flow, bStair) {
   const w = ctx.world;
-  if (!trait2(w, 105 /* CDEPTH */)) return null;
+  if (!trait(w, 105 /* CDEPTH */)) return null;
   let y1 = w.self.c.y - 4;
   let x1 = w.self.c.x - 4;
   let y2 = w.self.c.y + 4;
@@ -4803,7 +4992,7 @@ function borgFlowDark3(ctx, flow, bStair) {
 function borgFlowDark4(ctx, flow, bStair) {
   const w = ctx.world;
   const leash = borgGetLeash(ctx, flow, false);
-  if (!trait2(w, 105 /* CDEPTH */)) return null;
+  if (!trait(w, 105 /* CDEPTH */)) return null;
   if (w.facts.vaultOnLevel) return null;
   let y1 = w.self.c.y - 11;
   let x1 = w.self.c.x - 11;
@@ -4833,7 +5022,7 @@ function borgFlowDark4(ctx, flow, bStair) {
   y2++;
   x2++;
   borgFlowBorder(flow, y1, x1, y2, x2, true);
-  if (trait2(w, 35 /* CLEVEL */) < 15) {
+  if (trait(w, 35 /* CLEVEL */) < 15) {
     borgFlowSpread(ctx, flow, leash, true, true, false, -1, false);
   } else {
     borgFlowSpread(ctx, flow, 250, true, true, false, -1, false);
@@ -4845,7 +5034,7 @@ function borgFlowDark4(ctx, flow, bStair) {
 function borgFlowDark5(ctx, flow, bStair) {
   const w = ctx.world;
   const leash = borgGetLeash(ctx, flow, false);
-  if (!trait2(w, 105 /* CDEPTH */)) return null;
+  if (!trait(w, 105 /* CDEPTH */)) return null;
   flow.tempN = 0;
   for (let y = 1; y < AUTO_MAX_Y - 1; y++) {
     for (let x = 1; x < AUTO_MAX_X - 1; x++) {
@@ -4866,9 +5055,9 @@ function borgFlowDark5(ctx, flow, bStair) {
   if (w.self.goal.ignoring || w.facts.scaryGuyOnLevel) flow.borgDangerWipe = true;
   borgFlowClear(flow);
   for (let i = 0; i < flow.tempN; i++) borgFlowEnqueueGrid(ctx, flow, flow.tempY[i], flow.tempX[i]);
-  if (trait2(w, 35 /* CLEVEL */) <= 5 && flow.avoidance <= trait2(w, 27 /* CURHP */)) {
+  if (trait(w, 35 /* CLEVEL */) <= 5 && flow.avoidance <= trait(w, 27 /* CURHP */)) {
     borgFlowSpread(ctx, flow, leash, true, true, false, -1, false);
-  } else if (trait2(w, 35 /* CLEVEL */) <= 30 && flow.avoidance <= trait2(w, 27 /* CURHP */)) {
+  } else if (trait(w, 35 /* CLEVEL */) <= 30 && flow.avoidance <= trait(w, 27 /* CURHP */)) {
     borgFlowSpread(ctx, flow, leash, true, true, false, -1, false);
   } else {
     borgFlowSpread(ctx, flow, 250, true, true, false, -1, false);
@@ -5022,6 +5211,283 @@ function createFlow(hooks = defaultFlowHooks()) {
   };
 }
 
+// src/item/svals.ts
+var SVAL = {
+  /* food (borg-item-val.c:263-273) */
+  food: {
+    apple: 2,
+    ration: 5,
+    slime_mold: 4,
+    draught: 14,
+    pint: 11,
+    sip: 12,
+    waybread: 9,
+    honey_cake: 8,
+    slice: 7,
+    handful: 3
+  },
+  /* mushroom (borg-item-val.c:275-287) */
+  mush: {
+    second_sight: 1,
+    fast_recovery: 2,
+    restoring: 3,
+    /* "Vigor" */
+    mana: 4,
+    /* "Clear Mind" */
+    emergency: 5,
+    terror: 6,
+    stoneskin: 7,
+    debility: 9,
+    sprinting: 10,
+    cure_mind: 4,
+    /* C maps cure_mind -> "Clear Mind" too */
+    purging: 11
+  },
+  /* light (borg-item-val.c:289-291) */
+  light: { lantern: 2, torch: 1 },
+  /* flask (borg-item-val.c:293-295) */
+  flask: { oil: 1 },
+  /* potion (borg-item-val.c:297-338) */
+  potion: {
+    cure_critical: 10,
+    cure_serious: 9,
+    cure_light: 8,
+    healing: 11,
+    star_healing: 12,
+    /* "*Healing*" */
+    life: 13,
+    restore_mana: 15,
+    cure_poison: 14,
+    /* "Neutralize Poison" */
+    resist_heat: 28,
+    resist_cold: 29,
+    resist_pois: 30,
+    inc_str: 1,
+    inc_int: 2,
+    inc_wis: 3,
+    inc_dex: 4,
+    inc_con: 5,
+    inc_all: 6,
+    /* "Augmentation" */
+    inc_str2: 17,
+    /* "Brawn" */
+    inc_int2: 18,
+    /* "Intellect" */
+    inc_wis2: 19,
+    /* "Contemplation" */
+    inc_dex2: 20,
+    /* "Nimbleness" */
+    inc_con2: 21,
+    /* "Toughness" */
+    restore_life: 16,
+    /* "Restore Life Levels" */
+    speed: 24,
+    berserk: 26,
+    /* "Berserk Strength" */
+    sleep: 34,
+    slowness: 38,
+    poison: 37,
+    blindness: 35,
+    confusion: 36,
+    heroism: 25,
+    boldness: 27,
+    detect_invis: 31,
+    /* "True Seeing" */
+    enlightenment: 22,
+    slime_mold: 33,
+    /* "Slime Mold Juice" */
+    infravision: 32,
+    inc_exp: 7
+    /* "Experience" */
+  },
+  /* scroll (borg-item-val.c:340-383) */
+  scroll: {
+    identify: 7,
+    /* "Identify Rune" */
+    phase_door: 1,
+    teleport: 2,
+    /* "Teleportation" */
+    word_of_recall: 24,
+    enchant_armor: 10,
+    /* "Enchant Armour" */
+    enchant_weapon_to_hit: 8,
+    enchant_weapon_to_dam: 9,
+    star_enchant_weapon: 11,
+    /* "*Enchant Weapon*" */
+    star_enchant_armor: 12,
+    /* "*Enchant Armour*" */
+    protection_from_evil: 31,
+    rune_of_protection: 33,
+    teleport_level: 3,
+    deep_descent: 27,
+    recharging: 25,
+    banishment: 20,
+    mass_banishment: 21,
+    blessing: 28,
+    holy_chant: 29,
+    holy_prayer: 30,
+    detect_invis: 6,
+    /* "Detect Invisible" */
+    satisfy_hunger: 22,
+    /* "Remove Hunger" */
+    light: 23,
+    mapping: 4,
+    /* "Magic Mapping" */
+    acquirement: 17,
+    star_acquirement: 18,
+    /* "*Acquirement*" */
+    remove_curse: 13,
+    star_remove_curse: 14,
+    /* "*Remove Curse*" */
+    monster_confusion: 32,
+    trap_door_destruction: 26,
+    /* "Door Destruction" */
+    dispel_undead: 19
+  },
+  /* ring (borg-item-val.c:385-393) */
+  ring: {
+    flames: 12,
+    ice: 14,
+    acid: 13,
+    lightning: 15,
+    digging: 30,
+    speed: 5,
+    damage: 16,
+    dog: 25
+    /* "the Dog" */
+  },
+  /* amulet (borg-item-val.c:395-396) */
+  amulet: { teleportation: 14 },
+  /* rod (borg-item-val.c:398-420) */
+  rod: {
+    recall: 24,
+    detection: 2,
+    illumination: 23,
+    speed: 25,
+    mapping: 3,
+    /* "Magic Mapping" */
+    healing: 16,
+    light: 22,
+    fire_bolt: 5,
+    /* "Fire Bolts" */
+    elec_bolt: 7,
+    /* "Lightning Bolts" */
+    cold_bolt: 6,
+    /* "Frost Bolts" */
+    acid_bolt: 8,
+    /* "Acid Bolts" */
+    drain_life: 19,
+    fire_ball: 9,
+    /* "Fire Balls" */
+    elec_ball: 11,
+    /* "Lightning Balls" */
+    cold_ball: 10,
+    /* "Cold Balls" */
+    acid_ball: 12,
+    /* "Acid Balls" */
+    teleport_other: 20,
+    slow_monster: 13,
+    sleep_monster: 14,
+    /* "Hold Monster" */
+    curing: 15
+  },
+  /* staff (borg-item-val.c:422-440) */
+  staff: {
+    teleportation: 21,
+    destruction: 5,
+    /* "*Destruction*" */
+    speed: 22,
+    healing: 14,
+    the_magi: 24,
+    /* "the Magi" */
+    power: 17,
+    holiness: 18,
+    curing: 12,
+    sleep_monsters: 8,
+    slow_monsters: 7,
+    detect_invis: 9,
+    /* "Detect Invisible" */
+    detect_evil: 10,
+    dispel_evil: 15,
+    banishment: 16,
+    light: 19,
+    mapping: 11,
+    remove_curse: 23
+  },
+  /* wand (borg-item-val.c:442-467). NOTE: two upstream copy/paste quirks are
+   * reproduced: confuse_monster resolves to "Scare Monster" (==fear_monster),
+   * and elec_ball resolves to "Lightning Bolts" (the bolt, not the ball). */
+  wand: {
+    light: 16,
+    teleport_away: 21,
+    /* "Teleport Other" */
+    stinking_cloud: 6,
+    magic_missile: 1,
+    annihilation: 28,
+    stone_to_mud: 17,
+    wonder: 23,
+    hold_monster: 13,
+    slow_monster: 11,
+    fear_monster: 15,
+    /* "Scare Monster" */
+    confuse_monster: 15,
+    /* upstream quirk: also "Scare Monster" */
+    fire_bolt: 4,
+    /* "Fire Bolts" */
+    cold_bolt: 3,
+    /* "Frost Bolts" */
+    acid_bolt: 5,
+    /* "Acid Bolts" */
+    elec_bolt: 2,
+    /* "Lightning Bolts" */
+    fire_ball: 9,
+    /* "Fire Balls" */
+    cold_ball: 8,
+    /* "Cold Balls" */
+    acid_ball: 10,
+    /* "Acid Balls" */
+    elec_ball: 2,
+    /* upstream quirk: "Lightning Bolts" (bolt sval) */
+    dragon_cold: 25,
+    /* "Dragon's Frost" */
+    dragon_fire: 24,
+    /* "Dragon's Flame" */
+    drain_life: 27
+  },
+  /* dragon armor (borg-item-val.c:500-511) */
+  dragon: {
+    black: 1,
+    blue: 2,
+    white: 3,
+    red: 4,
+    green: 5,
+    multihued: 6,
+    shining: 7,
+    law: 8,
+    gold: 9,
+    chaos: 10,
+    balance: 11,
+    power: 12
+  },
+  /* bow (borg-item-val.c:186-191) */
+  bow: {
+    sling: 1,
+    short_bow: 2,
+    long_bow: 3,
+    light_xbow: 4,
+    heavy_xbow: 5
+  }
+};
+function flatSvals() {
+  const out = {};
+  for (const [group, roles] of Object.entries(SVAL)) {
+    for (const [role, sval] of Object.entries(roles)) {
+      out[group === "bow" ? role : `${group}_${role}`] = sval;
+    }
+  }
+  return out;
+}
+
 // src/trait/config.ts
 function defaultCfg() {
   return {
@@ -5070,7 +5536,7 @@ function resolveOpts(opts = {}) {
     spells: opts.spells ?? defaultSpellSeam(),
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? defaultFrame(),
-    svals: opts.svals ?? {}
+    svals: opts.svals ?? flatSvals()
   };
 }
 
@@ -5170,6 +5636,8 @@ function borgNotice(ctx, opts = {}) {
   borgNoticeInventory(c);
   finishNotice(c);
   ctx.world.self.trait = t;
+  const speed = t[44 /* SPEED */] ?? 110;
+  ctx.world.self.gameRatio = speed > 110 ? Math.trunc(1e5 / ((speed - 110) * 10 + 100)) : 1e3;
 }
 function borgNoticePlayer(c) {
   const { t, p } = c;
@@ -6744,266 +7212,6 @@ function borgSimulatePower(ctx, change, opts = {}) {
   borgNotice(simCtx, opts);
   return borgPower(simCtx, opts);
 }
-
-// src/item/svals.ts
-var SVAL = {
-  /* food (borg-item-val.c:263-273) */
-  food: {
-    apple: 2,
-    ration: 5,
-    slime_mold: 4,
-    draught: 14,
-    pint: 11,
-    sip: 12,
-    waybread: 9,
-    honey_cake: 8,
-    slice: 7,
-    handful: 3
-  },
-  /* mushroom (borg-item-val.c:275-287) */
-  mush: {
-    second_sight: 1,
-    fast_recovery: 2,
-    restoring: 3,
-    /* "Vigor" */
-    mana: 4,
-    /* "Clear Mind" */
-    emergency: 5,
-    terror: 6,
-    stoneskin: 7,
-    debility: 9,
-    sprinting: 10,
-    cure_mind: 4,
-    /* C maps cure_mind -> "Clear Mind" too */
-    purging: 11
-  },
-  /* light (borg-item-val.c:289-291) */
-  light: { lantern: 2, torch: 1 },
-  /* flask (borg-item-val.c:293-295) */
-  flask: { oil: 1 },
-  /* potion (borg-item-val.c:297-338) */
-  potion: {
-    cure_critical: 10,
-    cure_serious: 9,
-    cure_light: 8,
-    healing: 11,
-    star_healing: 12,
-    /* "*Healing*" */
-    life: 13,
-    restore_mana: 15,
-    cure_poison: 14,
-    /* "Neutralize Poison" */
-    resist_heat: 28,
-    resist_cold: 29,
-    resist_pois: 30,
-    inc_str: 1,
-    inc_int: 2,
-    inc_wis: 3,
-    inc_dex: 4,
-    inc_con: 5,
-    inc_all: 6,
-    /* "Augmentation" */
-    inc_str2: 17,
-    /* "Brawn" */
-    inc_int2: 18,
-    /* "Intellect" */
-    inc_wis2: 19,
-    /* "Contemplation" */
-    inc_dex2: 20,
-    /* "Nimbleness" */
-    inc_con2: 21,
-    /* "Toughness" */
-    restore_life: 16,
-    /* "Restore Life Levels" */
-    speed: 24,
-    berserk: 26,
-    /* "Berserk Strength" */
-    sleep: 34,
-    slowness: 38,
-    poison: 37,
-    blindness: 35,
-    confusion: 36,
-    heroism: 25,
-    boldness: 27,
-    detect_invis: 31,
-    /* "True Seeing" */
-    enlightenment: 22,
-    slime_mold: 33,
-    /* "Slime Mold Juice" */
-    infravision: 32,
-    inc_exp: 7
-    /* "Experience" */
-  },
-  /* scroll (borg-item-val.c:340-383) */
-  scroll: {
-    identify: 7,
-    /* "Identify Rune" */
-    phase_door: 1,
-    teleport: 2,
-    /* "Teleportation" */
-    word_of_recall: 24,
-    enchant_armor: 10,
-    /* "Enchant Armour" */
-    enchant_weapon_to_hit: 8,
-    enchant_weapon_to_dam: 9,
-    star_enchant_weapon: 11,
-    /* "*Enchant Weapon*" */
-    star_enchant_armor: 12,
-    /* "*Enchant Armour*" */
-    protection_from_evil: 31,
-    rune_of_protection: 33,
-    teleport_level: 3,
-    deep_descent: 27,
-    recharging: 25,
-    banishment: 20,
-    mass_banishment: 21,
-    blessing: 28,
-    holy_chant: 29,
-    holy_prayer: 30,
-    detect_invis: 6,
-    /* "Detect Invisible" */
-    satisfy_hunger: 22,
-    /* "Remove Hunger" */
-    light: 23,
-    mapping: 4,
-    /* "Magic Mapping" */
-    acquirement: 17,
-    star_acquirement: 18,
-    /* "*Acquirement*" */
-    remove_curse: 13,
-    star_remove_curse: 14,
-    /* "*Remove Curse*" */
-    monster_confusion: 32,
-    trap_door_destruction: 26,
-    /* "Door Destruction" */
-    dispel_undead: 19
-  },
-  /* ring (borg-item-val.c:385-393) */
-  ring: {
-    flames: 12,
-    ice: 14,
-    acid: 13,
-    lightning: 15,
-    digging: 30,
-    speed: 5,
-    damage: 16,
-    dog: 25
-    /* "the Dog" */
-  },
-  /* amulet (borg-item-val.c:395-396) */
-  amulet: { teleportation: 14 },
-  /* rod (borg-item-val.c:398-420) */
-  rod: {
-    recall: 24,
-    detection: 2,
-    illumination: 23,
-    speed: 25,
-    mapping: 3,
-    /* "Magic Mapping" */
-    healing: 16,
-    light: 22,
-    fire_bolt: 5,
-    /* "Fire Bolts" */
-    elec_bolt: 7,
-    /* "Lightning Bolts" */
-    cold_bolt: 6,
-    /* "Frost Bolts" */
-    acid_bolt: 8,
-    /* "Acid Bolts" */
-    drain_life: 19,
-    fire_ball: 9,
-    /* "Fire Balls" */
-    elec_ball: 11,
-    /* "Lightning Balls" */
-    cold_ball: 10,
-    /* "Cold Balls" */
-    acid_ball: 12,
-    /* "Acid Balls" */
-    teleport_other: 20,
-    slow_monster: 13,
-    sleep_monster: 14,
-    /* "Hold Monster" */
-    curing: 15
-  },
-  /* staff (borg-item-val.c:422-440) */
-  staff: {
-    teleportation: 21,
-    destruction: 5,
-    /* "*Destruction*" */
-    speed: 22,
-    healing: 14,
-    the_magi: 24,
-    /* "the Magi" */
-    power: 17,
-    holiness: 18,
-    curing: 12,
-    sleep_monsters: 8,
-    slow_monsters: 7,
-    detect_invis: 9,
-    /* "Detect Invisible" */
-    detect_evil: 10,
-    dispel_evil: 15,
-    banishment: 16,
-    light: 19,
-    mapping: 11,
-    remove_curse: 23
-  },
-  /* wand (borg-item-val.c:442-467). NOTE: two upstream copy/paste quirks are
-   * reproduced: confuse_monster resolves to "Scare Monster" (==fear_monster),
-   * and elec_ball resolves to "Lightning Bolts" (the bolt, not the ball). */
-  wand: {
-    light: 16,
-    teleport_away: 21,
-    /* "Teleport Other" */
-    stinking_cloud: 6,
-    magic_missile: 1,
-    annihilation: 28,
-    stone_to_mud: 17,
-    wonder: 23,
-    hold_monster: 13,
-    slow_monster: 11,
-    fear_monster: 15,
-    /* "Scare Monster" */
-    confuse_monster: 15,
-    /* upstream quirk: also "Scare Monster" */
-    fire_bolt: 4,
-    /* "Fire Bolts" */
-    cold_bolt: 3,
-    /* "Frost Bolts" */
-    acid_bolt: 5,
-    /* "Acid Bolts" */
-    elec_bolt: 2,
-    /* "Lightning Bolts" */
-    fire_ball: 9,
-    /* "Fire Balls" */
-    cold_ball: 8,
-    /* "Cold Balls" */
-    acid_ball: 10,
-    /* "Acid Balls" */
-    elec_ball: 2,
-    /* upstream quirk: "Lightning Bolts" (bolt sval) */
-    dragon_cold: 25,
-    /* "Dragon's Frost" */
-    dragon_fire: 24,
-    /* "Dragon's Flame" */
-    drain_life: 27
-  },
-  /* dragon armor (borg-item-val.c:500-511) */
-  dragon: {
-    black: 1,
-    blue: 2,
-    white: 3,
-    red: 4,
-    green: 5,
-    multihued: 6,
-    shining: 7,
-    law: 8,
-    gold: 9,
-    chaos: 10,
-    balance: 11,
-    power: 12
-  }
-};
 
 // src/store/store.ts
 var BORG_HOME = 7;
@@ -9485,6 +9693,7 @@ function buildFlowHooks(session) {
       );
       return facts.flags.has(flag);
     },
+    dangerOneKill: (_world, y, x, killIndex) => borgDangerOneKill(ctx(), y, x, 1, killIndex, true, true),
     los: (world, y1, x1, y2, x2) => borgLos(world, y1, x1, y2, x2)
   };
 }
@@ -9520,7 +9729,10 @@ function buildItemDeps(session) {
   return {
     danger: dangerHere,
     avoidance: w.self.trait[27 /* CURHP */] ?? 0,
-    canRest: true,
+    /* borg_check_rest(borg.c.y, borg.c.x): the real gate, not a constant. Every
+     * rest in borg-recover.c is behind it, so a hardcoded `true` is the Borg
+     * resting with a monster next to it. */
+    canRest: borgCheckRest(c, session.flow.state, py, px),
     clock: w.clock,
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
@@ -9639,7 +9851,6 @@ function getFightState(world) {
       tAntisummon: 0,
       began: 0,
       timeTown: 0,
-      gameRatio: 10,
       playsRisky: false
     };
     STATES2.set(world, st2);
@@ -9676,7 +9887,7 @@ function borgOffsetProjectable(ctx, y1, x1, y2, x2) {
     const feat = featAt(ctx, y, x);
     if (dist4 && feat === FEAT.NONE) break;
     if (feat === FEAT.PASS_RUBBLE) break;
-    if (dist4 && !borgCaveFloorGrid2(ctx.world.map.at(x, y))) break;
+    if (dist4 && !borgCaveFloorGrid(ctx.world.map.at(x, y))) break;
     if (x === x2 && y === y2) return true;
     [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
   }
@@ -10156,7 +10367,7 @@ function borgLaunchBoltAuxHack(ctx, fs, i, dam, typ, ammo) {
   const y = kill.pos.y;
   if (!ctx.world.map.inBounds(x, y)) return 0;
   const ag = ctx.world.map.at(x, y);
-  if (!borgCaveFloorGrid2(ag)) return 0;
+  if (!borgCaveFloorGrid(ag)) return 0;
   if (rf(facts, "PASS_WALL")) {
     if (ag.feat !== FEAT.FLOOR && ag.feat !== FEAT.OPEN && ag.feat !== FEAT.BROKEN && !ag.trap)
       return 0;
@@ -10220,7 +10431,7 @@ function borgLaunchBoltAtLocation(ctx, fs, y2, x2, rad, dam, typ, max, ammo) {
     [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
     if (!squareInBoundsFully2(x, y)) break;
     const ag = ctx.world.map.at(x, y);
-    if (!borgCaveFloorGrid2(ag) || ag.feat === FEAT.PASS_RUBBLE) {
+    if (!borgCaveFloorGrid(ag) || ag.feat === FEAT.PASS_RUBBLE) {
       if (rad !== -1 && rad !== 10) return 0;
       return n;
     }
@@ -10340,7 +10551,7 @@ function borgLaunchArcAtLocation(ctx, fs, y2, x2, degrees, dam, typ, max) {
     [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
     if (!squareInBoundsFully2(x, y)) break;
     const ag = ctx.world.map.at(x, y);
-    if (!borgCaveFloorGrid2(ag) || ag.feat === FEAT.PASS_RUBBLE) break;
+    if (!borgCaveFloorGrid(ag) || ag.feat === FEAT.PASS_RUBBLE) break;
     pathGrids[dist4] = { y, x };
     if (x === x2 && y === y2) break;
     if (ag.feat === FEAT.NONE) {
@@ -11539,8 +11750,8 @@ function borgSurrounded(ctx) {
     monsters++;
   }
   for (let i = 0; i < 8; i++) {
-    const x = ctx.world.self.c.x + ddx_ddd2[i];
-    const y = ctx.world.self.c.y + ddy_ddd2[i];
+    const x = ctx.world.self.c.x + ddx_ddd[i];
+    const y = ctx.world.self.c.y + ddy_ddd[i];
     if (!(x >= 1 && x < AUTO_MAX_X - 1 && y >= 1 && y < AUTO_MAX_Y - 1)) continue;
     const ag = ctx.world.map.at(x, y);
     if (!isFloor(ag.feat)) nonSafe++;
@@ -11712,8 +11923,8 @@ function borgShootScootSafe(ctx, emergency, turns) {
   if (g.morgothPosition || g.asPosition) return false;
   let adjacent = false;
   for (let i = 0; i < 8; i++) {
-    const x = ctx.world.self.c.x + ddx_ddd2[i];
-    const y = ctx.world.self.c.y + ddy_ddd2[i];
+    const x = ctx.world.self.c.x + ddx_ddd[i];
+    const y = ctx.world.self.c.y + ddy_ddd[i];
     if (!ctx.world.map.inBounds(x, y)) continue;
     const ag = ctx.world.map.at(x, y);
     if (!ag.kill) continue;
@@ -11751,8 +11962,8 @@ function borgEscape(ctx, bQ) {
     if (getDangerGlobals(ctx.world).morgothPosition) return null;
     let glyphs = 0;
     for (let j = 0; j < 8; j++) {
-      const y = ctx.world.self.c.y + ddy_ddd2[j];
-      const x = ctx.world.self.c.x + ddx_ddd2[j];
+      const y = ctx.world.self.c.y + ddy_ddd[j];
+      const x = ctx.world.self.c.x + ddx_ddd[j];
       if (ctx.world.map.inBounds(x, y) && ctx.world.map.at(x, y).glyph) glyphs++;
     }
     if (glyphs >= 3) return null;
@@ -12495,7 +12706,7 @@ function auxBanishment(ctx, fs, p1) {
     const facts = getDangerGlobals(ctx.world).resolveFacts(ctx, i);
     if (!facts.flags.has("EVIL")) continue;
     if (facts.flags.has("UNIQUE") && kill.injury > 60) continue;
-    if (!borgCaveFloorBold(ctx.world, kill.pos.y, kill.pos.x)) continue;
+    if (!borgCaveFloorBold2(ctx.world, kill.pos.y, kill.pos.x)) continue;
     banished++;
     p2 -= borgDangerOneKillLocal(ctx, i);
     toDelete.push(i);
@@ -12546,7 +12757,7 @@ function auxLbeam(ctx, fs, p1) {
   if (ctx.world.clock > ctx.world.self.temp.needSeeInvis + 2) return 0;
   const y = ctx.world.self.c.y;
   const x = ctx.world.self.c.x;
-  const f = (yy, xx) => borgCaveFloorBold(ctx.world, yy, xx);
+  const f = (yy, xx) => borgCaveFloorBold2(ctx.world, yy, xx);
   let hallway = false;
   if (f(y - 1, x) && f(y + 1, x) && !f(y, x - 1) && !f(y, x + 1) && !f(y + 1, x - 1) && !f(y + 1, x + 1) && !f(y - 1, x - 1) && !f(y - 1, x + 1)) hallway = true;
   if (f(y, x - 1) && f(y, x + 1) && !f(y - 1, x) && !f(y + 1, x) && !f(y + 1, x - 1) && !f(y + 1, x + 1) && !f(y - 1, x - 1) && !f(y - 1, x + 1)) hallway = true;
@@ -12677,7 +12888,7 @@ function defendAux(ctx, fs, what, p1) {
 function borgDefend(ctx, p1) {
   const fs = getFightState(ctx.world);
   fs.simulate = true;
-  if (ctx.world.self.resistance && ctx.world.self.resistance < fs.gameRatio * 2) {
+  if (ctx.world.self.resistance && ctx.world.self.resistance < ctx.world.self.gameRatio * 2) {
     const g = getDangerGlobals(ctx.world);
     g.attacking = true;
     const p = borgDanger(ctx, ctx.world.self.c.y, ctx.world.self.c.x, 1, false, false);
@@ -13211,8 +13422,8 @@ function borgHeal(ctx, danger2) {
 function leastAdjacentDanger(ctx, fallback) {
   let best = fallback;
   for (let i = 0; i < 8; i++) {
-    const x = ctx.world.self.c.x + ddx_ddd2[i];
-    const y = ctx.world.self.c.y + ddy_ddd2[i];
+    const x = ctx.world.self.c.x + ddx_ddd[i];
+    const y = ctx.world.self.c.y + ddy_ddd[i];
     if (!ctx.world.map.inBounds(x, y)) continue;
     const ag = ctx.world.map.at(x, y);
     if (ag.feat === FEAT.NONE || ag.kill) continue;
@@ -13318,7 +13529,11 @@ function borgCaution(ctx, flow) {
   }
   const bQ = leastAdjacentDanger(ctx, posDanger);
   const esc = borgEscape(ctx, bQ);
-  if (esc) return esc;
+  if (esc) {
+    ctx.world.self.escapes += 1;
+    ctx.world.self.goal.type = 0;
+    return esc;
+  }
   if (posDanger > trait3(ctx, 27 /* CURHP */) && trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 4)) {
     const c = firstCmd2(
       borgQuaffPotion(ctx, SVAL.potion.healing),
@@ -14245,6 +14460,49 @@ var SUFFIX_BLINK = [
   " blinks.",
   " makes a soft 'pop'."
 ];
+var SUFFIX_MISS_BY = [" misses you.", " is repelled."];
+function borgLoadReadMessage(template) {
+  const close = template.indexOf("}");
+  if (close < 0) return { p1: template.replace(/^ +/, "") };
+  let rest = template.startsWith("{") ? template.slice(close + 1) : template;
+  let open = rest.indexOf("{");
+  if (open < 0) return { p1: rest.replace(/^ +/, "") };
+  rest = rest.replace(/^ +/, "");
+  open = rest.indexOf("{");
+  const p1 = rest.slice(0, open);
+  rest = rest.slice(open);
+  const close2 = rest.indexOf("}");
+  if (close2 < 0) return { p1 };
+  rest = rest.slice(close2 + 1);
+  open = rest.indexOf("{");
+  if (open < 0) {
+    rest = rest.replace(/^ +/, "");
+    if (rest.length > 0 && rest !== ".") return { p1, p2: rest };
+    return { p1 };
+  }
+  rest = rest.replace(/^ +/, "");
+  open = rest.indexOf("{");
+  const p2 = open > 0 ? rest.slice(0, open).replace(/^ +/, "") : void 0;
+  const carry = p2 === void 0 ? {} : { p2 };
+  rest = rest.slice(open);
+  const close3 = rest.indexOf("}");
+  if (close3 < 0) return { p1, ...carry };
+  rest = rest.slice(close3 + 1).replace(/^ +/, "");
+  if (rest.length === 0 || rest === ".") return { p1, ...carry };
+  return p2 === void 0 ? { p1, p2: rest } : { p1, p2, p3: rest };
+}
+function borgMessageContains(value, m) {
+  if (!value.includes(m.p1)) return false;
+  if (m.p2 !== void 0 && !value.includes(m.p2)) return false;
+  if (m.p3 !== void 0 && !value.includes(m.p3)) return false;
+  return true;
+}
+function emptyMessageTables() {
+  return { hitBy: [] };
+}
+function buildHitByTable(templates) {
+  return { hitBy: templates.map((t) => borgLoadReadMessage(t)) };
+}
 function anyPrefix(msg, table) {
   for (const p of table) if (msg.startsWith(p)) return true;
   return false;
@@ -14268,8 +14526,51 @@ function locateStaleKill(w, visibleIds, dist4) {
   }
   return best;
 }
-function borgReactMessages(world, messages, visibleIds) {
+function raceNameOf(who) {
+  if (who.startsWith("The ") || who.startsWith("the ")) return who.slice(4);
+  return who;
+}
+function isInvisibleAttacker(who) {
+  const lower = who.toLowerCase();
+  return lower.startsWith("something") || lower.startsWith("it");
+}
+function locateAttacker(w, names, who, r) {
+  if (isInvisibleAttacker(who)) {
+    w.self.temp.needSeeInvis = w.clock;
+    return 0;
+  }
+  const wanted = raceNameOf(who).toLowerCase();
+  const px = w.self.c.x;
+  const py = w.self.c.y;
+  let best = 0;
+  let bestD = r + 1;
+  for (const [i, k] of w.kills.entries()) {
+    const name = names.get(k.mIdx);
+    if (name === void 0) continue;
+    if (name.toLowerCase() !== wanted) continue;
+    const d = distance2(px, py, k.pos.x, k.pos.y);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+function whoBefore(msg, m) {
+  const at = msg.indexOf(m.p1);
+  if (at <= 0) return null;
+  return msg.slice(0, at - 1);
+}
+function borgReactMessages(world, messages, visibleIds, names = /* @__PURE__ */ new Map(), tables = emptyMessageTables()) {
   let deleted = 0;
+  const hitDist = 1;
+  const cdepth = world.self.trait[105 /* CDEPTH */] ?? 0;
+  const hitFear = 4 * (Math.trunc(cdepth / 5) + 1);
+  const missFear = 2 * (Math.trunc(cdepth / 5) + 1);
+  const fear = getFearCaches(world);
+  const raiseFear = (k) => {
+    borgFearRegional(world, fear, world.self.c.y, world.self.c.x, k, false);
+  };
   for (const raw of messages) {
     const msg = raw.trim();
     if (!msg) continue;
@@ -14289,6 +14590,50 @@ function borgReactMessages(world, messages, visibleIds) {
       }
       continue;
     }
+    if (msg.startsWith("The air about you becomes ")) {
+      world.self.goal.recalling = 15e3 + 5e3;
+      continue;
+    }
+    if (msg.startsWith("The air around you starts ")) {
+      world.self.goal.descending = 3e3 + 2e3;
+      continue;
+    }
+    if (msg.startsWith("You feel yourself yanked ")) {
+      world.self.goal.recalling = 0;
+      continue;
+    }
+    if (msg.startsWith("The floor opens beneath you!")) {
+      world.self.goal.descending = 0;
+      continue;
+    }
+    if (msg.startsWith("A tension leaves ")) {
+      world.self.goal.recalling = 0;
+      continue;
+    }
+    if (msg.startsWith("The air around you stops ")) {
+      world.self.goal.descending = 0;
+      continue;
+    }
+    const missSuffix = SUFFIX_MISS_BY.find((s) => msg.endsWith(s));
+    if (missSuffix !== void 0) {
+      const who = msg.slice(0, msg.length - missSuffix.length);
+      if (locateAttacker(world, names, who, hitDist) === 0) raiseFear(missFear);
+      continue;
+    }
+    let hit = null;
+    for (const entry of tables.hitBy) {
+      if (borgMessageContains(msg, entry)) {
+        hit = entry;
+        break;
+      }
+    }
+    if (hit) {
+      const who = whoBefore(msg, hit);
+      if (who !== null && locateAttacker(world, names, who, hitDist) === 0) {
+        raiseFear(hitFear);
+      }
+      continue;
+    }
   }
   return deleted;
 }
@@ -14298,23 +14643,50 @@ var BORG_EXPIRE_TURNS = 2e3;
 function makePerceiveMemo() {
   return { lastDepth: -1, initialized: false };
 }
-function perceive(world, view, memo) {
+function perceive(world, view, memo, tables = emptyMessageTables()) {
   const p = view.player();
   const oldX = world.self.c.x;
   const oldY = world.self.c.y;
-  if (!memo.initialized || p.depth !== memo.lastDepth) {
+  const newLevel = !memo.initialized || p.depth !== memo.lastDepth;
+  if (newLevel) {
     world.wipeLevel(p.depth);
     memo.lastDepth = p.depth;
     memo.initialized = true;
   }
+  const fear = getFearCaches(world);
+  if (newLevel) fear.wipe();
+  else decayLevelTimers(world);
   world.self.c.x = p.grid.x;
   world.self.c.y = p.grid.y;
   world.facts.depth = p.depth;
   ingestMap(world, view);
-  const visibleIds = ingestMonsters(world, view);
+  borgUpdateLight(world);
+  const seen = ingestMonsters(world, view);
   ingestFloor(world, view, oldX, oldY);
-  borgReactMessages(world, view.messages(), visibleIds);
+  borgReactMessages(world, view.messages(), seen.ids, seen.names, tables);
   world.seeded = true;
+}
+function decayLevelTimers(world) {
+  const self = world.self;
+  const ratio = self.gameRatio;
+  if (self.resistance >= 1) self.resistance -= ratio;
+  if (self.noRestPrep >= 1) self.noRestPrep -= ratio;
+  if (self.goal.recalling >= 1) {
+    self.goal.recalling -= ratio;
+    if (self.goal.recalling <= 0) self.goal.recalling = 1;
+  }
+  if (self.goal.descending >= 1) self.goal.descending -= ratio;
+  if (self.temp.seeInv >= 1) self.temp.seeInv -= ratio;
+  if (world.clock % 10 === 0) {
+    const region = getFearCaches(world).region2d;
+    for (let y = 0; y < FEAR_REGION_H; y++) {
+      const row = region[y];
+      if (!row) continue;
+      for (let x = 0; x < FEAR_REGION_W; x++) {
+        if ((row[x] ?? 0) > 0) row[x] = row[x] - 1;
+      }
+    }
+  }
 }
 function ingestMap(world, view) {
   const bounds = view.mapBounds();
@@ -14336,6 +14708,77 @@ function ingestMap(world, view) {
     }
   }
 }
+function borgUpdateLight(world) {
+  const map = world.map;
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const g = map.at(x, y);
+      if (g.info & BORG_LIGHT) g.info &= ~BORG_LIGHT;
+    }
+  }
+  const cy = world.self.c.y;
+  const cx = world.self.c.x;
+  const radius = world.self.trait[26 /* LIGHT */] ?? 0;
+  const lightUp = (y, x) => {
+    if (!map.inBounds(x, y)) return;
+    map.at(x, y).info |= BORG_LIGHT;
+  };
+  const floorAt = (y, x) => borgCaveFloorBold(world, y, x);
+  if (radius <= 0) return;
+  lightUp(cy, cx);
+  lightUp(cy + 1, cx);
+  lightUp(cy - 1, cx);
+  lightUp(cy, cx + 1);
+  lightUp(cy, cx - 1);
+  lightUp(cy + 1, cx + 1);
+  lightUp(cy + 1, cx - 1);
+  lightUp(cy - 1, cx + 1);
+  lightUp(cy - 1, cx - 1);
+  if (radius >= 2 && cy + 2 < AUTO_MAX_Y && cy - 2 > 0 && cx + 2 < AUTO_MAX_X && cx - 2 > 0) {
+    if (floorAt(cy + 2, cx)) {
+      lightUp(cy + 2, cx);
+      lightUp(cy + 2, cx + 2);
+      lightUp(cy + 2, cx - 2);
+    }
+    if (floorAt(cy - 2, cx)) {
+      lightUp(cy - 2, cx);
+      lightUp(cy - 2, cx + 2);
+      lightUp(cy - 2, cx - 2);
+    }
+    if (floorAt(cy, cx + 2)) {
+      lightUp(cy, cx + 2);
+      lightUp(cy + 1, cx + 2);
+      lightUp(cy - 1, cx + 2);
+    }
+    if (floorAt(cy, cx - 2)) {
+      lightUp(cy, cx - 2);
+      lightUp(cy + 2, cx - 2);
+      lightUp(cy - 2, cx - 2);
+    }
+  }
+  if (radius >= 3 && cy + 3 < AUTO_MAX_Y && cy - 3 > 0 && cx + 3 < AUTO_MAX_X && cx - 3 > 0) {
+    const p = Math.min(radius, 5);
+    if (floorAt(cy + 3, cx + 3)) lightUp(cy + 3, cx + 3);
+    if (floorAt(cy + 3, cx - 3)) lightUp(cy + 3, cx - 3);
+    if (floorAt(cy - 3, cx + 3)) lightUp(cy - 3, cx + 3);
+    if (floorAt(cy - 3, cx - 3)) lightUp(cy - 3, cx - 3);
+    const minY = Math.max(cy - p, 0);
+    const maxY = Math.min(cy + p, AUTO_MAX_Y - 1);
+    const minX = Math.max(cx - p, 0);
+    const maxX = Math.min(cx + p, AUTO_MAX_X - 1);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const dy = Math.abs(cy - y);
+        const dx = Math.abs(cx - x);
+        if (dy <= 2 && dx <= 2) continue;
+        const d = dy > dx ? dy + (dx >> 1) : dx + (dy >> 1);
+        if (d > p) continue;
+        if (!map.inBounds(x, y)) continue;
+        if (map.at(x, y).info & BORG_VIEW) lightUp(y, x);
+      }
+    }
+  }
+}
 function ingestMonsters(world, view) {
   for (const [, k] of world.kills.entries()) {
     if (world.map.inBounds(k.pos.x, k.pos.y)) {
@@ -14349,13 +14792,18 @@ function ingestMonsters(world, view) {
     if (k.mIdx !== 0) byMidx.set(k.mIdx, i);
   }
   const visibleIds = /* @__PURE__ */ new Set();
+  const names = /* @__PURE__ */ new Map();
   for (const m of view.monsters()) {
     if (!m.visible) continue;
     visibleIds.add(m.id);
+    names.set(m.id, m.race);
     let idx = byMidx.get(m.id);
     if (idx === void 0) {
       idx = world.kills.alloc();
       byMidx.set(m.id, idx);
+      if (world.clock < world.self.temp.needSeeInvis + 5) {
+        clearLocalRegionFear(world);
+      }
     }
     const k = world.kills.at(idx);
     k.mIdx = m.id;
@@ -14373,6 +14821,7 @@ function ingestMonsters(world, view) {
     k.power = m.hp;
     k.injury = m.maxHp > 0 ? Math.trunc((m.maxHp - m.hp) * 100 / m.maxHp) : 0;
     k.level = m.level;
+    k.rangedAttack = m.spellFlags.length;
     k.seen = true;
     k.when = world.clock;
     if (world.map.inBounds(m.grid.x, m.grid.y)) {
@@ -14383,7 +14832,29 @@ function ingestMonsters(world, view) {
     if (world.clock - k.when < BORG_EXPIRE_TURNS) continue;
     world.kills.delete(i);
   }
-  return visibleIds;
+  return { ids: visibleIds, names };
+}
+function clearLocalRegionFear(world) {
+  const region = getFearCaches(world).region2d;
+  const y0 = Math.trunc(world.self.c.y / 11);
+  const x0 = Math.trunc(world.self.c.x / 11);
+  const y1 = y0 > 0 ? y0 - 1 : 0;
+  const x1 = x0 > 0 ? x0 - 1 : 0;
+  const y2 = x0 < 5 ? x0 + 1 : 5;
+  const x2 = x0 < 17 ? x0 + 1 : 17;
+  const zero = (ry, rx) => {
+    const row = region[ry];
+    if (row && rx < row.length) row[rx] = 0;
+  };
+  zero(y0, x0);
+  zero(y0, x1);
+  zero(y0, x2);
+  zero(y1, x0);
+  zero(y2, x0);
+  zero(y1, x1);
+  zero(y1, x2);
+  zero(y2, x1);
+  zero(y2, x2);
 }
 function ingestFloor(world, view, oldX, oldY) {
   for (const [, t] of world.takes.entries()) {
@@ -14444,6 +14915,7 @@ function createBorg(opts = {}) {
   const reseedEach = opts.reseedEachThink ?? true;
   const session = buildThinkSession(opts.resolvers ?? {});
   installThinkSession(world, session);
+  const tables = buildHitByTable(session.resolvers.blowActions ?? []);
   let lastDepth = -1;
   const controller = (view, act) => {
     if (reseedEach) reseedBorgRng(rng, opts.rngSeed);
@@ -14451,7 +14923,10 @@ function createBorg(opts = {}) {
     world.clock += 1;
     world.self.timeThisPanel += 1;
     borgNotice(ctx);
-    perceive(world, view, memo);
+    perceive(world, view, memo, tables);
+    primeSession(session, ctx);
+    borgFollowMissingKills(ctx, session.flow.state);
+    borgUpdateMonsterFear(ctx);
     world.self.power = borgPower(ctx);
     const t = world.self.trait;
     if ((t[35 /* CLEVEL */] ?? 0) > (t[36 /* MAXCLEVEL */] ?? 0)) t[36 /* MAXCLEVEL */] = t[35 /* CLEVEL */];
@@ -14555,11 +15030,16 @@ function makeCoreResolvers(input) {
     const shopnum = state.chunk.feature(state.actor.grid).shopnum;
     return shopnum > 0 ? shopnum - 1 : null;
   };
+  const blowActions = [];
+  for (const method of input.blowMethods ?? []) {
+    for (const msg of method.messages) blowActions.push(msg);
+  }
   return {
     resolveMonsterFacts,
     resolveActivation,
     activateHandle: activateHandle2,
     inShop,
+    blowActions,
     // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
     // which the agent API declares optional on the view itself, and answers null
     // when there is no live derive behind it (a worldless harness) - so this is
@@ -14587,11 +15067,13 @@ var plugin_default = {
       );
     }
     const races = ctx.registries.monsters.races;
+    const blowMethods = ctx.registries.monsters.blowMethods.values();
     const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,
         objects: ctx.registries.objects,
-        state: ctx.state
+        state: ctx.state,
+        blowMethods
       })
     });
     ctx.log(

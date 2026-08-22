@@ -1,13 +1,13 @@
 {
   "id": "borg",
   "name": "The Borg",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "shape": "plugin",
   "facets": [
     "plugin"
   ],
   "modApi": 1,
-  "engine": ">=0.25.0",
+  "engine": ">=0.26.0",
   "dependencies": {
     "core": "*"
   },

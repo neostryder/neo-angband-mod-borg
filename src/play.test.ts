@@ -4,19 +4,21 @@
  * Every other test in this repository asks a subsystem a question and checks the
  * answer. Not one of them plays the game, and PLANNED.md is the record of what
  * that cost: a mod whose suite was green, whose port was faithful, and which
- * wedged against the first locked door it met. Three separate infinite loops
- * (disarm, wield, stair-shuttle) were all invisible to unit tests, because each
- * one is a decision that is individually correct and collectively a hang.
+ * wedged against the first locked door it met. Four separate infinite loops
+ * (disarm, wield, stair-shuttle, and walking to a monster that was not there)
+ * were all invisible to unit tests, because each one is a decision that is
+ * individually correct and collectively a hang.
  *
  * So this boots a REAL game against the engine, installs the Borg as its command
  * provider, and drives the loop for thousands of decisions. It does not check
  * that the Borg plays WELL - "it tries its best and gets as far as it can" is the
  * target, and a level-1 character dying on depth 2 is upstream's own outcome. It
  * checks that the Borg is still PLAYING: that no single command has run away with
- * the session, and that the character has been to more than a handful of squares.
+ * the session, that the character has been to more than a handful of squares,
+ * that it does not pace with nothing in sight, and that it does not sit down to
+ * rest with something standing next to it.
  *
- * Both assertions are cheap to state and were each false at some point on
- * 2026-08-21.
+ * Every one of those was false at some point on 2026-08-21.
  *
  * WHY THIS SKIPS WITHOUT THE GAME'S CHECKOUT. The content pack is the game's, not
  * this repository's, and there is no copy here to fall back on. `NEO_ANGBAND_REPO`
@@ -119,6 +121,16 @@ interface RunReport {
   places: number;
   /** Whether the character died (an ending, not a failure). */
   dead: boolean;
+  /**
+   * The fewest distinct squares any 60-decision stretch covered while NOTHING
+   * was visible and the Borg was not resting. This is "sitting there or moving
+   * frantically back and forth across three cells" written as a number: a Borg
+   * with no monster in sight has nothing to hold it in place, so a low value is a
+   * decision loop and not caution. 999 when no such stretch occurred.
+   */
+  jitter: number;
+  /** Decisions on which the Borg chose to sit still with a monster adjacent. */
+  restedBesideMonster: number;
 }
 
 /**
@@ -139,6 +151,10 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
       races: game.booted.registries.monsters.races,
       objects: game.booted.registries.objects,
       state: state as never,
+      /* The attack-message table, on the same terms plugin.ts wires it. Without
+       * it the Borg does not recognise being hit by something it cannot see, so
+       * a run measured without it is a run measured on a different Borg. */
+      blowMethods: game.booted.registries.monsters.blowMethods.values(),
     }),
   });
 
@@ -147,6 +163,11 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
    * always answers never lets the loop return. */
   let armed = false;
   const commands: Record<string, number> = {};
+  /* One entry per decision: where the character stood, and whether anything was
+   * in sight. Both questions are asked of the LIVE game rather than of the Borg,
+   * so a Borg that has mislaid a monster cannot talk its way out of them. */
+  const trail: Array<{ at: string; alone: boolean; cmd: string }> = [];
+  let restedBesideMonster = 0;
   installController(
     state,
     (view, act) => {
@@ -154,6 +175,23 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
       armed = false;
       const cmd = borg.controller(view, act);
       if (cmd) commands[cmd.code] = (commands[cmd.code] ?? 0) + 1;
+
+      let alone = true;
+      let adjacent = false;
+      const me = state.actor.grid;
+      for (const m of view.monsters()) {
+        if (!m.visible) continue;
+        alone = false;
+        if (Math.max(Math.abs(m.grid.x - me.x), Math.abs(m.grid.y - me.y)) <= 1) {
+          adjacent = true;
+        }
+      }
+      if (adjacent && cmd?.code === "rest") restedBesideMonster += 1;
+      trail.push({
+        at: `${String(state.chunk.depth)}:${String(me.x)},${String(me.y)}`,
+        alone,
+        cmd: cmd?.code ?? "none",
+      });
       return cmd;
     },
     { viewDeps: { resolver, reg: game.booted.registries.objects } },
@@ -186,6 +224,22 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
     }
   }
 
+  /* Resting is EXCLUDED, and the exclusion is the whole reason this number means
+   * anything. The engine has no "rest until done" command - `rest` maps to a
+   * single-turn hold - so a character healing up spends sixty decisions standing
+   * on one square, which is upstream's `R&` rendered one decision at a time and
+   * not a loop. What is left is the Borg deciding, over and over, to go
+   * somewhere it has just been, with nothing in sight to hold it there. */
+  const moving = trail.filter((t) => t.cmd !== "rest");
+  const WINDOW = 60;
+  let jitter = 999;
+  for (let i = 0; i + WINDOW <= moving.length; i++) {
+    const win = moving.slice(i, i + WINDOW);
+    if (win.some((t) => !t.alone)) continue;
+    const cells = new Set(win.map((t) => t.at)).size;
+    if (cells < jitter) jitter = cells;
+  }
+
   return {
     decisions: taken,
     turns: state.turn,
@@ -193,6 +247,8 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
     commands,
     places: places.size,
     dead,
+    jitter,
+    restedBesideMonster,
   };
 }
 
@@ -298,6 +354,26 @@ suite("the Borg plays a real game", () => {
        * borg looping on one runs forever with the world frozen - the disarm hang
        * exactly. Ten turns per decision is the cost of one move at normal speed. */
       expect(r.turns).toBeGreaterThan(r.decisions * 2);
+
+      /* AND IT DOES NOT JITTER WITH NOTHING IN SIGHT. Reported from a real game
+       * as "just sitting there or moving frantically back and forth across three
+       * cells, doing nothing until something comes up and picks a fight" - and
+       * the last clause is the diagnosis, because a Borg with nothing in view has
+       * no reason to hold position. Sixty consecutive decisions confined to three
+       * squares, with no monster visible for any of them, is that report. */
+      expect(
+        r.jitter,
+        `the tightest stretch of 60 monster-free decisions that were not rests ` +
+          `covered ${String(r.jitter)} squares`,
+      ).toBeGreaterThan(3);
+
+      /* AND IT DOES NOT SIT STILL WITH SOMETHING NEXT TO IT. borg_check_rest
+       * refuses a grid with a monster one square away, and the recover ladder
+       * used to be wired to a constant `true` instead of asking it. */
+      expect(
+        r.restedBesideMonster,
+        "the Borg chose to rest with a monster adjacent",
+      ).toBe(0);
     }, 120_000);
   }
 
