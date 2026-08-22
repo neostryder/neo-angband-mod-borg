@@ -30,7 +30,7 @@ import { buildHitByTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";
 import { borgFollowMissingKills } from "./flow/index.js";
 import { think } from "./think.js";
-import { borgNotice, borgPower, BI } from "./trait/index.js";
+import { borgNotice, borgPower, borgCfg, setBorgCfg, BI, type BorgCfg } from "./trait/index.js";
 import { getFightState } from "./fight/index.js";
 import type { BorgContext } from "./context.js";
 import {
@@ -55,6 +55,17 @@ export interface BorgOptions {
    * each defaults to faithful conservative behavior (see BorgResolvers).
    */
   resolvers?: BorgResolvers;
+  /**
+   * The player's `borg_cfg[]` settings, over the stock borg.txt defaults. Every
+   * key is optional and an unsupplied one keeps upstream's own default, so a
+   * caller that passes nothing gets a stock Borg.
+   *
+   * Installed into the module-level active settings (`setBorgCfg`) rather than
+   * carried on the Borg, because the ported decision code reads them the way the
+   * C does - see src/trait/config.ts. One Borg per session, so one set of
+   * settings per session.
+   */
+  cfg?: Partial<BorgCfg>;
 }
 
 /** A live Borg: its world model, RNG, and the controller to install. */
@@ -75,6 +86,16 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   const world = new BorgWorld();
   const rng = makeBorgRng(opts.rngSeed);
   const memo = makePerceiveMemo();
+
+  /* The player's settings, before anything reads them. borg_init.c does the same
+   * thing in the same order: read the config, then build the borg. */
+  setBorgCfg(opts.cfg ?? {});
+
+  /* borg_plays_risky reaches the two tactical arms through the fight state
+   * rather than through resolveOpts, because borg_caution and borg_escape read
+   * the live struct upstream too. Copied once here, at the only moment the
+   * setting can change, so a think cannot see it move. */
+  getFightState(world).playsRisky = borgCfg().playsRisky;
 
   /* Install the wiring session carrying the host resolvers so think() picks it
    * up (getThinkSession) with real seams instead of the inert defaults. */

@@ -209,7 +209,7 @@ export interface StoreDeps {
   /* --- borg_cfg[] (borg.txt). --- */
   /** borg_cfg[BORG_WORSHIPS_GOLD]; default false. */
   worshipsGold?: boolean;
-  /** borg_cfg[BORG_SELF_SCUM]; default false. */
+  /** borg_cfg[BORG_SELF_SCUM]; default true (borg-init.c:82). */
   selfScum?: boolean;
   /** borg_cfg[BORG_USES_SWAPS] && MAXDEPTH<90 (borg_uses_swaps); default true<90. */
   usesSwaps?: boolean;

@@ -48,6 +48,7 @@ import type { AgentController } from "@rpgm-tools/neo-angband-core";
 import { bindCore, coreIsBound } from "./src/core-api.js";
 import { createBorg } from "./src/controller.js";
 import { makeCoreResolvers } from "./src/resolvers.js";
+import { defaultCfg, type BorgCfg } from "./src/trait/config.js";
 
 /**
  * What this plugin needs from the host's context, structurally. Declared here
@@ -103,6 +104,107 @@ interface ControllerCtx {
  * gets you a Borg you can switch on, not a character that starts walking.
  */
 const AUTOPLAY_FLAG = "borg.autoplay";
+
+/**
+ * The settings a player can move, and the `borg_cfg[]` entry each one is.
+ *
+ * ------------------------------------------------------------------
+ * WHY A MANIFEST RULE AND NOT A SETTINGS FILE
+ * ------------------------------------------------------------------
+ *
+ * Upstream reads `borg.txt` out of the user directory at start-up. There is no
+ * user directory here and no path a player could reach on a phone, so the
+ * question is which of the host's own surfaces carries a setting. Three exist. A
+ * manifest `rule` is a labelled toggle in the mod manager, resolved per mod and
+ * handed to the plugin as `ctx.flags`. `ctx.prefs` is a JSON blob the host
+ * stores and nothing edits. `ctx.ui.openPanel` is a real form, behind a
+ * capability a player has to consent to and a panel the game has to be given a
+ * way to open.
+ *
+ * Rules win for everything that is a yes or a no, which is most of upstream's
+ * table: the toggle already exists, it is where the one existing Borg setting
+ * lives, it needs no new permission on a screen a player reads before handing
+ * over a character, and changing one re-composes the page - so a session never
+ * sees a setting move under it, which is exactly the lifetime `borg_cfg[]` has.
+ * The numeric settings (depth ceilings, the enchant limit, a pinned respawn race
+ * or class) have no yes-or-no shape and are not here; PLANNED.md carries what
+ * each of them still needs.
+ *
+ * ONLY SETTINGS THE PORT READS ARE LISTED. A toggle for something no ported line
+ * consults is worse than an absent one: it reads as a feature, it survives every
+ * test, and the only way to find out is to watch a Borg ignore it. Three of
+ * upstream's booleans are held back on exactly that ground, and each is a
+ * different distance from working:
+ *
+ *   - `borg_kills_uniques` has no reader at all. Its branch needs the live-unique
+ *     census (`borg_numb_live_unique`, `borg_depth_hunted_unique`), which this
+ *     port does not keep.
+ *   - `borg_uses_swaps` has a reader that gates two functions which return early
+ *     because the swap valuation seams are unwired - and they are unwired because
+ *     a swap contributes zero to `borg_power` here, so the comparison they would
+ *     make is between two equal numbers.
+ *   - `borg_munchkin_start` moves gear valuation but not diving: the stair-scum
+ *     mode it is meant to switch on (`borg_think_dungeon_munchkin`) is not
+ *     ported, so `world.self.munchkinMode` is never written. Half a setting is
+ *     the worst of the three, because it would look like it worked.
+ */
+/**
+ * The settings a rule can carry: the yes-or-no half of `BorgCfg`.
+ *
+ * Derived rather than listed, so wiring a rule to a numeric setting - a depth
+ * ceiling, the enchant limit - is a compile error here rather than a toggle that
+ * writes `true` into a field the decision code compares against a level.
+ */
+type BoolCfgKey = {
+  [K in keyof BorgCfg]: BorgCfg[K] extends boolean ? K : never;
+}[keyof BorgCfg];
+
+const RULE_CFG: Readonly<Record<string, BoolCfgKey>> = {
+  "borg.playsRisky": "playsRisky",
+  "borg.worshipsDamage": "worshipsDamage",
+  "borg.worshipsSpeed": "worshipsSpeed",
+  "borg.worshipsHp": "worshipsHp",
+  "borg.worshipsMana": "worshipsMana",
+  "borg.worshipsAc": "worshipsAc",
+  "borg.worshipsGold": "worshipsGold",
+  "borg.selfScum": "selfScum",
+};
+
+/**
+ * Fold the resolved rule flags into a settings override.
+ *
+ * A flag the host did not resolve is left out rather than read as false. The
+ * host resolves every rule this mod's own manifest declares, so a missing one
+ * means the manifest and this table have drifted - and `selfScum` defaults to
+ * ON, so reading absence as false would quietly switch off a setting upstream
+ * ships enabled. src/manifest-tunables.test.ts is what stops the drift; this is
+ * what stops it costing anything if it happens.
+ */
+function cfgFromFlags(
+  flags: Readonly<Record<string, boolean>>,
+): { [K in BoolCfgKey]?: boolean } {
+  const cfg: { [K in BoolCfgKey]?: boolean } = {};
+  for (const [flag, key] of Object.entries(RULE_CFG)) {
+    const value = flags[flag];
+    if (typeof value === "boolean") cfg[key] = value;
+  }
+  return cfg;
+}
+
+/**
+ * The settings that are NOT on their stock value, for the log line.
+ *
+ * Named rather than counted, because the log of an unattended run is the only
+ * record of what the Borg was told to do, and "3 settings changed" does not
+ * explain a Borg that dived to depth twelve at character level four.
+ */
+function changedFrom(cfg: Partial<BorgCfg>): string[] {
+  const stock = defaultCfg();
+  return Object.entries(cfg)
+    .filter(([key, value]) => stock[key as keyof BorgCfg] !== value)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .sort();
+}
 
 export default {
   api: 1,
@@ -189,6 +291,7 @@ export default {
 
     const races = ctx.registries.monsters.races;
     const blowMethods = ctx.registries.monsters.blowMethods.values();
+    const cfg = cfgFromFlags(ctx.flags);
     const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,
@@ -196,6 +299,7 @@ export default {
         state: ctx.state,
         blowMethods,
       }),
+      cfg,
     });
     /* The race count is in the message because an empty registry is the one
      * remaining way to get a Borg that cannot see danger, and it looks from the
@@ -203,6 +307,12 @@ export default {
     ctx.log(
       `the Borg has the keyboard, and danger vision over ${races.length} races, ` +
         `activation identity, the in-shop signal and loadout evaluation`,
+    );
+    const changed = changedFrom(cfg);
+    ctx.log(
+      changed.length === 0
+        ? "the Borg is on upstream's stock settings"
+        : `the Borg's settings differ from stock: ${changed.join(", ")}`,
     );
     return borg.controller;
   },

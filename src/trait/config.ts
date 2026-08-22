@@ -17,16 +17,20 @@
 
 import { flatSvals } from "../item/svals.js";
 
-/** borg_cfg[] settings the trait/power/prepared code reads (borg.txt defaults). */
+/** borg_cfg[] settings the ported decision code reads (borg.txt defaults). */
 export interface BorgCfg {
   worshipsDamage: boolean;
   worshipsSpeed: boolean;
   worshipsHp: boolean;
   worshipsMana: boolean;
   worshipsAc: boolean;
+  /** borg_worships_gold: sell hard, recall late, climb rather than pay. */
+  worshipsGold: boolean;
   playsRisky: boolean;
   killsUniques: boolean;
   usesSwaps: boolean;
+  /** borg_self_scum: the Borg may set its own gold target to afford a want. */
+  selfScum: boolean;
   usesDynamicCalcs: boolean;
   noDeeper: number;
   munchkinStart: boolean;
@@ -34,7 +38,10 @@ export interface BorgCfg {
   enchantLimit: number;
 }
 
-/** Stock borg.txt defaults. */
+/**
+ * Stock borg.txt defaults, from `borg_settings[]` (borg-init.c:57-92), which is
+ * the authoritative table rather than borg.txt's own commentary.
+ */
 export function defaultCfg(): BorgCfg {
   return {
     worshipsDamage: false,
@@ -42,15 +49,54 @@ export function defaultCfg(): BorgCfg {
     worshipsHp: false,
     worshipsMana: false,
     worshipsAc: false,
+    worshipsGold: false,
     playsRisky: false,
     killsUniques: false,
     usesSwaps: true,
+    selfScum: true,
     usesDynamicCalcs: false,
     noDeeper: 127,
     munchkinStart: false,
     munchkinLevel: 12,
     enchantLimit: 12,
   };
+}
+
+/**
+ * THE ACTIVE SETTINGS, and why they are a module-level value.
+ *
+ * `borg_cfg[]` is a file-scope array upstream, read directly by twenty-odd call
+ * sites across the decision code that take no configuration argument of their
+ * own. The ported call sites are the same shape: `borgPrepared(ctx, depth)`,
+ * `borgPower(ctx)`, `borgNotice(ctx)`. Threading a settings object through every
+ * one of them would touch far more of the port than the feature is worth and
+ * would move the port further from the C it is checked against, so this holds
+ * the same value in the same place, and `resolveOpts` folds it in.
+ *
+ * A CALLER-SUPPLIED `opts.cfg` STILL WINS, per key. That is what keeps the
+ * existing tests meaningful: a test that asks what a risky Borg does says so at
+ * the call rather than depending on what some earlier test installed.
+ *
+ * ONE SET PER SESSION. `createBorg` installs the player's choices and nothing
+ * else writes them, which matches how a mod toggle actually reaches a game: a
+ * changed rule re-composes the page, so a running session never sees a setting
+ * move under it.
+ */
+let activeCfg: BorgCfg = defaultCfg();
+
+/** Install the player's settings over the stock defaults (createBorg). */
+export function setBorgCfg(cfg: Partial<BorgCfg> = {}): void {
+  activeCfg = { ...defaultCfg(), ...cfg };
+}
+
+/** The settings in force. Stock defaults until `setBorgCfg` says otherwise. */
+export function borgCfg(): BorgCfg {
+  return activeCfg;
+}
+
+/** Back to stock. For tests, and for a host that tears a Borg down. */
+export function resetBorgCfg(): void {
+  activeCfg = defaultCfg();
 }
 
 /**
@@ -178,7 +224,7 @@ export interface ResolvedOpts {
 /** Fill in defaults for any unsupplied seam. */
 export function resolveOpts(opts: BorgTraitOpts = {}): ResolvedOpts {
   return {
-    cfg: { ...defaultCfg(), ...opts.cfg },
+    cfg: { ...borgCfg(), ...opts.cfg },
     spells: opts.spells ?? defaultSpellSeam(),
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? defaultFrame(),

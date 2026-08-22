@@ -8,6 +8,55 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.8.0
+
+The Borg can be told how to play. Upstream reads about thirty settings out of a
+`borg.txt` in the user's Angband folder; there is no such folder here and no path
+to one on a phone, so eight of them are toggles in the mod manager beside *Let
+the Borg play*, and each description names the `borg_` setting it is.
+
+### Added
+
+- **Eight of upstream's settings, as toggles.** *Play risky*
+  (`borg_plays_risky`), the five gear weights - damage, speed, hit points, spell
+  points, armour class (`borg_worships_*`) - *Value gold*
+  (`borg_worships_gold`), and *Save up for something it wants*
+  (`borg_self_scum`). Every default is upstream's own, so a player who touches
+  none of them gets the Borg Angband ships, and the log line written when the
+  Borg takes the keyboard names every setting that is not on its stock value.
+
+  *Play risky* is the one that changes the most: it skips the early hit-point and
+  character-level floors that hold the Borg above a depth, waits longer before
+  drinking a cure, and backs away later in a losing fight.
+
+  The five gear weights are the closest thing available to saying what kind of
+  character the Borg should become, because what it wears is most of what it is.
+  There is no stat-priority setting, and there is none upstream either: `borg.txt`
+  describes one in a comment, but no setting backs it and the reincarnation code
+  takes the game's default point-buy.
+
+  Three of upstream's booleans are absent on purpose. `borg_kills_uniques` has no
+  reader here at all, `borg_uses_swaps` gates two functions that return early
+  because a swap contributes nothing to this port's power scoring, and
+  `borg_munchkin_start` would move gear valuation without moving the diving
+  behaviour it is named for, because the stair-scum mode it switches on is not
+  ported. A toggle that ticks and changes nothing is worse than an absent one.
+
+### Fixed
+
+- **A stock Borg never saved up for anything.** `borg_self_scum` ships enabled
+  upstream (`borg_settings[]`, borg-init.c:82) and both of this port's call sites
+  read it as disabled, so the whole "set a gold target and work in town until the
+  Borg can afford the one item it decided it needs" behaviour was unreachable at
+  the default settings. It is on by default now, as upstream has it, and it is a
+  toggle for anyone who preferred the old behaviour.
+
+- **Nothing had ever supplied the settings.** `BorgCfg` and its stock defaults
+  have been in the port since the self-model landed, and no caller passed one, so
+  every one of the twenty-odd call sites that reads a setting read a default.
+  This is the same shape as the resolver seams 0.6.x wired: code that is correct,
+  present and fed a constant.
+
 ## 0.7.0
 
 **Needs Neo Angband 0.27.0 or newer**, up from 0.25.0. Several of the fixes
