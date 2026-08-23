@@ -2,8 +2,8 @@
 #
 # This mod has no draft/publish step of its own - a version tag IS the release,
 # so this triggers on the tag push directly rather than on a GitHub Release
-# event. The script decides whether the bump is worth posting (minor or higher
-# only) and builds the message; see .github/scripts/discord-announce.mjs.
+# event. Every real release is announced regardless of version-bump size -
+# patch, minor and major all post; see .github/scripts/discord-announce.mjs.
 name: Discord release announcement
 
 on:
