@@ -74,6 +74,7 @@ function defaultPlayer(w: number, h: number): PlayerView {
     toHit: 0,
     toDam: 0,
     stats: [10, 10, 10, 10, 10],
+    classFlags: [],
     light: 1,
     grid: { x: Math.floor(w / 2), y: Math.floor(h / 2) },
     status: {
