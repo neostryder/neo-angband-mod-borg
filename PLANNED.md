@@ -971,50 +971,20 @@ and none of them is "not yet gotten to":**
   `borg_worships_*` weights are the real surface for "what should this character
   become", and they are shipped.
 
-### 7. A faster autoplayer tick (10ms) - blocked on the game, not this mod
+### 7. A faster autoplayer tick (10ms) - DONE, in the game, not this mod
 
 **Opened 2026-08-22. The request: a 10ms option for how often the Borg takes a
-turn, for watching it play at speed.**
+turn, for watching it play at speed. Landed 2026-08-22 in Neo Angband 0.28.0.**
 
-**This mod has nothing to change, because it does not own the setting.** As of
-Neo Angband 0.27.2 (`f310277ed` in the game's repository) the mod manager shows
-an *Autoplayer speed* row on the settings screen of whichever mod currently
-holds the one autoplayer slot - `packages/web/src/mods.ts:1930-2029` keys it off
-`deps.autoplayer.activeId() === m.id`, not off anything in that mod's manifest.
-Any mod whose `controller()` the host has installed gets the row for free.
-`manifest.json` already asks for `engine: ">=0.27.0"`, so once a player is on
-0.27.2 or newer the Borg has this control with no change here at all - confirmed
-by reading the row's own wiring rather than assumed.
-
-**The three tiers, and the 40ms floor, are host constants, declared three times
-over:**
-
-- `AutoplayerSpeed` (`packages/web/src/mod-store.ts:47`): `"fast" | "normal" |
-  "slow"`, persisted under `neo:autoplayerSpeed`, default `"normal"`.
-- `AUTOPLAYER_SPEED_MS` (`packages/web/src/main.ts:12567-12571`, duplicated at
-  `packages/web/src/mods.ts:1861-1865`): `{ fast: 40, normal: 120, slow: 400 }`.
-- The tier list a player picks from (`packages/web/src/mods.ts:1878`):
-  `const tiers: AutoplayerSpeed[] = ["fast", "normal", "slow"];`.
-
-Fast is 40ms today, not 10ms, and there is no route from this repository to
-change that: the type, the two duplicated millisecond maps and the picker's
-tier list all live in `packages/web`, which is the game's host application, not
-`@rpgm-tools/neo-angband-core` or anything this mod depends on or can extend.
-Widening `AutoplayerSpeed` to a fourth tier - one honest name would be
-`"instant"` at 10ms, matching the debug agent seam's own floor
-(`?speed=` accepts a raw 10-5000ms value, `docs/modding/BORG.md`) - is entirely
-a change to those three files in the game's repository. No manifest rule, no
-plugin code and no capability in this mod can carry it, because the control was
-built to be host-owned and mod-agnostic on purpose (`mods.ts:1935`: "keyed on
-`deps.autoplayer.activeId()` rather than on a declared flag").
-
-**Left open rather than worked around.** Inventing a Borg-only tick override
-here would be exactly the second settings channel the task that opened this
-item explicitly ruled out, and it would fight the host's real pump
-(`MOD_AUTOPLAYER_TICK_MS`, `main.ts:12572`) rather than use it. The fix belongs
-in the game's repository: add a fourth `AutoplayerSpeed` tier at 10ms to the
-three sites above (plus its label and the picker's tier list). That is a small,
-well-scoped change, and it is not one this repository's `git` history can make.
+This mod had nothing to change, because it never owned the setting - the
+*Autoplayer speed* row on the settings screen belongs to whichever mod
+currently holds the one autoplayer slot (`packages/web/src/mods.ts`, keyed off
+`deps.autoplayer.activeId() === m.id`), and Neo Angband 0.28.0 added a fourth
+**Turbo** tier at 10ms alongside Fast/Normal/Slow across the three host sites
+that declare the tier list (`mod-store.ts`'s `AutoplayerSpeed` type, the
+`AUTOPLAYER_SPEED_MS` map duplicated in `main.ts` and `mods.ts`, and the
+picker's tier array). `manifest.json`'s `engine: ">=0.27.0"` already covers
+0.28.0, so a player on it sees Turbo with no change needed here.
 
 ## What is deliberately NOT here
 
