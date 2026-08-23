@@ -8,6 +8,13 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.9.1
+
+Added a repository-specific `SECURITY.md` alongside the core policy, covering
+the boundaries this repository owns: capability declarations, agent-view
+handling, resolver wiring, and emitted commands. Refreshed the pinned engine
+dependency to the currently published release.
+
 ## 0.9.0
 
 A second pass over the settings surface, checking every one of `BorgCfg`'s
