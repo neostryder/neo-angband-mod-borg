@@ -199,10 +199,10 @@ host's mod-manager toggle is boolean only, so there is no rule type to carry one
 yet. See PLANNED.md for what each of these still needs.
 
 Since Neo Angband 0.27.2 the mod manager also shows an **Autoplayer speed**
-row next to *Let the Borg play*, with Fast/Normal/Slow tiers (40/120/400
-milliseconds a turn). That control is the host's, not this mod's: any mod that
-returns a controller gets the row for free, with no manifest change here. It
-has no tier faster than 40ms today; PLANNED.md tracks the request for one.
+row next to *Let the Borg play*, with Turbo/Fast/Normal/Slow tiers
+(10/40/120/400 milliseconds a turn) as of 0.28.0. That control is the host's,
+not this mod's: any mod that returns a controller gets the row for free, with
+no manifest change here.
 
 ## Two things it does not do
 
