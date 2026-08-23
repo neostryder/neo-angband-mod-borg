@@ -254,6 +254,13 @@ To develop against an unreleased engine:
 
     NEO_ANGBAND_LOCAL_CORE=1 npm test
 
+## Releasing
+
+A tag matching `vX.Y.Z` is the release: there is no separate publish step. A
+minor or major bump posts an announcement to the RPGM Tools Discord's Neo
+Angband announcements forum automatically, built from the matching
+`CHANGELOG.md` heading. A patch-only bump stays quiet by design.
+
 ## Questions, or something wrong
 
 [**The RPGM Tools Discord**](https://discord.gg/YegtwbHTBQ) is the fastest way
