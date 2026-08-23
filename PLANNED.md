@@ -83,7 +83,7 @@ Three claims, and the third is the one that decides it:
    owed.
 
 Until 3 is done, nothing here says the Borg plays properly. See the README's own
-Status section, which was narrowed on 2026-08-21 for exactly this reason.
+"What it is" section, which was narrowed on 2026-08-21 for exactly this reason.
 
 ## Watched playing, 2026-08-21
 

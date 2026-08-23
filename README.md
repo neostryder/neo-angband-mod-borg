@@ -3,7 +3,7 @@
 The Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
-**Needs Neo Angband 0.26.0 or newer.** An older game refuses to load it and says
+**Needs Neo Angband 0.27.0 or newer.** An older game refuses to load it and says
 so; the blockquote below says why that is a refusal rather than a reduced Borg.
 
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
@@ -259,7 +259,7 @@ To develop against an unreleased engine:
 A tag matching `vX.Y.Z` is the release: there is no separate publish step. A
 minor or major bump posts an announcement to the RPGM Tools Discord's Neo
 Angband announcements forum automatically, built from the matching
-`CHANGELOG.md` heading. A patch-only bump stays quiet by design.
+[CHANGELOG.md](CHANGELOG.md) heading. A patch-only bump stays quiet by design.
 
 ## Questions, or something wrong
 
