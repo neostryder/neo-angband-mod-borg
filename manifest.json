@@ -1,7 +1,7 @@
 {
   "id": "borg",
   "name": "The Borg",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "shape": "plugin",
   "facets": [
     "plugin"

@@ -8,6 +8,12 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.9.2
+
+Added a Terms of Use and a shared Code of Conduct alongside the existing
+LICENSE and SECURITY policy, and a README screenshot showing the Borg
+exploring a dungeon level under its own control.
+
 ## 0.9.1
 
 Added a repository-specific `SECURITY.md` alongside the core policy, covering
