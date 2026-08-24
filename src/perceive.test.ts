@@ -143,6 +143,74 @@ describe("message-stream reaction", () => {
   });
 });
 
+describe("buff on/off messages (borg-messages.c:772-1025)", () => {
+  it("believes a buff active from its on-message, and gone from its own off-message", () => {
+    const world = new BorgWorld();
+    const noOne = new Set<number>();
+
+    borgReactMessages(world, ["You feel righteous!"], noOne);
+    expect(world.self.temp.bless).toBe(true);
+
+    // A DIFFERENT buff's off-message must not clear it (no cross-talk).
+    borgReactMessages(world, ["You no longer feel heroic."], noOne);
+    expect(world.self.temp.bless).toBe(true);
+
+    borgReactMessages(world, ["The prayer has expired."], noOne);
+    expect(world.self.temp.bless).toBe(false);
+  });
+
+  it("tracks haste, protection from evil, and an elemental resist independently", () => {
+    const world = new BorgWorld();
+    const noOne = new Set<number>();
+
+    borgReactMessages(
+      world,
+      [
+        "You feel yourself moving faster!",
+        "You feel safe from evil!",
+        "You feel resistant to fire!",
+      ],
+      noOne,
+    );
+    expect(world.self.temp.fast).toBe(true);
+    expect(world.self.temp.protFromEvil).toBe(true);
+    expect(world.self.temp.resFire).toBe(true);
+    // Nothing else lit up from the same batch.
+    expect(world.self.temp.resCold).toBe(false);
+    expect(world.self.temp.hero).toBe(false);
+
+    borgReactMessages(world, ["You feel yourself slow down."], noOne);
+    expect(world.self.temp.fast).toBe(false);
+    // The other two, not mentioned in the slow-down message, are unaffected.
+    expect(world.self.temp.protFromEvil).toBe(true);
+    expect(world.self.temp.resFire).toBe(true);
+
+    borgReactMessages(world, ["You are no longer resistant to fire."], noOne);
+    expect(world.self.temp.resFire).toBe(false);
+  });
+
+  it("recognises both shield-granting messages and both of its own endings", () => {
+    const world = new BorgWorld();
+    const noOne = new Set<number>();
+
+    borgReactMessages(world, ["Your skin turns to stone."], noOne);
+    expect(world.self.temp.shield).toBe(true);
+
+    borgReactMessages(world, ["A fleshy shade returns to your skin."], noOne);
+    expect(world.self.temp.shield).toBe(false);
+
+    borgReactMessages(
+      world,
+      ["A mystic shield forms around your body!"],
+      noOne,
+    );
+    expect(world.self.temp.shield).toBe(true);
+
+    borgReactMessages(world, ["Your mystic shield crumbles away."], noOne);
+    expect(world.self.temp.shield).toBe(false);
+  });
+});
+
 describe("borg_near_monster_type facts", () => {
   it("flags a visible unique on the level and marks fighting-unique", () => {
     const { ctx, world } = makeCtx({

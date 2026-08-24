@@ -6,9 +6,9 @@
  *
  * REDUCTIONS (documented; navigation preserved):
  * - borg_check_rest's per-monster race-flag tests (RF_NEVER_MOVE / RF_MULTIPLY /
- *   RF_PASS_WALL / RF_KILL_WALL) are not modelled, so the port keeps the
- *   distance/awake/danger checks. The borg_fear_* arrays ARE read now; see
- *   borgCheckRest for the two arms that are still missing and why.
+ *   RF_PASS_WALL / RF_KILL_WALL) ARE modelled via FlowHooks.monsterHasFlag, and
+ *   the borg_fear_* arrays are read too; see borgCheckRest for the one arm
+ *   that is still missing and why.
  * - Panel-relative scans (w_x/w_y + SCREEN_*) become full-map scans, since the
  *   port has no panel concept; the borg's own remembered map is the same data.
  * - borg_flow_spastic's borg_detect_door sector suppression is dropped (treated
@@ -197,14 +197,25 @@ export function borgHappyGridBold(ctx: BorgContext, flow: FlowState, y: number, 
  * raises regional fear (perceive-messages.ts), and a level-one character's
  * CURHP/20 is zero, so any fear at all is enough to keep it on its feet.
  *
- * Two upstream arms are left out. PF_COMBAT_REGEN needs a player-flag lookup the
- * frozen view does not carry, and `when_last_kill_mult` needs a race flag at the
- * moment a record is deleted, which the message pass does not have. Both are
- * recorded in PLANNED.md rather than approximated. The vault arm is skipped for
- * the reason danger/fear.ts documents: the remembered map has no vault flag.
+ * One upstream arm is left out. PF_COMBAT_REGEN needs a player-flag lookup the
+ * frozen view does not carry, recorded in PLANNED.md rather than approximated.
+ * The vault arm is skipped for the reason danger/fear.ts documents: the
+ * remembered map has no vault flag.
  */
 export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: number): boolean {
   const w = ctx.world;
+
+  /* Do not rest recently after killing a multiplier (misc.c:1223-1228): avoids
+   * resting into an unexplored area that turns out to be full of breeders.
+   * `whenLastKillMult` is stamped by BorgKills.delete whenever a MULTIPLY
+   * record is forgotten, for any reason (see world/kill.ts). */
+  if (w.self.whenLastKillMult > w.clock - 4 && w.self.whenLastKillMult <= w.clock)
+    return false;
+
+  /* misc.c:1239-1240: once the window has passed, clear it, so a stale value
+   * carried from a previous level cannot coincidentally satisfy the check
+   * again after the per-level clock resets. */
+  w.self.whenLastKillMult = 0;
 
   /* No resting if Blessed and good HP and good SP (misc.c:1230): a buff resting
    * away is a buff wasted. */

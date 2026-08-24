@@ -307,3 +307,97 @@ describe("the recover ladder's rest gate", () => {
     expect(buildItemDeps(session).canRest).toBe(false);
   });
 });
+
+describe("the breeder-rest guard (when_last_kill_mult)", () => {
+  /**
+   * borg-flow-kill.c:430-432 stamps `when_last_kill_mult` inside
+   * borg_delete_kill itself, so ANY forgotten record for a MULTIPLY-flagged
+   * monster arms borg_check_rest's guard (misc.c:1223-1228) - not only one
+   * killed in melee. A death message is the simplest way to trigger a
+   * deletion in this port (perceive-messages.ts), so it stands in for
+   * "the record is gone" here.
+   */
+  it("refuses to rest for four turns after a tracked multiplier's record is deleted", () => {
+    const world = new BorgWorld();
+    const memo = makePerceiveMemo();
+    const liveView = makeScenarioView({
+      player: { grid: { x: 5, y: 5 } },
+      monsters: [
+        {
+          id: 9,
+          race: "giant white mouse",
+          raceFlags: ["MULTIPLY"],
+          grid: { x: 6, y: 5 },
+        },
+      ],
+    });
+    const ctx: BorgContext = {
+      world,
+      view: liveView,
+      act: makeFakeActions(),
+      rng: makeBorgRng(),
+    };
+    borgNotice(ctx);
+    /* BI.FOOD is upstream's "how much hunger relief do I have on hand"
+     * (trait.c:2814), not the character's current satiety - a fresh Warrior
+     * scenario has neither food items nor a hunger spell, so it defaults to 0
+     * and would otherwise trip borg_check_rest's unrelated food/light arm
+     * (misc.c:1288). Set it clear of that arm so this test isolates the one
+     * guard it is about. */
+    world.self.trait[BI.FOOD] = 10;
+    perceive(world, liveView, memo, BLOWS);
+    expect(world.self.whenLastKillMult).toBe(0);
+
+    /* Next tick: the mouse is out of view and a death message arrives. */
+    world.clock += 1;
+    perceive(
+      world,
+      makeScenarioView({
+        player: { grid: { x: 5, y: 5 } },
+        monsters: [],
+        messages: ["The giant white mouse dies."],
+      }),
+      memo,
+      BLOWS,
+    );
+    expect(world.self.whenLastKillMult).toBe(world.clock);
+
+    /* Turns 1 through 4 after the kill: still inside the window. */
+    for (let i = 0; i < 4; i++) {
+      expect(
+        borgCheckRest(ctx, createFlowState(), world.self.c.y, world.self.c.x),
+      ).toBe(false);
+      world.clock += 1;
+    }
+
+    /* The fifth turn: the window has passed and resting is legal again. */
+    expect(
+      borgCheckRest(ctx, createFlowState(), world.self.c.y, world.self.c.x),
+    ).toBe(true);
+  });
+
+  it("does not arm the guard for an ordinary monster's death", () => {
+    const world = new BorgWorld();
+    const memo = makePerceiveMemo();
+    perceive(
+      world,
+      makeScenarioView({
+        player: { grid: { x: 5, y: 5 } },
+        monsters: [{ id: 9, race: "kobold", grid: { x: 6, y: 5 } }],
+      }),
+      memo,
+    );
+
+    world.clock += 1;
+    perceive(
+      world,
+      makeScenarioView({
+        player: { grid: { x: 5, y: 5 } },
+        monsters: [],
+        messages: ["The kobold dies."],
+      }),
+      memo,
+    );
+    expect(world.self.whenLastKillMult).toBe(0);
+  });
+});

@@ -58,6 +58,14 @@ export interface BorgKill {
   when: number;
   /** The game's monster index (m_idx). */
   mIdx: number;
+  /**
+   * RF_MULTIPLY, cached from the race the last time this monster was visible
+   * (ingestMonsters). Read by BorgKills.delete (borg_delete_kill,
+   * borg-flow-kill.c:430-432) to arm the breeder-rest guard; surviving the
+   * fog-of-war the same way `rIdx` does is what lets a record deleted while
+   * out of sight still be recognised as a breeder.
+   */
+  isMultiplier: boolean;
 }
 
 /** A fresh, empty kill record (borg_delete_kill leaves them zeroed). */
@@ -87,6 +95,7 @@ export function makeBorgKill(): BorgKill {
     spellFlags: [],
     when: 0,
     mIdx: 0,
+    isMultiplier: false,
   };
 }
 
@@ -128,9 +137,22 @@ export class BorgKills {
     return i;
   }
 
-  /** Clear the record at index i (borg_delete_kill). */
-  delete(i: number): void {
-    if (i >= 1 && i < this.list.length) this.list[i] = makeBorgKill();
+  /**
+   * Clear the record at index i (borg_delete_kill, borg-flow-kill.c:411-439).
+   *
+   * `stamp`, when supplied, is where upstream's own timestamp lives
+   * (borg-flow-kill.c:430-432): ANY deletion of a MULTIPLY-flagged record -
+   * a kill, a blink, an expiry, a forgotten phantom - arms
+   * `whenLastKillMult`, because upstream's version of this check runs inside
+   * `borg_delete_kill` itself rather than only on the "I killed it" path.
+   * Optional so a caller that has nothing to stamp (a bare test, most of
+   * them) can still delete.
+   */
+  delete(i: number, stamp?: { self: { whenLastKillMult: number }; clock: number }): void {
+    if (i < 1 || i >= this.list.length) return;
+    const kill = this.list[i]!;
+    if (stamp && kill.isMultiplier) stamp.self.whenLastKillMult = stamp.clock;
+    this.list[i] = makeBorgKill();
   }
 
   /** Reset the whole list on level change. */

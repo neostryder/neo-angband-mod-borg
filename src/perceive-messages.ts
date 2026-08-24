@@ -335,7 +335,7 @@ export function borgReactMessages(
     if (anyPrefix(msg, PREFIX_KILL) || anySuffix(msg, SUFFIX_DIED)) {
       const k = locateStaleKill(world, visibleIds, 20);
       if (k > 0) {
-        world.kills.delete(k);
+        world.kills.delete(k, world);
         deleted += 1;
       }
       continue;
@@ -347,7 +347,7 @@ export function borgReactMessages(
     if (anySuffix(msg, SUFFIX_BLINK)) {
       const k = locateStaleKill(world, visibleIds, 20);
       if (k > 0) {
-        world.kills.delete(k);
+        world.kills.delete(k, world);
         deleted += 1;
       }
       continue;
@@ -378,6 +378,120 @@ export function borgReactMessages(
     }
     if (msg.startsWith("The air around you stops ")) {
       world.self.goal.descending = 0;
+      continue;
+    }
+
+    /*
+     * Buff on/off messages (borg-messages.c:772-1025). This is upstream's
+     * PRIMARY bookkeeping for these flags - borg-trait.c:3010's cross-check
+     * against player->timed[] is a safety net for exactly the failure mode
+     * this table cannot fully cover (a missed message), and that net cannot be
+     * ported: PlayerStatusView exposes only the eight afflictions, none of
+     * these buffs (see PLANNED.md). Without this table `world.self.temp.*`
+     * never left its all-false initial state, so the buff-aware defensive
+     * maneuvers (fight/defend.ts) always believed nothing was active and kept
+     * re-casting spells the character already had running.
+     */
+    if (msg.startsWith("You feel safe from evil!")) {
+      world.self.temp.protFromEvil = true;
+      continue;
+    }
+    if (msg.startsWith("You no longer feel safe from evil.")) {
+      world.self.temp.protFromEvil = false;
+      continue;
+    }
+    if (msg.startsWith("You feel yourself moving faster!")) {
+      world.self.temp.fast = true;
+      continue;
+    }
+    if (msg.startsWith("You feel yourself slow down.")) {
+      world.self.temp.fast = false;
+      continue;
+    }
+    if (msg.startsWith("You feel righteous")) {
+      world.self.temp.bless = true;
+      continue;
+    }
+    if (msg.startsWith("The prayer has expired.")) {
+      world.self.temp.bless = false;
+      continue;
+    }
+    if (msg.startsWith("You feel your mind accelerate.")) {
+      world.self.temp.fastcast = true;
+      continue;
+    }
+    if (msg.startsWith("You feel your mind slow again.")) {
+      world.self.temp.fastcast = false;
+      continue;
+    }
+    if (msg.startsWith("You feel like a hero!")) {
+      world.self.temp.hero = true;
+      continue;
+    }
+    if (msg.startsWith("You no longer feel heroic.")) {
+      world.self.temp.hero = false;
+      continue;
+    }
+    if (msg.startsWith("You feel like a killing machine!")) {
+      world.self.temp.berserk = true;
+      continue;
+    }
+    if (msg.startsWith("You no longer feel berserk.")) {
+      world.self.temp.berserk = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to acid!")) {
+      world.self.temp.resAcid = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to acid.")) {
+      world.self.temp.resAcid = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to electricity!")) {
+      world.self.temp.resElec = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to electricity.")) {
+      world.self.temp.resElec = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to fire!")) {
+      world.self.temp.resFire = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to fire.")) {
+      world.self.temp.resFire = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to cold!")) {
+      world.self.temp.resCold = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to cold.")) {
+      world.self.temp.resCold = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to poison!")) {
+      world.self.temp.resPois = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to poison.")) {
+      world.self.temp.resPois = false;
+      continue;
+    }
+    if (
+      msg.startsWith("A mystic shield forms around your body!") ||
+      msg.startsWith("Your skin turns to stone.")
+    ) {
+      world.self.temp.shield = true;
+      continue;
+    }
+    if (
+      msg.startsWith("Your mystic shield crumbles away.") ||
+      msg.startsWith("A fleshy shade returns to your skin.")
+    ) {
+      world.self.temp.shield = false;
       continue;
     }
 

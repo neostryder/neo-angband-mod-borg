@@ -110,7 +110,8 @@ function makeBorgKill() {
     level: 0,
     spellFlags: [],
     when: 0,
-    mIdx: 0
+    mIdx: 0,
+    isMultiplier: false
   };
 }
 var BorgKills = class {
@@ -142,9 +143,22 @@ var BorgKills = class {
     this.count += 1;
     return i;
   }
-  /** Clear the record at index i (borg_delete_kill). */
-  delete(i) {
-    if (i >= 1 && i < this.list.length) this.list[i] = makeBorgKill();
+  /**
+   * Clear the record at index i (borg_delete_kill, borg-flow-kill.c:411-439).
+   *
+   * `stamp`, when supplied, is where upstream's own timestamp lives
+   * (borg-flow-kill.c:430-432): ANY deletion of a MULTIPLY-flagged record -
+   * a kill, a blink, an expiry, a forgotten phantom - arms
+   * `whenLastKillMult`, because upstream's version of this check runs inside
+   * `borg_delete_kill` itself rather than only on the "I killed it" path.
+   * Optional so a caller that has nothing to stamp (a bare test, most of
+   * them) can still delete.
+   */
+  delete(i, stamp) {
+    if (i < 1 || i >= this.list.length) return;
+    const kill = this.list[i];
+    if (stamp && kill.isMultiplier) stamp.self.whenLastKillMult = stamp.clock;
+    this.list[i] = makeBorgKill();
   }
   /** Reset the whole list on level change. */
   wipe() {
@@ -3979,6 +3993,9 @@ function borgHappyGridBold(ctx, flow, y, x) {
 }
 function borgCheckRest(ctx, flow, y, x) {
   const w = ctx.world;
+  if (w.self.whenLastKillMult > w.clock - 4 && w.self.whenLastKillMult <= w.clock)
+    return false;
+  w.self.whenLastKillMult = 0;
   const t = w.self.temp;
   if ((t.bless || t.hero || t.berserk || t.fastcast || t.regen || t.smiteEvil) && !w.self.munchkinMode && trait(w, 27 /* CURHP */) >= Math.trunc(trait(w, 28 /* MAXHP */) * 8 / 10) && trait(w, 30 /* CURSP */) >= Math.trunc(trait(w, 31 /* MAXSP */) * 7 / 10))
     return false;
@@ -4711,15 +4728,15 @@ function borgFollowKill(ctx, flow, i) {
   const has2 = (f) => flow.hooks.monsterHasFlag(w, i, f);
   if (!killWouldBeVisible(ctx, flow, i, oy, ox)) return;
   if (!borgCaveFloorBold(w, oy, ox)) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
   if (w.clock > 2e4) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
   if (has2("NEVER_MOVE") || !kill.awake) {
-    if (oy === w.self.c.y && ox === w.self.c.x) w.kills.delete(i);
+    if (oy === w.self.c.y && ox === w.self.c.x) w.kills.delete(i, w);
     return;
   }
   let bDx = 0;
@@ -4741,15 +4758,15 @@ function borgFollowKill(ctx, flow, i) {
   const nx = ox + bDx;
   const ny = oy + bDy;
   if (!w.map.inBounds(nx, ny) || !borgCaveFloorBold(w, ny, nx)) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
   if (w.map.at(nx, ny).kill !== i) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
   if (ny === oy && nx === ox) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
   w.map.at(kill.pos.x, kill.pos.y).kill = 0;
@@ -12774,7 +12791,7 @@ function auxBanishment(ctx, fs, p1) {
     toDelete.push(i);
   }
   if (!fs.simulate) {
-    for (const i of toDelete) ctx.world.kills.delete(i);
+    for (const i of toDelete) ctx.world.kills.delete(i, ctx.world);
     fs.pending = usingArtifact ? borgActivateItem(ctx, "act_loskill") : borgSpell(ctx, 80 /* BANISH_EVIL */);
     return fs.pending ? p1 - p2 : 0;
   }
@@ -14724,7 +14741,7 @@ function borgReactMessages(world, messages, visibleIds, names = /* @__PURE__ */ 
     if (anyPrefix(msg, PREFIX_KILL) || anySuffix(msg, SUFFIX_DIED)) {
       const k = locateStaleKill(world, visibleIds, 20);
       if (k > 0) {
-        world.kills.delete(k);
+        world.kills.delete(k, world);
         deleted += 1;
       }
       continue;
@@ -14732,7 +14749,7 @@ function borgReactMessages(world, messages, visibleIds, names = /* @__PURE__ */ 
     if (anySuffix(msg, SUFFIX_BLINK)) {
       const k = locateStaleKill(world, visibleIds, 20);
       if (k > 0) {
-        world.kills.delete(k);
+        world.kills.delete(k, world);
         deleted += 1;
       }
       continue;
@@ -14759,6 +14776,102 @@ function borgReactMessages(world, messages, visibleIds, names = /* @__PURE__ */ 
     }
     if (msg.startsWith("The air around you stops ")) {
       world.self.goal.descending = 0;
+      continue;
+    }
+    if (msg.startsWith("You feel safe from evil!")) {
+      world.self.temp.protFromEvil = true;
+      continue;
+    }
+    if (msg.startsWith("You no longer feel safe from evil.")) {
+      world.self.temp.protFromEvil = false;
+      continue;
+    }
+    if (msg.startsWith("You feel yourself moving faster!")) {
+      world.self.temp.fast = true;
+      continue;
+    }
+    if (msg.startsWith("You feel yourself slow down.")) {
+      world.self.temp.fast = false;
+      continue;
+    }
+    if (msg.startsWith("You feel righteous")) {
+      world.self.temp.bless = true;
+      continue;
+    }
+    if (msg.startsWith("The prayer has expired.")) {
+      world.self.temp.bless = false;
+      continue;
+    }
+    if (msg.startsWith("You feel your mind accelerate.")) {
+      world.self.temp.fastcast = true;
+      continue;
+    }
+    if (msg.startsWith("You feel your mind slow again.")) {
+      world.self.temp.fastcast = false;
+      continue;
+    }
+    if (msg.startsWith("You feel like a hero!")) {
+      world.self.temp.hero = true;
+      continue;
+    }
+    if (msg.startsWith("You no longer feel heroic.")) {
+      world.self.temp.hero = false;
+      continue;
+    }
+    if (msg.startsWith("You feel like a killing machine!")) {
+      world.self.temp.berserk = true;
+      continue;
+    }
+    if (msg.startsWith("You no longer feel berserk.")) {
+      world.self.temp.berserk = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to acid!")) {
+      world.self.temp.resAcid = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to acid.")) {
+      world.self.temp.resAcid = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to electricity!")) {
+      world.self.temp.resElec = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to electricity.")) {
+      world.self.temp.resElec = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to fire!")) {
+      world.self.temp.resFire = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to fire.")) {
+      world.self.temp.resFire = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to cold!")) {
+      world.self.temp.resCold = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to cold.")) {
+      world.self.temp.resCold = false;
+      continue;
+    }
+    if (msg.startsWith("You feel resistant to poison!")) {
+      world.self.temp.resPois = true;
+      continue;
+    }
+    if (msg.startsWith("You are no longer resistant to poison.")) {
+      world.self.temp.resPois = false;
+      continue;
+    }
+    if (msg.startsWith("A mystic shield forms around your body!") || msg.startsWith("Your skin turns to stone.")) {
+      world.self.temp.shield = true;
+      continue;
+    }
+    if (msg.startsWith("Your mystic shield crumbles away.") || msg.startsWith("A fleshy shade returns to your skin.")) {
+      world.self.temp.shield = false;
       continue;
     }
     const missSuffix = SUFFIX_MISS_BY.find((s) => msg.endsWith(s));
@@ -14969,6 +15082,7 @@ function ingestMonsters(world, view) {
     k.injury = m.maxHp > 0 ? Math.trunc((m.maxHp - m.hp) * 100 / m.maxHp) : 0;
     k.level = m.level;
     k.rangedAttack = m.spellFlags.length;
+    k.isMultiplier = m.raceFlags.includes("MULTIPLY");
     k.seen = true;
     k.when = world.clock;
     if (world.map.inBounds(m.grid.x, m.grid.y)) {
@@ -14977,7 +15091,7 @@ function ingestMonsters(world, view) {
   }
   for (const [i, k] of world.kills.entries()) {
     if (world.clock - k.when < BORG_EXPIRE_TURNS) continue;
-    world.kills.delete(i);
+    world.kills.delete(i, world);
   }
   return { ids: visibleIds, names };
 }
