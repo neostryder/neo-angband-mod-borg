@@ -10,6 +10,8 @@ Install it from the game's **Install a mod...** row. Enabling the mod does **not
 hand it your character: switch on *Let the Borg play* and it takes the keyboard
 from the next turn.
 
+![The Borg exploring a dungeon level under its own control](docs/img/borg-autoplay.jpg)
+
 ## What it is
 
 A faithful port of Angband 4.2.6's `borg/`: the same priority ladder, the same
