@@ -525,16 +525,18 @@ implemented" but "who writes it".
 - **Regional fear from a spell cast by something unseen.** The message half is
   ported for blows but not for spells, so an invisible caster raises no fear
   where an invisible biter does. Tracked as neo-angband#38.
-- **`when_last_kill_mult`.** Upstream refuses to rest for four turns after killing
-  a breeder, which needs the race flag at the moment a record is deleted; the
-  message pass that deletes it has no resolver. Tracked as neo-angband#36.
 - **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag
   that `PlayerView` does not carry, so this needs an engine seam rather than
   wiring. Tracked as neo-angband#34.
-- **The buff-timer safety net** (`borg-trait.c:3010`). `PlayerStatusView` carries
-  no buff timers, so the port's own bookkeeping about recall, haste, protection
-  and resistances has no cross-check against the engine's real timers. Tracked
-  as neo-angband#32.
+- **The buff-timer safety net's engine half** (`borg-trait.c:3010`).
+  `PlayerStatusView` carries no buff timers, so the direct cross-check against
+  `player->timed[]` that upstream uses to catch a missed message cannot be
+  ported: there is no engine seam to read it from. The message-driven half of
+  the mechanism (`borg-messages.c:772-1025`, upstream's PRIMARY bookkeeping for
+  these flags) is ported in full (`perceive-messages.ts`); only the redundant
+  safety net behind it is out of reach. neo-angband#32 tracked the whole
+  mechanism; the engine seam it would still need is a separate, larger change
+  than a mod can make.
 
 ## Progress
 
@@ -551,6 +553,8 @@ implemented" but "who writes it".
 | 2026-08-21 | **The rest engine seam named in symptom 9 has landed in neo-angband's tree.** `rest(count?: number)` on the agent action surface now reaches a real multi-turn `restAction`, self-continuing on the internal command queue exactly like a run, plus the three `REST_` conditional-stop modes. `src/core-api.ts` binds `REST_COMPLETE` alongside the other five engine symbols; the seven recovery-ladder `ctx.act.rest()` call sites now pass it explicitly, and the one tactical one-turn wait (`fight/attack.ts`'s `auxRest`) moved to `ctx.act.hold()`, since a rest count of exactly 1 means "repeat the last rest" upstream, not "one turn". The change degrades to today's single-turn hold on an engine without the fix, so it needed no `manifest.json` floor bump - but the healing-rate benefit itself, and this repository's own tests against a real engine, both wait on a release. |
 
 | 2026-08-22 | **The Borg can be told how to play, for the first time.** Eight of upstream's `borg.txt` settings are toggles in the mod manager, and `createBorg` installs them where the ported decision code reads them. `BorgCfg` had existed since the self-model landed with no caller, so a stock default was the only value any of the twenty-odd reading call sites had ever seen. One of those defaults was also wrong: `borg_self_scum` ships enabled upstream and was disabled at both of this port's call sites, so a stock Borg never saved up for anything. Three of upstream's booleans were held back rather than shipped as switches that tick and change nothing; step 6 says which and why. |
+| 2026-08-24 | **`when_last_kill_mult` is ported (neo-angband#36).** `BorgKills.delete` - the port's `borg_delete_kill` - now stamps `self.whenLastKillMult` whenever it clears a record cached as MULTIPLY, matching upstream's single point of truth rather than special-casing the kill path; the cache (`BorgKill.isMultiplier`) is filled the same way `rIdx` is, from the last tick the monster was visible, so a record deleted out of sight is still recognised. `borg_check_rest` refuses to rest for the four turns the guard covers and clears the stamp once the window passes, exactly as `borg-flow-misc.c:1223-1240` does. Also corrected a stale comment on the same function: its per-monster race-flag tests (NEVER_MOVE/MULTIPLY/PASS_WALL/KILL_WALL) were already ported via `FlowHooks.monsterHasFlag`, contrary to what the file's own header claimed. |
+| 2026-08-24 | **The buff message table is ported (neo-angband#32).** `perceive-messages.ts` now recognises the twenty-two on/off messages `borg-messages.c:772-1025` uses to track protection from evil, haste, bless, fastcast, hero, berserk, the five elemental resists and shield/stoneskin - upstream's PRIMARY bookkeeping for these flags, and previously entirely absent, so every one of `world.self.temp`'s buff booleans stayed false forever and the buff-aware defensive maneuvers in `fight/defend.ts` never recognised an active buff. The direct `player->timed[]` cross-check named in the issue (`borg-trait.c:3010`) remains unported: `PlayerStatusView` exposes only the eight afflictions, none of these buffs, so there is no engine data to cross-check against from inside this mod. |
 
 ## Releasing this
 

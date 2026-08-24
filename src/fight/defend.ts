@@ -659,7 +659,7 @@ function auxBanishment(ctx: BorgContext, fs: FightState, p1: number): number {
   }
 
   if (!fs.simulate) {
-    for (const i of toDelete) ctx.world.kills.delete(i);
+    for (const i of toDelete) ctx.world.kills.delete(i, ctx.world);
     fs.pending = usingArtifact ? borgActivateItem(ctx, "act_loskill") : borgSpell(ctx, Spell.BANISH_EVIL);
     return fs.pending ? p1 - p2 : 0;
   }

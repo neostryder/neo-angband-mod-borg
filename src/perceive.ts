@@ -360,6 +360,9 @@ function ingestMonsters(
      * it and nothing had ever written it, so every monster read as unable to
      * touch the Borg from across a room. */
     k.rangedAttack = m.spellFlags.length;
+    /* RF_MULTIPLY, cached for when this record is later deleted out of sight
+     * (see BorgKill.isMultiplier / BorgKills.delete). */
+    k.isMultiplier = m.raceFlags.includes("MULTIPLY");
     k.seen = true;
     k.when = world.clock;
 
@@ -372,7 +375,7 @@ function ingestMonsters(
   // (borg-update.c:1553). Visible records were just refreshed (when == clock).
   for (const [i, k] of world.kills.entries()) {
     if (world.clock - k.when < BORG_EXPIRE_TURNS) continue;
-    world.kills.delete(i);
+    world.kills.delete(i, world);
   }
 
   return { ids: visibleIds, names };

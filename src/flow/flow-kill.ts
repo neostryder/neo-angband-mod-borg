@@ -590,20 +590,20 @@ function borgFollowKill(ctx: BorgContext, flow: FlowState, i: number): void {
 
   /* Prevent silliness */
   if (!borgCaveFloorBold(w, oy, ox)) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
 
   /* prevent overflows */
   if (w.clock > 20000) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
 
   /* Some never move, and some are asleep: no reason to follow them, but forget
    * one the Borg is standing on. */
   if (has("NEVER_MOVE") || !kill.awake) {
-    if (oy === w.self.c.y && ox === w.self.c.x) w.kills.delete(i);
+    if (oy === w.self.c.y && ox === w.self.c.x) w.kills.delete(i, w);
     return;
   }
 
@@ -633,20 +633,20 @@ function borgFollowKill(ctx: BorgContext, flow: FlowState, i: number): void {
 
   /* Avoid walls and doors */
   if (!w.map.inBounds(nx, ny) || !borgCaveFloorBold(w, ny, nx)) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
 
   /* Avoid monsters */
   if (w.map.at(nx, ny).kill !== i) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
 
   /* Delete monsters that did not really move. This is the arm that kills the
    * phantom: every way out was visible and empty, so the offsets cancelled. */
   if (ny === oy && nx === ox) {
-    w.kills.delete(i);
+    w.kills.delete(i, w);
     return;
   }
 

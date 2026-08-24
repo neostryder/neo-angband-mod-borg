@@ -8,6 +8,33 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## 0.9.3
+
+### Fixed
+
+- **The breeder-rest guard was not ported (neo-angband#36).** Upstream refuses
+  to rest for four turns after a MULTIPLY-flagged monster's tracked record is
+  forgotten - killed, teleported away, or simply expired - because the level
+  may hold more breeders the Borg has not found yet. `BorgKills.delete`, the
+  port's own `borg_delete_kill`, now stamps a timestamp on exactly that
+  condition rather than only on the kill path, matching upstream's single
+  point of truth, and `borg_check_rest` refuses to rest while the stamp is
+  inside its four-turn window, clearing it once the window passes so a stale
+  value cannot coincidentally trip the guard again after a level change.
+
+- **The buff message table was not ported (neo-angband#32).** Upstream tracks
+  protection from evil, haste, bless, fastcast, heroism, berserker strength,
+  the five elemental resists, and stoneskin/mystic shield from the game's own
+  on and off messages ("You feel righteous!", "The prayer has expired.", and
+  nineteen more). None of that table existed in this port, so every one of
+  those flags stayed false forever and the buff-aware defensive maneuvers
+  never recognised a buff the character already had running. The table is
+  ported in full. The engine-side safety net upstream layers on top of it,
+  reading the buff timers directly off the player as a cross-check, remains
+  out of reach: the frozen view this mod reads exposes only the eight
+  negative afflictions, none of these buffs, so there is nothing here to
+  cross-check against.
+
 ## 0.9.2
 
 Added a Terms of Use and a shared Code of Conduct alongside the existing
