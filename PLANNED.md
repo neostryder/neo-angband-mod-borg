@@ -520,15 +520,13 @@ implemented" but "who writes it".
 - **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag
   that `PlayerView` does not carry, so this needs an engine seam rather than
   wiring. Tracked as neo-angband#34.
-- **The buff-timer safety net's engine half** (`borg-trait.c:3010`).
-  `PlayerStatusView` carries no buff timers, so the direct cross-check against
-  `player->timed[]` that upstream uses to catch a missed message cannot be
-  ported: there is no engine seam to read it from. The message-driven half of
-  the mechanism (`borg-messages.c:772-1025`, upstream's PRIMARY bookkeeping for
-  these flags) is ported in full (`perceive-messages.ts`); only the redundant
-  safety net behind it is out of reach. neo-angband#32 tracked the whole
-  mechanism; the engine seam it would still need is a separate, larger change
-  than a mod can make.
+- **The buff-timer safety net's engine half** (`borg-trait.c:3010`), the
+  redundant cross-check behind the message-driven bookkeeping
+  (`borg-messages.c:772-1025`) that `perceive-messages.ts` already ports in
+  full. The engine seam this needed landed in neo-angband 7edb9271a (Agent API
+  1.4.0): `PlayerStatusView` now carries the thirteen buff timers upstream
+  cross-checks `player->timed[]` against. Wiring the cross-check itself on
+  this side is not yet done. Tracked as neo-angband#32.
 
 ## Progress
 
