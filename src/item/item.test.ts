@@ -12,6 +12,7 @@ import type {
   SpellView,
 } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "../world/model.js";
+import { panelCol, panelRow } from "../world/panel.js";
 import { makeScenarioView, makeFakeActions, type Scenario } from "../harness.js";
 import { makeBorgRng } from "../rng.js";
 import type { BorgContext } from "../context.js";
@@ -31,6 +32,7 @@ import {
   borgZapRod,
   borgMaintainLight,
   BorgNeed,
+  borgCheckLight,
   borgRecover,
   borgCrushJunk,
   deviceFail,
@@ -266,6 +268,152 @@ describe("light maintenance", () => {
   it("reports UNMET_NEED with no light and none to wield", () => {
     const ctx = makeCtx({});
     expect(borgMaintainLight(ctx).need).toBe(BorgNeed.UNMET_NEED);
+  });
+});
+
+describe("detection scheduler (borgCheckLight)", () => {
+  it("guards: never in town once mature (scary guy)", () => {
+    const ctx = makeCtx({ player: { depth: 0 } }, {}, {
+      CDEPTH: 0,
+      MAXCLEVEL: 11,
+    });
+    expect(borgCheckLight(ctx)).toBeNull();
+  });
+
+  it("guards: never while blind/confused/image/poisoned/cut/weak", () => {
+    const ctx = makeCtx(
+      { player: { depth: 5 } },
+      { inventory: [item({ handle: 5, tval: TV.ROD, sval: SVAL.rod.detection!, pval: 1 })] },
+      { CDEPTH: 5, MAXCLEVEL: 1, ISPOISONED: 1 },
+    );
+    expect(borgCheckLight(ctx)).toBeNull();
+  });
+
+  it("casts the traps+doors+evil combo via a rod of detection on a fresh panel, and marks it", () => {
+    const ctx = makeCtx(
+      { player: { depth: 5 } },
+      { inventory: [item({ handle: 5, tval: TV.ROD, sval: SVAL.rod.detection!, pval: 1 })] },
+      { CDEPTH: 5, MAXCLEVEL: 1 },
+    );
+    ctx.world.clock = 50;
+    const { x: px, y: py } = ctx.view.player().grid;
+    const qx = panelCol(px);
+    const qy = panelRow(py);
+
+    const cmd = borgCheckLight(ctx) as { code: string; args: { handle: number } };
+    expect(cmd.code).toBe("zap-rod");
+    expect(cmd.args.handle).toBe(5);
+
+    expect(ctx.world.detect.isDetected("trap", qy, qx)).toBe(true);
+    expect(ctx.world.detect.isDetected("door", qy, qx)).toBe(true);
+    expect(ctx.world.detect.isDetected("evil", qy, qx)).toBe(true);
+    // borg_handle_self("TDE") stamps the obj TIMER but never marks the obj
+    // ARRAY (a real upstream inconsistency, light.c:404 vs borg-update.c:1416).
+    expect(ctx.world.detect.isDetected("obj", qy, qx)).toBe(false);
+    expect(ctx.world.self.whenDetectTraps).toBe(50);
+    expect(ctx.world.self.whenDetectDoors).toBe(50);
+    expect(ctx.world.self.whenDetectEvil).toBe(50);
+    expect(ctx.world.self.whenDetectObj).toBe(50);
+  });
+
+  it("does not recast in the same panel right after a successful sweep", () => {
+    const ctx = makeCtx(
+      { player: { depth: 5 } },
+      { inventory: [item({ handle: 5, tval: TV.ROD, sval: SVAL.rod.detection!, pval: 1 })] },
+      { CDEPTH: 5, MAXCLEVEL: 1 },
+    );
+    ctx.world.clock = 50;
+    const first = borgCheckLight(ctx);
+    expect(first).not.toBeNull();
+
+    // Same panel, same think: trap/door/evil are already swept, and there is
+    // no gear/spell for walls or objects, so nothing productive is left.
+    const second = borgCheckLight(ctx);
+    expect(second).toBeNull();
+  });
+
+  it("resweeps once the Borg walks into a different, unswept panel", () => {
+    let pos = { x: 10, y: 10 };
+    const ctx = makeCtx(
+      { player: { depth: 5, grid: pos } },
+      { inventory: [item({ handle: 5, tval: TV.ROD, sval: SVAL.rod.detection!, pval: 1 })] },
+      { CDEPTH: 5, MAXCLEVEL: 1 },
+    );
+    const basePlayer = ctx.view.player;
+    ctx.view = { ...ctx.view, player: () => ({ ...basePlayer(), grid: pos }) };
+
+    const q0x = panelCol(pos.x);
+    const q0y = panelRow(pos.y);
+    expect(borgCheckLight(ctx)).not.toBeNull();
+    expect(ctx.world.detect.isDetected("trap", q0y, q0x)).toBe(true);
+
+    // Walk far enough to land in a different panel index.
+    pos = { x: 100, y: 50 };
+    const q1x = panelCol(pos.x);
+    const q1y = panelRow(pos.y);
+    expect(q1x !== q0x || q1y !== q0y).toBe(true);
+    expect(ctx.world.detect.isDetected("trap", q1y, q1x)).toBe(false);
+
+    const cmd = borgCheckLight(ctx);
+    expect(cmd).not.toBeNull();
+    expect(ctx.world.detect.isDetected("trap", q1y, q1x)).toBe(true);
+    // The original panel is unaffected by the second sweep.
+    expect(ctx.world.detect.isDetected("trap", q0y, q0x)).toBe(true);
+  });
+
+  it("ESP suppresses evil detection, so an otherwise-fresh panel with only evil left goes unswept", () => {
+    const setup = (esp: number) => {
+      const ctx = makeCtx(
+        { player: { depth: 5 } },
+        { inventory: [item({ handle: 5, tval: TV.ROD, sval: SVAL.rod.detection!, pval: 1 })] },
+        { CDEPTH: 5, MAXCLEVEL: 1, ESP: esp },
+      );
+      const { x: px, y: py } = ctx.view.player().grid;
+      // Trap/door already swept - only evil remains, which is what ESP negates.
+      ctx.world.detect.markQuadrant("trap", panelRow(py), panelCol(px));
+      ctx.world.detect.markQuadrant("door", panelRow(py), panelCol(px));
+      return ctx;
+    };
+
+    expect(borgCheckLight(setup(0))).not.toBeNull(); // no ESP: still detects evil
+    expect(borgCheckLight(setup(1))).toBeNull(); // has ESP: nothing left to do
+  });
+
+  it("gates the walls branch on its own 15-turn cooldown, even with a fresh panel", () => {
+    const ctx = makeCtx(
+      { player: { depth: 5 } },
+      { inventory: [item({ handle: 9, tval: TV.ROD, sval: SVAL.rod.mapping!, pval: 1 })] },
+      { CDEPTH: 5, MAXCLEVEL: 1 },
+    );
+    ctx.world.clock = 100;
+    ctx.world.self.whenDetectWalls = 90; // 10 turns ago: inside the 15-turn cooldown
+    expect(borgCheckLight(ctx)).toBeNull();
+  });
+
+  it("fires the walls branch once its cooldown has elapsed", () => {
+    const ctx = makeCtx(
+      { player: { depth: 5 } },
+      { inventory: [item({ handle: 9, tval: TV.ROD, sval: SVAL.rod.mapping!, pval: 1 })] },
+      { CDEPTH: 5, MAXCLEVEL: 1 },
+    );
+    ctx.world.clock = 100;
+    ctx.world.self.whenDetectWalls = 80; // 20 turns ago: cooldown elapsed
+    const cmd = borgCheckLight(ctx) as { code: string; args: { handle: number } };
+    expect(cmd.code).toBe("zap-rod");
+    expect(cmd.args.handle).toBe(9);
+    expect(ctx.world.self.whenDetectWalls).toBe(100);
+  });
+
+  it("falls through to borgCheckLightOnly when nothing needs detecting", () => {
+    const ctx = makeCtx({ player: { depth: 5 } }, {}, { CDEPTH: 5, MAXCLEVEL: 1 });
+    const { x: px, y: py } = ctx.view.player().grid;
+    const qy = panelRow(py);
+    const qx = panelCol(px);
+    for (const kind of ["wall", "trap", "door", "evil", "obj"] as const) {
+      ctx.world.detect.markQuadrant(kind, qy, qx);
+    }
+    // Nothing left to detect and no light gear/spells: yields null.
+    expect(borgCheckLight(ctx)).toBeNull();
   });
 });
 

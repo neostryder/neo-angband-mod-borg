@@ -77,6 +77,7 @@ import {
   borgEnchanting,
   borgRecharging,
   borgCheckLightOnly,
+  borgCheckLight,
   borgLightBeam,
   borgSpell,
   borgReadScroll,
@@ -698,9 +699,12 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
-  /* Check the light (:1631). */
+  /* Check the light (:1631). borg_check_light: the detection scheduler
+   * (find traps/doors/stairs, detect evil, magic mapping, detect objects),
+   * falling through to plain illumination (borgCheckLightOnly) as its last
+   * step - see item/light.ts. */
   {
-    const cmd = borgCheckLightOnly(ctx, itemDeps);
+    const cmd = borgCheckLight(ctx, itemDeps);
     if (cmd) return cmd;
   }
 

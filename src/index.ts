@@ -12,6 +12,7 @@
 export * from "./world/grid.js";
 export * from "./world/kill.js";
 export * from "./world/take.js";
+export * from "./world/panel.js";
 export * from "./world/model.js";
 export * from "./rng.js";
 export * from "./context.js";
