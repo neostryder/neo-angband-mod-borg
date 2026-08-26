@@ -1,4 +1,4 @@
-# Planned: make the Borg actually play
+# Borg playability: implementation record and remaining work
 
 **Opened 2026-08-21. Target: full functionality, validated by several successful
 runs, where a successful run means it tries its best and gets as far as it can.**
