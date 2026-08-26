@@ -1,6 +1,6 @@
 # neo-angband-mod-borg
 
-The Borg (Angband's automatic player) for
+Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
 **Needs Neo Angband 0.27.0 or newer.** An older game refuses to load it and says
@@ -10,7 +10,7 @@ Install it from the game's **Install a mod...** row. Enabling the mod does **not
 hand it your character: switch on *Let the Borg play* and it takes the keyboard
 from the next turn.
 
-![The Borg exploring a dungeon level under its own control](docs/img/borg-autoplay.jpg)
+![Borg exploring a dungeon level under its own control](docs/img/borg-autoplay.jpg)
 
 ## What it is
 
@@ -114,7 +114,7 @@ fresh set of heuristics that merely look similar.
 > low-hitpoint warning by taking the stairs, arrived in town at 6 of 11 hit points,
 > and rested back to 10 before diving again.
 >
-> **Shopping is connected end to end.** The Borg can identify its current shop,
+> **Shopping is connected end to end.** Borg can identify its current shop,
 > evaluate purchases and sales, and issue `shop-buy`, `shop-sell` and `shop-exit`
 > through the engine's command registry. The real-engine verification test covers
 > inventory changes and gold changing hands. A young Borg can still return to town
@@ -212,7 +212,7 @@ no manifest change here.
   (its comments call these "cheats") and scrapes the terminal for the rest. This
   one sees exactly what the perceive facade grants it, and acts only through
   commands a player could issue.
-- **It does not cost you reproducibility.** The Borg is deterministic: it draws
+- **It does not cost you reproducibility.** Borg is deterministic: it draws
   only its own seeded generator and never the game's, so a Borg game stays
   replayable and the save's determinism ratchet stays untripped. An autoplayer that
   used a wall clock or a network would trip it, and would have to declare that in

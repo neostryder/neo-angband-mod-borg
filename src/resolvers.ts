@@ -3,7 +3,7 @@
  *
  * The frozen AgentView deliberately omits per-race combat internals (blow[],
  * spell frequency, spell_power, sleep, friends) - a minimal, serializable
- * contract. The Borg is a TRUSTED, in-process mod, so its host CAN read the full
+ * contract. Borg is a TRUSTED, in-process mod, so its host CAN read the full
  * monster-race registry and hand the Borg an exact resolver. makeCoreResolvers
  * bridges core's MonsterRace records into the MonsterFacts the danger evaluator
  * needs, so the ported borg_danger math reproduces upstream verbatim instead of

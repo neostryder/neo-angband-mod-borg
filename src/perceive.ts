@@ -159,7 +159,7 @@ function ingestMap(world: BorgWorld, view: AgentView): void {
     for (let x = 0; x < maxX; x++) {
       const c = view.cell(x, y);
       if (!c) continue;
-      // The Borg only records grids it has seen or remembers, mirroring the
+      // Borg only records grids it has seen or remembers, mirroring the
       // known-map fog-of-war (borg_update_map skips unknown grids).
       if (!c.known && !c.inView) continue;
 

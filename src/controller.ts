@@ -1,5 +1,5 @@
 /**
- * The Borg controller: an AgentController (the frozen decision seam) backed by
+ * Borg controller: an AgentController (the frozen decision seam) backed by
  * the Borg's world model, private RNG, and think ladder. This is what a host
  * installs via installController to hand the game over to the Borg.
  *
@@ -70,9 +70,9 @@ export interface BorgOptions {
 
 /** A live Borg: its world model, RNG, and the controller to install. */
 export interface Borg {
-  /** The Borg's remembered world (inspectable by tests / a debug HUD). */
+  /** Borg's remembered world (inspectable by tests / a debug HUD). */
   world: BorgWorld;
-  /** The Borg's private simulation RNG. */
+  /** Borg's private simulation RNG. */
   rng: Rng;
   /** The controller to hand to installController. */
   controller: AgentController;

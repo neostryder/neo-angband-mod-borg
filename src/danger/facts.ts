@@ -5,7 +5,7 @@
  *
  * THE r_info GAP. Upstream borg_danger reads the full monster_race record
  * (r_ptr->blow[], r_ptr->spell_power, r_ptr->freq_innate / freq_spell,
- * r_ptr->sleep, r_ptr->friends, r_ptr->flags, r_ptr->level). The Borg only sees
+ * r_ptr->sleep, r_ptr->friends, r_ptr->flags, r_ptr->level). Borg only sees
  * the world through the frozen AgentView, whose MonsterView exposes raceFlags
  * (RF_*), spellFlags (RSF_*), level and speed - but NOT blows, spell_power,
  * spell frequency, sleep, or friends. The default resolver below therefore

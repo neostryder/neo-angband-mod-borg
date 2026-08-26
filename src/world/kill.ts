@@ -2,7 +2,7 @@
  * Monster tracking - a faithful port of struct borg_kill and the borg_kills[]
  * list (reference/src/borg/borg-flow-kill.h).
  *
- * The Borg tracks monsters in its own list rather than reading the engine's
+ * Borg tracks monsters in its own list rather than reading the engine's
  * monster array, so it can model staleness ("when last seen"), re-derive
  * identity from what it perceives, and reason about monsters it can no longer
  * see. Records expire after ~2000 borg-turns upstream; that staleness is

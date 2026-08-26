@@ -1,5 +1,5 @@
 /**
- * The Borg's best-attack chooser and damage simulator - a faithful port of
+ * Borg's best-attack chooser and damage simulator - a faithful port of
  * reference/src/borg/borg-fight-attack.c.
  *
  * The engine of fidelity here is the "simulate then commit" pattern: borg_attack
@@ -1953,7 +1953,7 @@ export function borgCalculateAttackEffectiveness(ctx: BorgContext, fs: FightStat
      *
      * All 61 of them, transcribed from the C switch. They were absent: the BF
      * enum carried every id, so borg_attack iterated them, and every one fell to
-     * the default below and scored 0. The Borg therefore never once considered
+     * the default below and scored 0. Borg therefore never once considered
      * attacking with an artifact - and auxActivation, the helper they all call,
      * sat ported with no reference. Whether a given one can fire is still the
      * host's answer, through the activation resolver in ItemDeps; what changed is

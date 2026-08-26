@@ -1,5 +1,5 @@
 /**
- * The Borg's own RNG, isolated from the game's.
+ * Borg's own RNG, isolated from the game's.
  *
  * Upstream, the borg runs its damage/attack simulations on the game's global
  * RNG but swaps in its own local seed first and restores the game's seed after
@@ -29,7 +29,7 @@
 import { Rng } from "./core-api.js";
 
 /**
- * The Borg's default local seed. Upstream draws its start-up value from the
+ * Borg's default local seed. Upstream draws its start-up value from the
  * game RNG (borg-init.c:488, randint1(0x10000000)); a host that wants that
  * behavior passes its own seed to createBorg. Any nonzero constant works; this
  * value is arbitrary but fixed, so an unseeded Borg is reproducible.
