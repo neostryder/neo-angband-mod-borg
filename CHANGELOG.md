@@ -8,6 +8,25 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## Unreleased
+
+### Fixed
+
+- **Regional fear from an unseen spellcaster was not ported
+  (neo-angband#38).** Upstream's `borg_fear_spell` and the monster-spell
+  message table it keys off raised regional fear from a spellcaster the
+  Borg cannot see, the same way an unseen biter already did; the spell side
+  of that table did not exist in the port, so an invisible caster raised no
+  fear at all. The spell-message table is ported and wired the same way the
+  existing blow-message table already was.
+- **The detection scheduler (`borg_check_light`) was not ported
+  (neo-angband#40).** Upstream casts Find Traps/Doors/Stairs, Detect Evil,
+  Magic Mapping and Detect Objects on a cadence and tracks per-panel which
+  parts of a level have been swept, so a caster benefits from its own
+  detection spells the way a warrior cannot. The port had no panel concept
+  to hang that bookkeeping on; a 3x3 panel grid and the scheduler are both
+  added.
+
 ## 0.9.3
 
 ### Fixed
