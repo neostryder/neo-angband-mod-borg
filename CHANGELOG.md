@@ -10,6 +10,8 @@ are, however small.
 
 ## Unreleased
 
+## 1.0.0 - 2026-08-26
+
 ### Fixed
 
 - **Regional fear from an unseen spellcaster was not ported
