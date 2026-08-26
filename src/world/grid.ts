@@ -2,7 +2,7 @@
  * Borg's own remembered map - a faithful port of the borg_grid struct and
  * the borg_grids[][] cache (reference/src/borg/borg-cave.h, borg-cave-view.h).
  *
- * WHY THE BORG KEEPS ITS OWN MAP: the Borg does not read the engine's cave
+ * WHY BORG KEEPS ITS OWN MAP: the Borg does not read the engine's cave
  * directly for navigation. It maintains a parallel, deliberately imperfect model
  * of the dungeon that it updates from what it can perceive, exactly as a human
  * player builds a mental map. That self-imposed fog-of-war is behaviorally

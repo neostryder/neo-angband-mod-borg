@@ -12,7 +12,7 @@
  *     never draws from or perturbs the game's RNG.
  *  2. Borg behavior: simulations use the same quick-LCRNG the C borg used.
  *
- * THE STREAM RUNS CONTINUOUSLY FOR THE LIFE OF THE BORG. Upstream seeds
+ * THE STREAM RUNS CONTINUOUSLY FOR THE LIFE OF BORG. Upstream seeds
  * borg_rand_local exactly once, at borg start-up (borg-init.c:487-488), and the
  * swap-in/swap-out at each think ends with `borg_rand_local = Rand_value`
  * (borg.c:504) - it saves the ADVANCED value back. So think N+1 begins where
