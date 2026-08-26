@@ -114,6 +114,11 @@ export interface BorgResolvers {
    * which is only correct for a Borg that is not playing.
    */
   blowActions?: readonly string[];
+  /** Bound monster spells used to recognise SPELL_<index> reactions. */
+  spellMessages?: readonly {
+    readonly index: number;
+    readonly levels: readonly { readonly message: string; readonly blindMessage: string; readonly missMessage: string }[];
+  }[];
   /**
    * ObjectKind.cost and the character's awareness of the flavour, for one
    * (tval, sval). borg_new_take prices a floor object at kind->cost when the

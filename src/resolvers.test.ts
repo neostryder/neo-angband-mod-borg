@@ -473,4 +473,17 @@ describe("the attack-message table", () => {
      * worth pinning: it says the host forgot, not that the game has no blows. */
     expect(makeCoreResolvers({ races: [] }).blowActions).toEqual([]);
   });
+
+  it("passes every monster-spell level to the message seam", () => {
+    const r = makeCoreResolvers({
+      races: [],
+      monsterSpells: [{
+        index: 37,
+        levels: [{ message: "The caster points.", blindMessage: "Something points.", missMessage: "The caster misses." }],
+      }],
+    });
+    expect(r.spellMessages).toEqual([{ index: 37, levels: [{
+      message: "The caster points.", blindMessage: "Something points.", missMessage: "The caster misses.",
+    }] }]);
+  });
 });

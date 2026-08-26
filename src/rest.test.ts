@@ -26,7 +26,9 @@ import {
   borgLoadReadMessage,
   borgMessageContains,
   buildHitByTable,
+  buildSpellTable,
 } from "./perceive-messages.js";
+import { RSF } from "./core-api.js";
 import { borgNotice, BI } from "./trait/index.js";
 import { getFearCaches } from "./danger/index.js";
 import { borgCheckRest, createFlowState } from "./flow/index.js";
@@ -97,6 +99,22 @@ describe("the message template parser", () => {
 });
 
 describe("an attacker the Borg cannot see", () => {
+  it("raises regional fear from an unseen spellcaster", () => {
+    const world = new BorgWorld();
+    const view = makeScenarioView({ messages: ["Something shouts."] });
+    borgNotice({ world, view, act: makeFakeActions(), rng: makeBorgRng() });
+    const spell = buildSpellTable([{ index: RSF.SHRIEK, levels: [{
+      message: "The caster shouts.", blindMessage: "Something shouts.", missMessage: "The caster misses.",
+    }] }]);
+    perceive(world, view, makePerceiveMemo(), {
+      hitBy: BLOWS.hitBy,
+      spell: spell.spell,
+      spellInvisible: spell.spellInvisible,
+    });
+    expect(fearHere(world)).toBe(10);
+    expect(world.self.temp.needSeeInvis).toBe(world.clock);
+  });
+
   it("raises regional fear, which is what stops it resting", () => {
     const { ctx, world } = ctxFor({ messages: ["Something touches you."] });
     /* 4 * ((cdepth / 5) + 1), and cdepth is 0 in town. */

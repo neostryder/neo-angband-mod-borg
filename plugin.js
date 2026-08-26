@@ -233,6 +233,79 @@ var BorgTakes = class {
   }
 };
 
+// src/world/panel.ts
+var PANEL_WID = 66;
+var PANEL_HGT = 22;
+var PANEL_COLS = Math.floor(AUTO_MAX_X / PANEL_WID) + 1;
+var PANEL_ROWS = Math.floor(AUTO_MAX_Y / PANEL_HGT) + 1;
+function panelCol(x) {
+  return Math.floor(x / PANEL_WID);
+}
+function panelRow(y) {
+  return Math.floor(y / PANEL_HGT);
+}
+var DETECT_KINDS = [
+  "wall",
+  "trap",
+  "door",
+  "evil",
+  "obj"
+];
+function makeGrid() {
+  const rows = [];
+  for (let y = 0; y < PANEL_ROWS; y++) {
+    rows.push(new Array(PANEL_COLS).fill(false));
+  }
+  return rows;
+}
+var BorgDetectGrid = class {
+  grids = {
+    wall: makeGrid(),
+    trap: makeGrid(),
+    door: makeGrid(),
+    evil: makeGrid(),
+    obj: makeGrid()
+  };
+  /** True once (qy, qx) has been swept for `kind`. Out-of-range reads as swept. */
+  isDetected(kind, qy, qx) {
+    const row = this.grids[kind][qy];
+    if (!row) return true;
+    return row[qx] ?? true;
+  }
+  /**
+   * do_trap / do_door / do_wall / do_evil / do_obj (borg-light.c:280-352): true
+   * if ANY cell of the 2x2 panel-index block starting at (qy, qx) is still
+   * unswept for `kind`.
+   */
+  quadrantNeedsDetect(kind, qy, qx) {
+    return !this.isDetected(kind, qy + 0, qx + 0) || !this.isDetected(kind, qy + 0, qx + 1) || !this.isDetected(kind, qy + 1, qx + 0) || !this.isDetected(kind, qy + 1, qx + 1);
+  }
+  /**
+   * borg_handle_self's per-kind marking (borg-update.c:1359-1458): mark the
+   * whole 2x2 panel-index block swept for `kind`.
+   */
+  markQuadrant(kind, qy, qx) {
+    this.setIfInBounds(kind, qy + 0, qx + 0);
+    this.setIfInBounds(kind, qy + 0, qx + 1);
+    this.setIfInBounds(kind, qy + 1, qx + 0);
+    this.setIfInBounds(kind, qy + 1, qx + 1);
+  }
+  setIfInBounds(kind, qy, qx) {
+    const row = this.grids[kind][qy];
+    if (row && qx >= 0 && qx < row.length) row[qx] = true;
+  }
+  /**
+   * The new-level "panel" reset (borg-update.c:2094-2104). Faithfully leaves
+   * "obj" unwiped - see the module header's WART note.
+   */
+  wipe() {
+    for (const kind of DETECT_KINDS) {
+      if (kind === "obj") continue;
+      for (const row of this.grids[kind]) row.fill(false);
+    }
+  }
+};
+
 // src/world/model.ts
 var GOAL_KILL = 1;
 var GOAL_TAKE = 2;
@@ -335,6 +408,8 @@ var BorgWorld = class {
   map = new BorgMap();
   kills = new BorgKills();
   takes = new BorgTakes();
+  /** borg_detect_wall/trap/door/evil/obj (borg-update.c:82-86). See world/panel.ts. */
+  detect = new BorgDetectGrid();
   self = makeBorgSelf();
   facts = makeLevelFacts();
   /**
@@ -377,6 +452,14 @@ var BorgWorld = class {
     this.self.timeThisPanel = 1;
     this.self.timesTwitch = 0;
     this.self.escapes = 0;
+    this.self.whenCallLight = 0;
+    this.self.whenWizardLight = 0;
+    this.self.whenDetectTraps = 0;
+    this.self.whenDetectDoors = 0;
+    this.self.whenDetectWalls = 0;
+    this.self.whenDetectEvil = 0;
+    this.self.whenDetectObj = 0;
+    this.detect.wipe();
   }
 };
 
@@ -9382,6 +9465,93 @@ function borgCheckDarkOnly(ctx, d, playerHas) {
   }
   return null;
 }
+function borgCheckLight(ctx, d, playerHas) {
+  const self = ctx.world.self;
+  if (trait3(ctx, 36 /* MAXCLEVEL */) > 10 && trait3(ctx, 105 /* CDEPTH */) === 0) return null;
+  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */) || trait3(ctx, 120 /* ISIMAGE */) || trait3(ctx, 115 /* ISPOISONED */) || trait3(ctx, 116 /* ISCUT */) || trait3(ctx, 108 /* ISWEAK */)) {
+    return null;
+  }
+  const borgT = clockOf(ctx, d);
+  const inDungeon = trait3(ctx, 105 /* CDEPTH */) !== 0;
+  const { x: px, y: py } = ctx.view.player().grid;
+  const qx = panelCol(px);
+  const qy = panelRow(py);
+  const grid = ctx.world.detect;
+  let doTrap = grid.quadrantNeedsDetect("trap", qy, qx);
+  let doDoor = grid.quadrantNeedsDetect("door", qy, qx);
+  const doWall = grid.quadrantNeedsDetect("wall", qy, qx);
+  let doEvil = grid.quadrantNeedsDetect("evil", qy, qx);
+  const doObj = grid.quadrantNeedsDetect("obj", qy, qx);
+  if (trait3(ctx, 37 /* ESP */)) doEvil = false;
+  if (!inDungeon) {
+    doTrap = false;
+    doDoor = false;
+  }
+  const mark = (kinds) => {
+    for (const k of kinds) grid.markQuadrant(k, qy, qx);
+  };
+  if ((doTrap || doDoor || doEvil) && (!self.whenDetectTraps || borgT - self.whenDetectTraps >= 5 || (!self.whenDetectEvil || borgT - self.whenDetectEvil >= 5) || (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 5)) && inDungeon) {
+    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgZapRod(ctx, SVAL.rod.detection, d) || borgSpellFail(ctx, 39 /* SENSE_SURROUNDINGS */, 40, playerHas);
+    if (cmd) {
+      mark(["trap", "door", "evil"]);
+      self.whenDetectTraps = borgT;
+      self.whenDetectDoors = borgT;
+      self.whenDetectEvil = borgT;
+      self.whenDetectObj = borgT;
+      return cmd;
+    }
+  }
+  if (doEvil && (!self.whenDetectEvil || borgT - self.whenDetectEvil >= 20)) {
+    const cmd = borgSpellFail(ctx, 58 /* DETECT_EVIL */, 40, playerHas) || borgSpellFail(ctx, 5 /* DETECT_MONSTERS */, 40, playerHas) || borgSpellFail(ctx, 88 /* READ_MINDS */, 40, playerHas) || borgSpellFail(ctx, 118 /* SEEK_BATTLE */, 40, playerHas);
+    if (cmd) {
+      mark(["evil"]);
+      self.whenDetectEvil = borgT;
+      return cmd;
+    }
+  }
+  if ((doTrap || doDoor) && (!self.whenDetectTraps || borgT - self.whenDetectTraps >= 5 || (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 5)) && inDungeon) {
+    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas) || borgSpellFail(ctx, 112 /* DETECT_STAIRS */, 40, playerHas);
+    if (cmd) {
+      mark(["trap", "door"]);
+      self.whenDetectTraps = borgT;
+      self.whenDetectDoors = borgT;
+      return cmd;
+    }
+  }
+  if (doTrap && (!self.whenDetectTraps || borgT - self.whenDetectTraps >= 7) && inDungeon) {
+    const cmd = borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas);
+    if (cmd) {
+      mark(["trap"]);
+      self.whenDetectTraps = borgT;
+      return cmd;
+    }
+  }
+  if (doDoor && (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 9) && inDungeon) {
+    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas);
+    if (cmd) {
+      mark(["door"]);
+      self.whenDetectDoors = borgT;
+      return cmd;
+    }
+  }
+  if (doWall && (!self.whenDetectWalls || borgT - self.whenDetectWalls >= 15) && inDungeon) {
+    const cmd = borgActivateItem(ctx, "act_mapping", d) || borgReadScroll(ctx, SVAL.scroll.mapping, d) || borgUseStaff(ctx, SVAL.staff.mapping, d) || borgZapRod(ctx, SVAL.rod.mapping, d) || borgSpell(ctx, 39 /* SENSE_SURROUNDINGS */);
+    if (cmd) {
+      mark(["wall"]);
+      self.whenDetectWalls = borgT;
+      return cmd;
+    }
+  }
+  if (doObj && (!self.whenDetectObj || borgT - self.whenDetectObj >= 20)) {
+    const cmd = borgActivateItem(ctx, "act_detect_objects", d) || borgSpellFail(ctx, 111 /* OBJECT_DETECTION */, 40, playerHas);
+    if (cmd) {
+      mark(["obj"]);
+      self.whenDetectObj = borgT;
+      return cmd;
+    }
+  }
+  return borgCheckLightOnly(ctx, d, playerHas);
+}
 function borgLightBeamOkay(ctx, d, playerHas) {
   if (trait3(ctx, 108 /* ISWEAK */)) return false;
   const wand = borgSlot(ctx, TV.WAND, SVAL.wand.light, d);
@@ -14091,7 +14261,7 @@ function borgThinkDungeon(ctx, session) {
     if (cmd) return cmd;
   }
   {
-    const cmd = borgCheckLightOnly(ctx, itemDeps);
+    const cmd = borgCheckLight(ctx, itemDeps);
     if (cmd) return cmd;
   }
   {
@@ -14662,10 +14832,33 @@ function borgMessageContains(value, m) {
   return true;
 }
 function emptyMessageTables() {
-  return { hitBy: [] };
+  return { hitBy: [], spell: [], spellInvisible: [] };
 }
 function buildHitByTable(templates) {
-  return { hitBy: templates.map((t) => borgLoadReadMessage(t)) };
+  return { hitBy: templates.map((t) => borgLoadReadMessage(t)), spell: [], spellInvisible: [] };
+}
+function buildSpellTable(spells) {
+  const spell = [];
+  const spellInvisible = [];
+  for (const s of spells) {
+    for (const level of s.levels) {
+      if (level.blindMessage) spellInvisible.push({ index: s.index, message: borgLoadReadMessage(level.blindMessage) });
+      if (level.message) spell.push({ index: s.index, message: borgLoadReadMessage(level.message) });
+      if (level.missMessage) spell.push({ index: s.index, message: borgLoadReadMessage(level.missMessage) });
+    }
+  }
+  return { hitBy: [], spell, spellInvisible };
+}
+function borgFearSpell(world, index) {
+  const damage = Math.max(0, (world.self.oldchp - (world.self.trait[27 /* CURHP */] ?? 0)) * 2);
+  if (index === 1) {
+    if ((world.self.trait[35 /* CLEVEL */] ?? 0) <= 5) {
+      world.self.goal.fleeing = true;
+      world.self.goal.leaving = true;
+    }
+    return 10;
+  }
+  return damage > 0 ? damage : 10;
 }
 function anyPrefix(msg, table) {
   for (const p of table) if (msg.startsWith(p)) return true;
@@ -14893,6 +15086,26 @@ function borgReactMessages(world, messages, visibleIds, names = /* @__PURE__ */ 
         raiseFear(hitFear);
       }
       continue;
+    }
+    if (msg.startsWith("Something ") || msg.startsWith("You ")) {
+      for (const entry of tables.spellInvisible) {
+        if (borgMessageContains(msg, entry.message)) {
+          raiseFear(borgFearSpell(world, entry.index));
+          world.self.temp.needSeeInvis = world.clock;
+          break;
+        }
+      }
+      continue;
+    }
+    for (const entry of tables.spell) {
+      if (!borgMessageContains(msg, entry.message)) continue;
+      const at = msg.indexOf(entry.message.p1);
+      if (at <= 0) break;
+      const who = msg.slice(0, at - 1);
+      if (locateAttacker(world, names, who, hitDist) === 0) {
+        raiseFear(borgFearSpell(world, entry.index));
+      }
+      break;
     }
   }
   return deleted;
@@ -15195,7 +15408,9 @@ function createBorg(opts = {}) {
   getFightState(world).playsRisky = borgCfg().playsRisky;
   const session = buildThinkSession(opts.resolvers ?? {});
   installThinkSession(world, session);
-  const tables = buildHitByTable(session.resolvers.blowActions ?? []);
+  const blows = buildHitByTable(session.resolvers.blowActions ?? []);
+  const spells = buildSpellTable(session.resolvers.spellMessages ?? []);
+  const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
   let lastDepth = -1;
   const controller = (view, act) => {
     const ctx = { world, view, act, rng };
@@ -15351,6 +15566,7 @@ function makeCoreResolvers(input) {
     inShop,
     kindCost,
     blowActions,
+    spellMessages: [...input.monsterSpells ?? []],
     // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
     // which the agent API declares optional on the view itself, and answers null
     // when there is no live derive behind it (a worldless harness) - so this is
@@ -15402,13 +15618,15 @@ var plugin_default = {
     }
     const races = ctx.registries.monsters.races;
     const blowMethods = ctx.registries.monsters.blowMethods.values();
+    const monsterSpells = ctx.registries.monsters.spells?.values() ?? [];
     const cfg = cfgFromFlags(ctx.flags);
     const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,
         objects: ctx.registries.objects,
         state: ctx.state,
-        blowMethods
+        blowMethods,
+        monsterSpells
       }),
       cfg
     });
