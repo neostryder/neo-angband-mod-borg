@@ -26,7 +26,7 @@ import type { AgentController, Rng } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "./world/model.js";
 import { makeBorgRng } from "./rng.js";
 import { perceive, makePerceiveMemo } from "./perceive.js";
-import { buildHitByTable } from "./perceive-messages.js";
+import { buildHitByTable, buildSpellTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";
 import { borgFollowMissingKills } from "./flow/index.js";
 import { think } from "./think.js";
@@ -104,7 +104,9 @@ export function createBorg(opts: BorgOptions = {}): Borg {
 
   /* suffix_hit_by, built once (borg_init_messages runs at borg start-up, not per
    * think). Empty when the host supplied no blow methods. */
-  const tables = buildHitByTable(session.resolvers.blowActions ?? []);
+  const blows = buildHitByTable(session.resolvers.blowActions ?? []);
+  const spells = buildSpellTable(session.resolvers.spellMessages ?? []);
+  const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
 
   let lastDepth = -1;
 

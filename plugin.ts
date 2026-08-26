@@ -306,6 +306,7 @@ export default {
 
     const races = ctx.registries.monsters.races;
     const blowMethods = ctx.registries.monsters.blowMethods.values();
+    const monsterSpells = ctx.registries.monsters.spells?.values() ?? [];
     const cfg = cfgFromFlags(ctx.flags);
     const borg = createBorg({
       resolvers: makeCoreResolvers({
@@ -313,6 +314,7 @@ export default {
         objects: ctx.registries.objects,
         state: ctx.state,
         blowMethods,
+        monsterSpells,
       }),
       cfg,
     });

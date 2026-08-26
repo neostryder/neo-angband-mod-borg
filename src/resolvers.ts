@@ -88,6 +88,11 @@ export interface CoreResolverInput {
    * on the same terms as core's.
    */
   blowMethods?: Iterable<{ readonly messages: readonly string[] }>;
+  /** Bound monster-spell registry, for message-driven unseen-spell fear. */
+  monsterSpells?: Iterable<{
+    readonly index: number;
+    readonly levels: readonly { readonly message: string; readonly blindMessage: string; readonly missMessage: string }[];
+  }>;
 }
 
 /** RF_* code names for the set flags in a race flag set (index == RF value). */
@@ -262,6 +267,7 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     inShop,
     kindCost,
     blowActions,
+    spellMessages: [...(input.monsterSpells ?? [])],
     // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
     // which the agent API declares optional on the view itself, and answers null
     // when there is no live derive behind it (a worldless harness) - so this is

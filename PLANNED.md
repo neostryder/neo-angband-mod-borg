@@ -517,14 +517,6 @@ implemented" but "who writes it".
 
 ### What is still not ported, named rather than left to be rediscovered
 
-- **The detection scheduler.** `borg_check_light` (`borg-light.c:250-539`), the
-  routine that casts Find Traps/Doors/Stairs, Detect Evil, Magic Mapping and
-  Detect Objects on a cadence, is not ported, and the port has no panel concept
-  to hang its `borg_detect_*` arrays on, so a caster explores the way a warrior
-  does. Tracked as neo-angband#40.
-- **Regional fear from a spell cast by something unseen.** The message half is
-  ported for blows but not for spells, so an invisible caster raises no fear
-  where an invisible biter does. Tracked as neo-angband#38.
 - **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag
   that `PlayerView` does not carry, so this needs an engine seam rather than
   wiring. Tracked as neo-angband#34.

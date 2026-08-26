@@ -163,11 +163,13 @@ export function borgMessageContains(value: string, m: BorgReadMessage): boolean 
  */
 export interface BorgMessageTables {
   hitBy: readonly BorgReadMessage[];
+  spell: readonly { index: number; message: BorgReadMessage }[];
+  spellInvisible: readonly { index: number; message: BorgReadMessage }[];
 }
 
 /** No tables: nothing recognises an attack message. */
 export function emptyMessageTables(): BorgMessageTables {
-  return { hitBy: [] };
+  return { hitBy: [], spell: [], spellInvisible: [] };
 }
 
 /**
@@ -178,7 +180,41 @@ export function emptyMessageTables(): BorgMessageTables {
 export function buildHitByTable(
   templates: readonly string[],
 ): BorgMessageTables {
-  return { hitBy: templates.map((t) => borgLoadReadMessage(t)) };
+  return { hitBy: templates.map((t) => borgLoadReadMessage(t)), spell: [], spellInvisible: [] };
+}
+
+/** Build the two monster-spell message tables from the bound registry. */
+export function buildSpellTable(
+  spells: readonly {
+    index: number;
+    levels: readonly { message: string; blindMessage: string; missMessage: string }[];
+  }[],
+): BorgMessageTables {
+  const spell: { index: number; message: BorgReadMessage }[] = [];
+  const spellInvisible: { index: number; message: BorgReadMessage }[] = [];
+  for (const s of spells) {
+    for (const level of s.levels) {
+      if (level.blindMessage) spellInvisible.push({ index: s.index, message: borgLoadReadMessage(level.blindMessage) });
+      if (level.message) spell.push({ index: s.index, message: borgLoadReadMessage(level.message) });
+      if (level.missMessage) spell.push({ index: s.index, message: borgLoadReadMessage(level.missMessage) });
+    }
+  }
+  return { hitBy: [], spell, spellInvisible };
+}
+
+/** borg_fear_spell: conservative regional fear for an unseen spell attack. */
+function borgFearSpell(world: BorgWorld, index: number): number {
+  const damage = Math.max(0, (world.self.oldchp - (world.self.trait[BI.CURHP] ?? 0)) * 2);
+  /* RSF_SHRIEK is the first real monster spell (RSF_NONE is zero). */
+  if (index === 1) {
+    if ((world.self.trait[BI.CLEVEL] ?? 0) <= 5) {
+      world.self.goal.fleeing = true;
+      world.self.goal.leaving = true;
+    }
+    return 10;
+  }
+  /* Unknown/mod spells still represent an unexplained hostile action. */
+  return damage > 0 ? damage : 10;
 }
 
 function anyPrefix(msg: string, table: readonly string[]): boolean {
@@ -520,6 +556,32 @@ export function borgReactMessages(
         raiseFear(hitFear);
       }
       continue;
+    }
+
+    /* Monster spells (borg-messages.c:512-529; borg-update.c:2889). The
+     * invisible table is deliberately checked only for the game's canonical
+     * unseen-caster prefixes, just as upstream does. A visible spell is feared
+     * only when its named caster cannot be located nearby. */
+    if (msg.startsWith("Something ") || msg.startsWith("You ")) {
+      for (const entry of tables.spellInvisible) {
+        if (borgMessageContains(msg, entry.message)) {
+          raiseFear(borgFearSpell(world, entry.index));
+          world.self.temp.needSeeInvis = world.clock;
+          break;
+        }
+      }
+      continue;
+    }
+
+    for (const entry of tables.spell) {
+      if (!borgMessageContains(msg, entry.message)) continue;
+      const at = msg.indexOf(entry.message.p1);
+      if (at <= 0) break;
+      const who = msg.slice(0, at - 1);
+      if (locateAttacker(world, names, who, hitDist) === 0) {
+        raiseFear(borgFearSpell(world, entry.index));
+      }
+      break;
     }
   }
 
