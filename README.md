@@ -114,12 +114,12 @@ fresh set of heuristics that merely look similar.
 > low-hitpoint warning by taking the stairs, arrived in town at 6 of 11 hit points,
 > and rested back to 10 before diving again.
 >
-> **What it still does not do is shop.** It reveals the whole town, walks past all
-> eight shop entrances and spends nothing, because `shop-buy`, `shop-sell` and
-> `shop-exit` have no handler in the engine's command registry. So it fights with
-> birth gear and dies at character level one, cycling between the town and 50 feet.
-> That cycle is upstream's own behaviour for a scared level-one borg; leaving it
-> is what shopping is for. `PLANNED.md` has the whole record.
+> **Shopping is connected end to end.** The Borg can identify its current shop,
+> evaluate purchases and sales, and issue `shop-buy`, `shop-sell` and `shop-exit`
+> through the engine's command registry. The real-engine verification test covers
+> inventory changes and gold changing hands. A young Borg can still return to town
+> frequently while it builds strength; that is upstream's own cautious level-one
+> behaviour, not a stalled shopping path.
 >
 > So: install it to watch it try, not to watch it win. And do not take the rest of
 > the suite for evidence - most of the other files cover dispatch, ladder ordering
@@ -269,7 +269,7 @@ Angband announcements forum automatically, built from the matching
 to ask anything - whether a behaviour is intended, how to get this installed,
 or what you should try next. No GitHub account needed.
 
-[Open an issue here](../../issues/new/choose) for a bug in **this mod**. Two
+[Open an issue here](https://github.com/neostryder/neo-angband-mod-borg/issues/new/choose) for a bug in **this mod**. Two
 things belong against the game instead, and the forms will point you there: the
 mod **system** (an install that fails, a load order that will not stick, a
 conflict report that looks wrong), and the game **not matching Angband 4.2.6**
