@@ -12,6 +12,7 @@
 import { BorgMap } from "./grid.js";
 import { BorgKills } from "./kill.js";
 import { BorgTakes } from "./take.js";
+import { BorgDetectGrid } from "./panel.js";
 
 /** Goal types (borg-trait.h). goal.type selects the active flow. */
 export const GOAL_KILL = 1; /* Monsters */
@@ -248,6 +249,8 @@ export class BorgWorld {
   readonly map = new BorgMap();
   readonly kills = new BorgKills();
   readonly takes = new BorgTakes();
+  /** borg_detect_wall/trap/door/evil/obj (borg-update.c:82-86). See world/panel.ts. */
+  readonly detect = new BorgDetectGrid();
   readonly self = makeBorgSelf();
   facts = makeLevelFacts();
 
@@ -298,5 +301,22 @@ export class BorgWorld {
     this.self.timeThisPanel = 1;
     this.self.timesTwitch = 0;
     this.self.escapes = 0;
+
+    /*
+     * "Mega-Hack" light/detection timestamp resets (borg-update.c:2075-2091)
+     * and the "Clear panel flags" array wipe (borg-update.c:2093-2104). The
+     * clock keeps counting across levels, so the short detection cooldowns
+     * (5-20 turns) would self-clear within a few thinks regardless; zeroing
+     * them here is what makes arrival on a new level faithfully reset them
+     * immediately rather than merely "soon".
+     */
+    this.self.whenCallLight = 0;
+    this.self.whenWizardLight = 0;
+    this.self.whenDetectTraps = 0;
+    this.self.whenDetectDoors = 0;
+    this.self.whenDetectWalls = 0;
+    this.self.whenDetectEvil = 0;
+    this.self.whenDetectObj = 0;
+    this.detect.wipe();
   }
 }

@@ -1,7 +1,8 @@
 /**
- * Light-source maintenance and illumination - a faithful port of borg-light.c:
- * borg_maintain_light (refuel/replace), borg_refuel_lantern and
- * borg_check_light_only (call light / wizard light).
+ * Light-source maintenance, illumination and the detection scheduler - a
+ * faithful port of borg-light.c: borg_maintain_light (refuel/replace),
+ * borg_refuel_lantern, borg_check_light_only (call light / wizard light) and
+ * borg_check_light (the panel-driven detection cadence, borg-light.c:250-539).
  *
  * The engine has no typed "refuel" verb on the frozen act facade, so refuelling
  * uses the raw escape hatch with the engine's "refill" command code
@@ -12,6 +13,12 @@
  * live CellView (passable=floor, glow=perma-lit, inView) around the player, which
  * expresses the same intent through the frozen contract. The action ladder and
  * the when_call_light / when_wizard_light timers are preserved exactly.
+ *
+ * FIDELITY on borg_check_light's panel math: see world/panel.ts for the
+ * detailed note on how q_x/q_y (the panel indices upstream reads off the
+ * terminal's scroll position, w_x/w_y) are derived instead from the Borg's own
+ * grid position, and on the fixed panel size this port uses in place of a live
+ * terminal query.
  */
 
 import type { BorgContext, ItemView, AgentCommand } from "./types.js";
@@ -21,8 +28,10 @@ import { TV, SVAL } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
 import { trait, borgSlot, clockOf } from "./deps.js";
 import { hasFlag } from "../trait/item-util.js";
+import { panelCol, panelRow, type DetectKind } from "../world/panel.js";
 import {
   Spell,
+  borgSpell,
   borgSpellFail,
   borgSpellOkayFail,
 } from "./magic.js";
@@ -255,6 +264,203 @@ function borgCheckDarkOnly(
     return cmd;
   }
   return null;
+}
+
+/**
+ * borg_check_light (light.c:250-539): the detection scheduler. Casts Find
+ * Traps/Doors/Stairs, Detect Evil, Magic Mapping and Detect Objects on a
+ * cadence, tracking which panel-indexed region of the level each has already
+ * swept (world/panel.ts), then falls through to borgCheckLightOnly for plain
+ * illumination. The five sub-ladders (traps+doors+evil combo, evil alone,
+ * traps+doors combo, traps alone, doors alone, walls alone, objects alone) and
+ * their exact per-branch cooldowns (5/20/5/7/9/15/20 turns) are transcribed in
+ * upstream's own priority order; the first branch that both needs a sweep AND
+ * successfully casts/uses/activates something wins the turn.
+ */
+export function borgCheckLight(
+  ctx: BorgContext,
+  d?: ItemDeps,
+  playerHas?: (flag: string) => boolean,
+): AgentCommand | null {
+  const self = ctx.world.self;
+
+  /* Never in town when mature (scary guy) (light.c:261). */
+  if (trait(ctx, BI.MAXCLEVEL) > 10 && trait(ctx, BI.CDEPTH) === 0) return null;
+
+  /* Never when compromised, save your mana (light.c:265). */
+  if (
+    trait(ctx, BI.ISBLIND) ||
+    trait(ctx, BI.ISCONFUSED) ||
+    trait(ctx, BI.ISIMAGE) ||
+    trait(ctx, BI.ISPOISONED) ||
+    trait(ctx, BI.ISCUT) ||
+    trait(ctx, BI.ISWEAK)
+  ) {
+    return null;
+  }
+
+  const borgT = clockOf(ctx, d);
+  const inDungeon = trait(ctx, BI.CDEPTH) !== 0;
+  const { x: px, y: py } = ctx.view.player().grid;
+  const qx = panelCol(px);
+  const qy = panelRow(py);
+  const grid = ctx.world.detect;
+
+  /* Extract the panel and determine what still needs sweeping (light.c:276-352). */
+  let doTrap = grid.quadrantNeedsDetect("trap", qy, qx);
+  let doDoor = grid.quadrantNeedsDetect("door", qy, qx);
+  const doWall = grid.quadrantNeedsDetect("wall", qy, qx);
+  let doEvil = grid.quadrantNeedsDetect("evil", qy, qx);
+  const doObj = grid.quadrantNeedsDetect("obj", qy, qx);
+
+  /* Don't bother if I have ESP (light.c:371). */
+  if (trait(ctx, BI.ESP)) doEvil = false;
+
+  /* Only look for monsters in town, not walls, etc (light.c:374). */
+  if (!inDungeon) {
+    doTrap = false;
+    doDoor = false;
+  }
+
+  const mark = (kinds: readonly DetectKind[]): void => {
+    for (const k of kinds) grid.markQuadrant(k, qy, qx);
+  };
+
+  /*** Do Things (light.c:381) ***/
+
+  /* Find traps and doors and evil (light.c:384). */
+  if (
+    (doTrap || doDoor || doEvil) &&
+    ((!self.whenDetectTraps || borgT - self.whenDetectTraps >= 5) ||
+      (!self.whenDetectEvil || borgT - self.whenDetectEvil >= 5) ||
+      (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 5)) &&
+    inDungeon
+  ) {
+    const cmd =
+      borgActivateItem(ctx, "act_detect_all", d) ||
+      borgActivateItem(ctx, "act_mapping", d) ||
+      borgZapRod(ctx, SVAL.rod.detection!, d) ||
+      borgSpellFail(ctx, Spell.SENSE_SURROUNDINGS, 40, playerHas);
+    if (cmd) {
+      /* borg_handle_self("TDE") marks trap/door/evil only - NOT obj, even
+       * though the obj timer is also stamped below (borg-update.c:1416-1432
+       * vs light.c:404). A real upstream inconsistency, preserved. */
+      mark(["trap", "door", "evil"]);
+      self.whenDetectTraps = borgT;
+      self.whenDetectDoors = borgT;
+      self.whenDetectEvil = borgT;
+      self.whenDetectObj = borgT;
+      return cmd;
+    }
+  }
+
+  /* Find evil (light.c:411). */
+  if (doEvil && (!self.whenDetectEvil || borgT - self.whenDetectEvil >= 20)) {
+    const cmd =
+      borgSpellFail(ctx, Spell.DETECT_EVIL, 40, playerHas) ||
+      borgSpellFail(ctx, Spell.DETECT_MONSTERS, 40, playerHas) ||
+      borgSpellFail(ctx, Spell.READ_MINDS, 40, playerHas) ||
+      borgSpellFail(ctx, Spell.SEEK_BATTLE, 40, playerHas);
+    if (cmd) {
+      mark(["evil"]);
+      self.whenDetectEvil = borgT;
+      return cmd;
+    }
+  }
+
+  /* Find traps and doors (and stairs) (light.c:429). */
+  if (
+    (doTrap || doDoor) &&
+    ((!self.whenDetectTraps || borgT - self.whenDetectTraps >= 5) ||
+      (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 5)) &&
+    inDungeon
+  ) {
+    const cmd =
+      borgActivateItem(ctx, "act_detect_all", d) ||
+      borgActivateItem(ctx, "act_mapping", d) ||
+      borgSpellFail(ctx, Spell.DETECTION, 40, playerHas) ||
+      borgSpellFail(ctx, Spell.FIND_TRAPS_DOORS_STAIRS, 40, playerHas) ||
+      borgSpellFail(ctx, Spell.DETECT_STAIRS, 40, playerHas);
+    if (cmd) {
+      mark(["trap", "door"]);
+      self.whenDetectTraps = borgT;
+      self.whenDetectDoors = borgT;
+      return cmd;
+    }
+  }
+
+  /* Find traps (light.c:452). */
+  if (
+    doTrap &&
+    (!self.whenDetectTraps || borgT - self.whenDetectTraps >= 7) &&
+    inDungeon
+  ) {
+    const cmd =
+      borgSpellFail(ctx, Spell.DETECTION, 40, playerHas) ||
+      borgSpellFail(ctx, Spell.FIND_TRAPS_DOORS_STAIRS, 40, playerHas);
+    if (cmd) {
+      mark(["trap"]);
+      self.whenDetectTraps = borgT;
+      return cmd;
+    }
+  }
+
+  /* Find doors (light.c:470). */
+  if (
+    doDoor &&
+    (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 9) &&
+    inDungeon
+  ) {
+    const cmd =
+      borgActivateItem(ctx, "act_detect_all", d) ||
+      borgActivateItem(ctx, "act_mapping", d) ||
+      borgSpellFail(ctx, Spell.DETECTION, 40, playerHas) ||
+      borgSpellFail(ctx, Spell.FIND_TRAPS_DOORS_STAIRS, 40, playerHas);
+    if (cmd) {
+      mark(["door"]);
+      self.whenDetectDoors = borgT;
+      return cmd;
+    }
+  }
+
+  /* Find walls (light.c:489). Note: SENSE_SURROUNDINGS is cast here with NO
+   * fail-rate cap (borg_spell, not borg_spell_fail) - unlike its use in the
+   * combo branch above, which does gate it at 40. Preserved as-is. */
+  if (
+    doWall &&
+    (!self.whenDetectWalls || borgT - self.whenDetectWalls >= 15) &&
+    inDungeon
+  ) {
+    const cmd =
+      borgActivateItem(ctx, "act_mapping", d) ||
+      borgReadScroll(ctx, SVAL.scroll.mapping!, d) ||
+      borgUseStaff(ctx, SVAL.staff.mapping!, d) ||
+      borgZapRod(ctx, SVAL.rod.mapping!, d) ||
+      borgSpell(ctx, Spell.SENSE_SURROUNDINGS);
+    if (cmd) {
+      mark(["wall"]);
+      self.whenDetectWalls = borgT;
+      /* Upstream also clears BORG_IGNORE_MAP on every grid here (light.c:512);
+       * the port has no such flag (a known grid's terrain is always trusted),
+       * so there is nothing to clear. */
+      return cmd;
+    }
+  }
+
+  /* Find objects (light.c:521). */
+  if (doObj && (!self.whenDetectObj || borgT - self.whenDetectObj >= 20)) {
+    const cmd =
+      borgActivateItem(ctx, "act_detect_objects", d) ||
+      borgSpellFail(ctx, Spell.OBJECT_DETECTION, 40, playerHas);
+    if (cmd) {
+      mark(["obj"]);
+      self.whenDetectObj = borgT;
+      return cmd;
+    }
+  }
+
+  /* Do the actual illumination bit (light.c:537). */
+  return borgCheckLightOnly(ctx, d, playerHas);
 }
 
 /**
