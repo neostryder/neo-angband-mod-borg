@@ -114,12 +114,16 @@ fresh set of heuristics that merely look similar.
 > low-hitpoint warning by taking the stairs, arrived in town at 6 of 11 hit points,
 > and rested back to 10 before diving again.
 >
-> **Shopping is connected end to end.** Borg can identify its current shop,
-> evaluate purchases and sales, and issue `shop-buy`, `shop-sell` and `shop-exit`
-> through the engine's command registry. The real-engine verification test covers
-> inventory changes and gold changing hands. A young Borg can still return to town
-> frequently while it builds strength; that is upstream's own cautious level-one
-> behaviour, not a stalled shopping path.
+> **The shopping mechanism itself is proven, end to end.** Borg can identify its
+> current shop, evaluate purchases and sales, and issue `shop-buy`, `shop-sell`
+> and `shop-exit` through the engine's command registry. Placed by hand on a real
+> shop door across ten seeds, it sold something with a real inventory change on
+> all ten and bought something with gold actually decreasing on three of ten.
+> What has not been observed is a Borg *walking itself* to a shop during real
+> play: in every seed tried, a fresh level-one character heads straight to the
+> dungeon stairs before the "deal with shops" decision is ever reached, so the
+> town returns above are upstream's own cautious level-one behaviour, not the
+> ladder choosing to shop.
 >
 > So: install it to watch it try, not to watch it win. And do not take the rest of
 > the suite for evidence - most of the other files cover dispatch, ladder ordering
