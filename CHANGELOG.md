@@ -27,7 +27,7 @@ are, however small.
   to hang that bookkeeping on; a 3x3 panel grid and the scheduler are both
   added.
 
-## 0.9.3
+## 0.9.3 - 2026-08-24
 
 ### Fixed
 
@@ -54,20 +54,20 @@ are, however small.
   negative afflictions, none of these buffs, so there is nothing here to
   cross-check against.
 
-## 0.9.2
+## 0.9.2 - 2026-08-23
 
 Added a Terms of Use and a shared Code of Conduct alongside the existing
 LICENSE and SECURITY policy, and a README screenshot showing the Borg
 exploring a dungeon level under its own control.
 
-## 0.9.1
+## 0.9.1 - 2026-08-23
 
 Added a repository-specific `SECURITY.md` alongside the core policy, covering
 the boundaries this repository owns: capability declarations, agent-view
 handling, resolver wiring, and emitted commands. Refreshed the pinned engine
 dependency to the currently published release.
 
-## 0.9.0
+## 0.9.0 - 2026-08-22
 
 A second pass over the settings surface, checking every one of `BorgCfg`'s
 fifteen fields against what actually reads it rather than against what is
@@ -107,7 +107,7 @@ merely declared.
   anything a manifest declares. It has no tier faster than 40ms today; a 10ms
   tier is tracked in PLANNED.md as work the game's repository would need to do.
 
-## 0.8.0
+## 0.8.0 - 2026-08-22
 
 Borg can be told how to play. Upstream reads about thirty settings out of a
 `borg.txt` in the user's Angband folder; there is no such folder here and no path
@@ -156,7 +156,7 @@ the Borg play*, and each description names the `borg_` setting it is.
   This is the same shape as the resolver seams 0.6.x wired: code that is correct,
   present and fed a constant.
 
-## 0.7.0
+## 0.7.0 - 2026-08-21
 
 **Needs Neo Angband 0.27.0 or newer**, up from 0.25.0. Several of the fixes
 below are in the game rather than here - the trap predicate a locked door used
@@ -464,7 +464,7 @@ and let a squint-eyed rogue kill it.
   seventeen files of unit tests could not see. It skips, loudly, when the game's
   checkout is not beside this one.
 
-## 0.6.3
+## 0.6.3 - 2026-08-21
 
 ### Fixed
 
@@ -481,7 +481,7 @@ and let a squint-eyed rogue kill it.
   character. Two of the three stalls are this mod's and one is the game's. All
   three are named, with their mechanisms and their owners, in `PLANNED.md`.
 
-## 0.6.2
+## 0.6.2 - 2026-08-21
 
 ### Fixed
 
@@ -512,7 +512,7 @@ and let a squint-eyed rogue kill it.
 - Found by installing 0.6.1 from its tag into the released 0.25.0 desktop build
   and watching it, which is the only instrument that could have found it.
 
-## 0.6.1
+## 0.6.1 - 2026-08-21
 
 ### Changed
 
@@ -557,7 +557,7 @@ and let a squint-eyed rogue kill it.
   whenever a mod holds the keyboard - same session, same save slot, a rolled race
   and class each time.
 
-## 0.6.0
+## 0.6.0 - 2026-08-21
 
 ### Added
 
@@ -594,7 +594,7 @@ and let a squint-eyed rogue kill it.
   zero to `borg_power` and an evaluator would compare two numbers that are equal
   by construction. Recorded as unreachable rather than pending.
 
-## 0.5.0
+## 0.5.0 - 2026-08-21
 
 ### Added
 
@@ -616,7 +616,7 @@ and let a squint-eyed rogue kill it.
   capability (hypothetical player-state simulation) that does not exist yet.
   See `PLANNED.md`.
 
-## 0.4.1
+## 0.4.1 - 2026-08-21
 
 ### Fixed
 
