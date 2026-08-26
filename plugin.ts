@@ -1,5 +1,5 @@
 /**
- * The Borg, as a mod's entry point.
+ * Borg, as a mod's entry point.
  *
  * This file is short because it is the only new code in the mod: everything
  * under src/ is the port, carried over from the game's repository unchanged. Its
@@ -7,14 +7,14 @@
  * return a controller.
  *
  * ------------------------------------------------------------------
- * WHY THE BORG IS A MOD AT ALL
+ * WHY BORG IS A MOD AT ALL
  * ------------------------------------------------------------------
  *
  * Upstream, the borg hooks the game at `inkey_hack`: when Angband asks for a
  * keypress, the borg perceives the world, decides, and returns keystrokes. That
  * is a privileged position inside the C. Here it is not privileged at all - it
  * is `ModPlugin.controller`, the same seam any third-party agent mod uses, over
- * the same frozen perceive/act API. The Borg is the most demanding possible
+ * the same frozen perceive/act API. Borg is the most demanding possible
  * consumer of "read the whole game, drive every command", so a faithful Borg
  * that plays correctly IS the acceptance test that the surface is complete.
  *
@@ -36,7 +36,7 @@
  * WHY THIS DECLARES NO HOOKS AND REGISTERS NOTHING
  * ------------------------------------------------------------------
  *
- * The Borg changes no rule, adds no record, and overrides no system. It plays
+ * Borg changes no rule, adds no record, and overrides no system. It plays
  * the game exactly as a player can, through commands the engine already accepts.
  * A plugin whose only member is `controller` used to be refused by the host as
  * "would do nothing"; that check now counts a controller, because playing the

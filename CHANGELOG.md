@@ -90,7 +90,7 @@ merely declared.
 
 ## 0.8.0
 
-The Borg can be told how to play. Upstream reads about thirty settings out of a
+Borg can be told how to play. Upstream reads about thirty settings out of a
 `borg.txt` in the user's Angband folder; there is no such folder here and no path
 to one on a phone, so eight of them are toggles in the mod manager beside *Let
 the Borg play*, and each description names the `borg_` setting it is.
@@ -264,7 +264,7 @@ and let a squint-eyed rogue kill it.
   (`borg-item-val.c`) to count what the Borg has: healing potions, phase doors,
   cures, fuel, food. The table was a seam that defaulted to `{}` and no caller ever
   passed one, so every comparison was against `undefined` and every count stayed
-  zero. The Borg dived, restocked and judged itself prepared as though it carried
+  zero. Borg dived, restocked and judged itself prepared as though it carried
   nothing at all. It defaults to the real table now, which is what upstream does
   unconditionally, and the food count is why `borg_check_rest` refused every grid
   on the level once it was finally being asked.
@@ -307,7 +307,7 @@ and let a squint-eyed rogue kill it.
   as unlit. Among them is the check above, which is why a phantom in a corridor
   could not be disproved even standing next to it.
 
-- **The Borg's own random stream restarted at the top of every decision.** The
+- **Borg's own random stream restarted at the top of every decision.** The
   controller reseeded the private generator to a fixed constant before each
   think, so the first draw of decision one and the first draw of decision fifty
   were the same number, and so was every draw after it. Anything that consults
@@ -317,7 +317,7 @@ and let a squint-eyed rogue kill it.
   swap-in/swap-out around `borg_think` ends by writing the ADVANCED value back
   (`borg.c:504`) and seeds the stream once at start-up
   (`borg-init.c:487-488`), so its stream carries from one think to the next. It
-  now does here too. The Borg remains fully deterministic for a given starting
+  now does here too. Borg remains fully deterministic for a given starting
   seed, because determinism comes from the stream being private and seeded, not
   from restarting it.
 
@@ -388,7 +388,7 @@ and let a squint-eyed rogue kill it.
   outranks attacking, collecting and exploring - could fire on the first think
   after arriving anywhere.
 
-- **The Borg's clock never restarted, and after thirty thousand decisions it
+- **Borg's clock never restarted, and after thirty thousand decisions it
   stopped playing for good.** `borg_t` is a PER-LEVEL counter upstream, reset to
   1000 on every arrival (`borg-update.c:2017`), and every absolute test written
   against it assumes that. Here it only ever climbed, so the message-flush hacks
@@ -466,7 +466,7 @@ and let a squint-eyed rogue kill it.
 
 ### Fixed
 
-- **The Borg threw on its first perceived turn, and the game blamed itself.** The
+- **Borg threw on its first perceived turn, and the game blamed itself.** The
   manifest declared one capability, `command:add`, and the frozen `AgentView` is
   gated per DOMAIN: reading the player without `state:player.read` raises
   `AgentCapabilityError`. So the mod installed cleanly, logged that it had the
@@ -542,7 +542,7 @@ and let a squint-eyed rogue kill it.
 
 ### Added
 
-- **The Borg evaluates gear it is not wearing**, the fourth and last
+- **Borg evaluates gear it is not wearing**, the fourth and last
   `BorgResolvers` seam from `PLANNED.md`. `borg_wear_stuff`,
   `borg_think_shop_buy_useful` and `borg_think_shop_sell_useless` all decide by
   comparing `borg.power` now against `borg.power` with a candidate worn, bought
@@ -584,12 +584,12 @@ and let a squint-eyed rogue kill it.
   `objects` (`ctx.registries.objects`) and `state` (`ctx.state`), each
   independently optional so an older host still gets whichever seams it can
   supply data for.
-- The Borg can now tell whether a worn item grants a named activation and
+- Borg can now tell whether a worn item grants a named activation and
   whether it is charged (`borg_equips_item` / `borg_activate_item`), by walking
   the item's artifact, ego or kind back to the `Activation` record that grants
   it - the same precedence `obj-make.c` applies when the object was created. A
   mod's ego or artifact is resolved by the same lookup as core's.
-- The Borg can now tell which shop it is standing in (`square_shopnum`), which
+- Borg can now tell which shop it is standing in (`square_shopnum`), which
   is what lets the town-flow ladder's shop-interaction steps actually fire.
   Reads `ctx.state` directly; needed no new host plumbing, because a level's
   `Chunk` already carries the bound feature registry it was generated with.
@@ -620,7 +620,7 @@ and let a squint-eyed rogue kill it.
 
 ### Added
 
-- **The Borg can see danger.** `plugin.ts` built the Borg with no resolvers, so
+- **Borg can see danger.** `plugin.ts` built Borg with no resolvers, so
   every seam fell back to its conservative default, and the one that mattered was
   the facts resolver: zero blows and zero spell frequency meant `borg_danger`
   reported no threat, so nothing was ever worth fleeing from. It now binds the
@@ -686,7 +686,7 @@ and let a squint-eyed rogue kill it.
 
 ### Added
 
-- **The Borg arrives and can be played.** Angband 4.2.6's `borg/` ported to 86
+- **Borg arrives and can be played.** Angband 4.2.6's `borg/` ported to 86
   files, driving the game through the published perceive and act API rather than
   through engine internals. It takes the keyboard only when "Let the Borg play"
   is switched on, and it draws from its own seeded generator, so handing it a

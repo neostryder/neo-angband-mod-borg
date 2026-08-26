@@ -10,12 +10,12 @@ import type { BorgWorld } from "./world/model.js";
 
 /** Everything a decision subsystem needs, for one think. */
 export interface BorgContext {
-  /** The Borg's remembered world (written by perceive, read by everyone). */
+  /** Borg's remembered world (written by perceive, read by everyone). */
   world: BorgWorld;
   /** PERCEIVE: the frozen read facade (raw current view). */
   view: AgentView;
   /** ACT: the frozen command builders. */
   act: AgentActions;
-  /** The Borg's private simulation RNG (never the game RNG). */
+  /** Borg's private simulation RNG (never the game RNG). */
   rng: Rng;
 }

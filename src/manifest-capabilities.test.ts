@@ -12,7 +12,7 @@
  * the throw made it look like somebody else's bug:
  *
  *   - The install succeeded, because the install-time check wants `command:add`
- *     alone. The Borg logged that it had the keyboard and all four seams.
+ *     alone. Borg logged that it had the keyboard and all four seams.
  *   - The throw unwound out of the game loop, which reports a fault with no mod
  *     attached to it - so the player was told the GAME hit a bug, and pointed at
  *     the game's issue tracker.

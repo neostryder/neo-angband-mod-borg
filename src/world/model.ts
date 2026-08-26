@@ -1,5 +1,5 @@
 /**
- * The Borg's aggregate world model - a faithful port of the upstream global
+ * Borg's aggregate world model - a faithful port of the upstream global
  * singletons: struct borg_struct `borg` (borg-trait.h), the borg_grids map, the
  * borg_kills / borg_takes tracking lists, and the per-level fact flags.
  *

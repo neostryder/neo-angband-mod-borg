@@ -2,7 +2,7 @@
   "name": "neo-angband-mod-borg",
   "version": "0.9.3",
   "private": true,
-  "description": "The Borg: Angband 4.2.6's automatic player, ported faithfully and shipped as a mod",
+  "description": "Borg: Angband 4.2.6's automatic player, ported faithfully and shipped as a mod",
   "license": "GPL-2.0-only",
   "author": "neostryder (RPGM Tools)",
   "homepage": "https://github.com/neostryder/neo-angband-mod-borg",

@@ -1,5 +1,5 @@
 /**
- * The Borg test harness: a scenario-driven fake AgentView / AgentActions built
+ * Borg test harness: a scenario-driven fake AgentView / AgentActions built
  * against the FROZEN agent contract (core/src/agent/types.ts), so every Borg
  * subsystem can be unit-tested without booting a live engine.
  *

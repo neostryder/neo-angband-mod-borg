@@ -1,5 +1,5 @@
 /**
- * The Borg's own remembered map - a faithful port of the borg_grid struct and
+ * Borg's own remembered map - a faithful port of the borg_grid struct and
  * the borg_grids[][] cache (reference/src/borg/borg-cave.h, borg-cave-view.h).
  *
  * WHY THE BORG KEEPS ITS OWN MAP: the Borg does not read the engine's cave
@@ -21,7 +21,7 @@ export const AUTO_MAX_X = 198;
 export const AUTO_MAX_Y = 66;
 
 /**
- * borg_grid.info flags (borg-cave-view.h). The Borg tracks light/view/mark
+ * borg_grid.info flags (borg-cave-view.h). Borg tracks light/view/mark
  * state per grid separately from the engine's SQUARE_* flags.
  */
 export const BORG_MARK = 0x01; /* observed grid */
@@ -73,7 +73,7 @@ export function makeBorgGrid(): BorgGrid {
 }
 
 /**
- * The Borg's remembered map: borg_grids[AUTO_MAX_Y][AUTO_MAX_X]. Row-major,
+ * Borg's remembered map: borg_grids[AUTO_MAX_Y][AUTO_MAX_X]. Row-major,
  * indexed [y][x] to match the upstream access pattern exactly.
  */
 export class BorgMap {

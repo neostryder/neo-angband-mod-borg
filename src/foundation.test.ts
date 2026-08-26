@@ -182,7 +182,7 @@ describe("borg RNG isolation + reproducibility", () => {
    *
    * Asserted on the DRAW VECTOR of each think, not on a single draw, because
    * that is the shape the bug had: repeated whole vectors, not a repeated
-   * scalar. The Borg makes many draws per think, so identical vectors over
+   * scalar. Borg makes many draws per think, so identical vectors over
    * several thinks is proof the stream restarted.
    */
   it("advances its private stream across thinks instead of restarting it", () => {

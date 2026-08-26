@@ -10,7 +10,7 @@
  * it cannot see (an assumed invisible monster). borg_danger reads both.
  *
  * square_isvault GAP: upstream cheats the engine's vault flag to skip adding
- * fear inside vaults. The Borg's remembered map carries no vault flag, so
+ * fear inside vaults. Borg's remembered map carries no vault flag, so
  * isVault() returns false here (never a vault); this is the only place the fear
  * updaters diverge from upstream, and it only ever adds fear the C would skip.
  */

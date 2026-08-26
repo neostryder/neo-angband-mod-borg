@@ -244,7 +244,7 @@ describe("borgCaution (caution.c:799)", () => {
 });
 
 /*
- * *** Back away *** (caution.c:1664). The Borg's entire short-range tactical
+ * *** Back away *** (caution.c:1664). Borg's entire short-range tactical
  * retreat, and for a long stretch it was not ported at all: caution ran, found
  * no escape item, and returned null, after which the ladder went straight to
  * attack. A first-level character with an adjacent monster and no phase door
