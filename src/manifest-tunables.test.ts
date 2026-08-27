@@ -89,9 +89,6 @@ const UPSTREAM_DEFAULT: Readonly<Partial<Record<keyof BorgCfg, boolean | number>
   enchantLimit: 12,
 };
 
-/** The one rule that is not a borg_cfg[] setting: the keyboard itself. */
-const AUTOPLAY = "borg.autoplay";
-
 describe("the Borg's settings", () => {
   it("keeps every default on upstream's own value", () => {
     const stock = defaultCfg();
@@ -107,9 +104,7 @@ describe("the Borg's settings", () => {
     const table = ruleCfg();
     expect(table.size, "RULE_CFG parsed empty").toBeGreaterThan(0);
     const stock = defaultCfg();
-    const flags = manifest()
-      .rules.map((r) => r.flag)
-      .filter((f) => f !== AUTOPLAY);
+    const flags = manifest().rules.map((r) => r.flag);
 
     expect([...table.keys()].sort()).toEqual([...flags].sort());
     for (const [flag, key] of table) {
@@ -121,7 +116,6 @@ describe("the Borg's settings", () => {
     const table = ruleCfg();
     const stock = defaultCfg();
     for (const rule of manifest().rules) {
-      if (rule.flag === AUTOPLAY) continue;
       const key = table.get(rule.flag);
       expect(key, `${rule.flag} has no setting`).toBeDefined();
       expect(stock[key as keyof BorgCfg], `${rule.flag} default`).toBe(rule.default);
@@ -135,19 +129,17 @@ describe("the Borg's settings", () => {
        never edited. */
     const seen = new Set<string>();
     for (const rule of manifest().rules) {
-      if (rule.flag === AUTOPLAY) continue;
       expect(rule.description, `${rule.flag} names no borg_ setting`).toMatch(/\bborg_\w+\b/u);
       expect(seen.has(rule.title), `${rule.title} is used twice`).toBe(false);
       seen.add(rule.title);
     }
   });
 
-  it("still hands over the keyboard behind its own toggle, off by default", () => {
-    /* The one rule that is not a setting. Grouping it with the settings would be
-       the single worst mistake available here: a Borg that starts playing
-       because somebody enabled a preference. */
-    const autoplay = manifest().rules.find((r) => r.flag === AUTOPLAY);
-    expect(autoplay?.default).toBe(false);
-    expect(ruleCfg().has(AUTOPLAY)).toBe(false);
+  it("does not expose a standing autoplay toggle in the manifest", () => {
+    /* Keyboard handover is Ctrl-Z in the host, not a Fixes & tweaks row. A
+       rule named borg.autoplay would put "let it play" back on the settings
+       screen next to the play-style toggles. */
+    expect(manifest().rules.some((r) => r.flag === "borg.autoplay")).toBe(false);
+    expect(ruleCfg().has("borg.autoplay")).toBe(false);
   });
 });

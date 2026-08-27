@@ -10,6 +10,14 @@ are, however small.
 
 ## Unreleased
 
+### Removed
+
+- **The standing *Let the Borg play* toggle (`borg.autoplay`).** Enabling the
+  mod no longer offers a settings-row path that auto-installs the controller
+  on the next boot. Press Ctrl-Z in play to warn, confirm, and hand over the
+  keyboard (the host's existing interrupt key). The play-style toggles
+  (risky, worships-*, self-scum, munchkin) are unchanged.
+
 ## 1.0.0 - 2026-08-26
 
 ### Fixed

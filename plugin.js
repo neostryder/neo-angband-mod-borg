@@ -1,6 +1,9 @@
 // borg - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
+// src/activate.ts
+var NOSCORE_BORG = 32;
+
 // src/core-api.ts
 var FEAT;
 var TV;
@@ -15576,7 +15579,10 @@ function makeCoreResolvers(input) {
 }
 
 // plugin.ts
-var AUTOPLAY_FLAG = "borg.autoplay";
+function characterAlreadyAutoplayed(ctx) {
+  const noscore = ctx.state?.actor?.player?.noscore ?? 0;
+  return (noscore & NOSCORE_BORG) !== 0;
+}
 var RULE_CFG = {
   "borg.playsRisky": "playsRisky",
   "borg.worshipsDamage": "worshipsDamage",
@@ -15603,7 +15609,7 @@ function changedFrom(cfg) {
 var plugin_default = {
   api: 1,
   controller(ctx) {
-    if (ctx.flags[AUTOPLAY_FLAG] !== true) return void 0;
+    if (!characterAlreadyAutoplayed(ctx)) return void 0;
     bindCore(ctx.core);
     if (!coreIsBound()) {
       throw new Error("the Borg could not take the engine from ctx.core");

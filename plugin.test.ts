@@ -92,22 +92,32 @@ function hostState(): unknown {
  * half-supplied context to parameterise over.
  *
  * `omit` builds a defective context on purpose, for the one test that pins what
- * the plugin does with one.
+ * the plugin does with one. `noscore` is the permanent autoplay mark Ctrl-Z
+ * writes before reload; the default here is the marked value so the existing
+ * "takes the keyboard" cases stay concise.
  */
 function install(
-  flags: Record<string, boolean>,
+  flags: Record<string, boolean> = {},
   omit: readonly ("registries" | "state")[] = [],
+  noscore = 0x0020,
 ): {
   controller: AgentController | undefined;
   logs: string[];
 } {
   const logs: string[] = [];
+  const baseState = hostState() as {
+    actor: { grid: { x: number; y: number }; player?: { noscore: number } };
+    chunk: unknown;
+  };
   const ctx: Record<string, unknown> = {
     flags,
     core: Core,
     log: (m: string) => logs.push(m),
     registries: hostRegistries(),
-    state: hostState(),
+    state: {
+      ...baseState,
+      actor: { ...baseState.actor, player: { noscore } },
+    },
   };
   for (const key of omit) delete ctx[key];
   const controller = built.controller(
@@ -124,16 +134,16 @@ describe("the built plugin.js", () => {
     expect(typeof built.controller).toBe("function");
   });
 
-  it("declines the keyboard unless the player asked for it", () => {
+  it("declines the keyboard until the character has been autoplayed", () => {
     // Installing and enabling the Borg must not hand it your character. An
     // autoplayer that starts because the mod is present is a mod that eats a
-    // save the first time someone browses the mod list.
-    expect(install({}).controller).toBeUndefined();
-    expect(install({ "borg.autoplay": false }).controller).toBeUndefined();
+    // save the first time someone browses the mod list. Ctrl-Z is what marks
+    // the save; without that mark this declines.
+    expect(install({}, [], 0).controller).toBeUndefined();
   });
 
-  it("takes the keyboard when the flag is on, and says so", () => {
-    const { controller, logs } = install({ "borg.autoplay": true });
+  it("takes the keyboard when NOSCORE_BORG is set, and says so", () => {
+    const { controller, logs } = install();
     expect(typeof controller).toBe("function");
     expect(logs.join(" ")).toContain("keyboard");
   });
@@ -144,7 +154,7 @@ describe("the built plugin.js", () => {
      * so asserting "not null" alone would pass against the bug. The commands
      * below are what a Borg standing next to a monster actually issues, and
      * every one of them requires a real FEAT/TV read on the way. */
-    const controller = install({ "borg.autoplay": true }).controller!;
+    const controller = install().controller!;
     const view = makeScenarioView({
       player: { grid: { x: 5, y: 5 }, depth: 3 },
       monsters: [{ grid: { x: 6, y: 5 }, raceIndex: 42, hp: 10, maxHp: 10 }],
@@ -156,7 +166,7 @@ describe("the built plugin.js", () => {
 
   it("keeps deciding, turn after turn", () => {
     // One decision can succeed on stale state; a stuck Borg shows up over turns.
-    const controller = install({ "borg.autoplay": true }).controller!;
+    const controller = install().controller!;
     const view = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 2 } });
     const codes = Array.from(
       { length: 8 },
@@ -173,7 +183,7 @@ describe("the built plugin.js", () => {
      * assertion of its own. The race count is in the message so a player's log
      * says whether the Borg could see, not just that it started - an empty
      * registry is the one remaining way to get a blind Borg. */
-    const { controller, logs } = install({ "borg.autoplay": true });
+    const { controller, logs } = install();
     expect(typeof controller).toBe("function");
     const said = logs.join(" ");
     expect(said).toMatch(/danger vision over 2 races/u);
@@ -182,35 +192,31 @@ describe("the built plugin.js", () => {
     expect(said).toMatch(/loadout evaluation/u);
   });
 
-  it("refuses a host context missing a required fact, and names it", () => {
+  it("refuses a marked character on a host missing registries, and names it", () => {
     /* The engine floor is what makes this unreachable through the game's own
-     * loader: `engine: ">=0.25.0"` in manifest.json is a hard refusal for a mod
-     * that ships code, so a game without `ctx.registries` or `ctx.state` never
-     * imports this bundle. It is asserted anyway because the loader is not the
-     * only caller a plugin ABI can have, and because the alternative failure is
-     * silent - a Borg with no resolvers plays on, badly, and looks from the
-     * outside exactly like a Borg making bad choices. */
-    expect(() => install({ "borg.autoplay": true }, ["registries"])).toThrow(
-      /ctx\.registries/u,
-    );
-    expect(() => install({ "borg.autoplay": true }, ["state"])).toThrow(/ctx\.state/u);
-    expect(() => install({ "borg.autoplay": true }, ["registries", "state"])).toThrow(
-      /ctx\.registries and no ctx\.state/u,
-    );
+     * loader: a game without `ctx.registries` never imports this bundle. It is
+     * asserted anyway because the loader is not the only caller a plugin ABI can
+     * have, and because the alternative failure is silent - a Borg with no
+     * resolvers plays on, badly. Missing `ctx.state` cannot reach this refusal:
+     * without state there is no NOSCORE mark to read, so the plugin declines
+     * first (same as an unmarked character). */
+    expect(() => install({}, ["registries"])).toThrow(/ctx\.registries/u);
+    expect(install({}, ["state"]).controller).toBeUndefined();
+    expect(install({}, ["registries", "state"]).controller).toBeUndefined();
   });
 
-  it("declines before it can refuse anything, when the flag is off", () => {
-    /* Order matters: the flag check runs first, so a host that never enables the
-     * Borg is never told its context is short. Otherwise browsing the mod list
-     * on a defective host would raise from a mod nobody switched on. */
-    expect(install({}, ["registries", "state"]).controller).toBeUndefined();
+  it("declines before it can refuse anything, when the character is unmarked", () => {
+    /* Order matters: the NOSCORE check runs first, so a host that never handed
+     * this character over is never told its context is short. Otherwise browsing
+     * the mod list on a defective host would raise from a mod nobody activated. */
+    expect(install({}, ["registries", "state"], 0).controller).toBeUndefined();
   });
 
   it("runs on upstream's stock settings when the player moved nothing, and says so", () => {
     /* A stock Borg is the Borg Angband ships. The log line is how an unattended
        run's record says which one was playing, and this is the case where the
        answer is "the one the C would have been". */
-    const { logs } = install({ "borg.autoplay": true });
+    const { logs } = install();
     expect(logs.join(" ")).toContain("stock settings");
   });
 
@@ -221,7 +227,6 @@ describe("the built plugin.js", () => {
        and it asserts the NAMES, because a table that mapped two flags onto one
        setting would still produce a Borg that starts and plays. */
     const { logs } = install({
-      "borg.autoplay": true,
       "borg.playsRisky": true,
       "borg.worshipsSpeed": true,
       "borg.selfScum": false,
@@ -236,12 +241,12 @@ describe("the built plugin.js", () => {
   it("does not report a setting the player left on its stock value", () => {
     /* Switching a rule ON that is already on by default is not a change, and a
        log that called it one would make every run look configured. */
-    const { logs } = install({ "borg.autoplay": true, "borg.selfScum": true });
+    const { logs } = install({ "borg.selfScum": true });
     expect(logs.join(" ")).toContain("stock settings");
   });
 
   it("yields when the player is dead", () => {
-    const controller = install({ "borg.autoplay": true }).controller!;
+    const controller = install().controller!;
     expect(controller(makeScenarioView({ player: { dead: true } }), makeFakeActions())).toBeNull();
   });
 });
