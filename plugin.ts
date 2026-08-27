@@ -45,6 +45,7 @@
 
 import type * as Core from "@rpgm-tools/neo-angband-core";
 import type { AgentController } from "@rpgm-tools/neo-angband-core";
+import { NOSCORE_BORG } from "./src/activate.js";
 import { bindCore, coreIsBound } from "./src/core-api.js";
 import { createBorg } from "./src/controller.js";
 import { makeCoreResolvers } from "./src/resolvers.js";
@@ -82,7 +83,15 @@ interface ControllerCtx {
    * `GameState` is an internal host type and not part of the published surface.
    */
   readonly state: {
-    readonly actor: { readonly grid: { readonly x: number; readonly y: number } };
+    readonly actor: {
+      readonly grid: { readonly x: number; readonly y: number };
+      /**
+       * The live player, when the host has one. Optional in this declared
+       * shape because a defective test host can omit it; a real controller()
+       * call always has a character by then.
+       */
+      readonly player?: { readonly noscore: number };
+    };
     readonly chunk: {
       feature(grid: { x: number; y: number }): { shopnum: number };
     };
@@ -95,15 +104,21 @@ interface ControllerCtx {
 }
 
 /**
- * Whether the player has asked the Borg to take over.
+ * Whether this character has already handed the keyboard to an autoplayer.
  *
- * A mod being ENABLED and a mod being IN CHARGE are different things, and for
- * this mod the difference is the whole game. Every other mod's toggles change
- * how the world behaves; this one's decides whether anyone is playing. So the
- * flag defaults to off in manifest.json: installing the Borg and enabling it
- * gets you a Borg you can switch on, not a character that starts walking.
+ * Enabling the mod and giving away the keyboard are different decisions. There
+ * is no standing settings toggle for that any more: Ctrl-Z (the host's
+ * do_cmd_try_borg) warns, confirms, marks NOSCORE_BORG on the save, and
+ * reloads. This plugin then returns a controller only when that permanent mark
+ * is already set, so a virgin character stays under human control until Ctrl-Z,
+ * and a character that has run the Borg before resumes with it at the wheel.
+ * Returning a controller from an unmarked save would reintroduce a boot-time
+ * confirm every launch merely because the mod is enabled.
  */
-const AUTOPLAY_FLAG = "borg.autoplay";
+function characterAlreadyAutoplayed(ctx: ControllerCtx): boolean {
+  const noscore = ctx.state?.actor?.player?.noscore ?? 0;
+  return (noscore & NOSCORE_BORG) !== 0;
+}
 
 /**
  * The settings a player can move, and the `borg_cfg[]` entry each one is.
@@ -122,10 +137,11 @@ const AUTOPLAY_FLAG = "borg.autoplay";
  * way to open.
  *
  * Rules win for everything that is a yes or a no, which is most of upstream's
- * table: the toggle already exists, it is where the one existing Borg setting
- * lives, it needs no new permission on a screen a player reads before handing
- * over a character, and changing one re-composes the page - so a session never
- * sees a setting move under it, which is exactly the lifetime `borg_cfg[]` has.
+ * table: the toggle already exists, it needs no new permission on a screen a
+ * player reads before configuring how the Borg plays, and changing one
+ * re-composes the page - so a session never sees a setting move under it, which
+ * is exactly the lifetime `borg_cfg[]` has. Handing over the keyboard itself is
+ * Ctrl-Z in the host, not a rule.
  * The numeric settings (depth ceilings, the enchant limit, a pinned respawn race
  * or class) have no yes-or-no shape and are not here; PLANNED.md carries what
  * each of them still needs.
@@ -227,8 +243,8 @@ export default {
   controller(ctx: ControllerCtx): AgentController | undefined {
     /* Returning undefined is a decline, and the host leaves the human at the
      * keyboard. This is the normal case: the mod is installed and enabled, and
-     * the player has not asked it to play. */
-    if (ctx.flags[AUTOPLAY_FLAG] !== true) return undefined;
+     * this character has never been handed to an autoplayer (Ctrl-Z). */
+    if (!characterAlreadyAutoplayed(ctx)) return undefined;
 
     bindCore(ctx.core);
     if (!coreIsBound()) {

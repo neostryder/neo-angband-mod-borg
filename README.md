@@ -7,8 +7,8 @@ Borg (Angband's automatic player) for
 so; the blockquote below says why that is a refusal rather than a reduced Borg.
 
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
-hand it your character: switch on *Let the Borg play* and it takes the keyboard
-from the next turn.
+hand it your character: press **Ctrl-Z** in play to warn, confirm, and hand over
+the keyboard. Press Ctrl-Z again (or any other real key) to take it back.
 
 ![Borg exploring a dungeon level under its own control](docs/img/borg-autoplay.jpg)
 
@@ -152,9 +152,9 @@ bugs rather than Borg bugs.
 
 Upstream's borg reads a `borg.txt` out of the user's Angband folder and takes
 about thirty settings from it. There is no such folder here, and no path to one
-on a phone, so those settings are toggles in the mod manager beside *Let the Borg
-play*. Each one's description names the `borg_` setting it is, so a `borg.txt`
-you already have translates row by row.
+on a phone, so those settings are toggles in the mod manager. Each one's
+description names the `borg_` setting it is, so a `borg.txt` you already have
+translates row by row. Handing over the keyboard itself is Ctrl-Z, not a toggle.
 
     Play risky                     borg_plays_risky
     Value melee and missile damage borg_worships_damage
@@ -205,7 +205,7 @@ host's mod-manager toggle is boolean only, so there is no rule type to carry one
 yet. See PLANNED.md for what each of these still needs.
 
 Since Neo Angband 0.27.2 the mod manager also shows an **Autoplayer speed**
-row next to *Let the Borg play*, with Turbo/Fast/Normal/Slow tiers
+row while an autoplayer holds the keyboard, with Turbo/Fast/Normal/Slow tiers
 (10/40/120/400 milliseconds a turn) as of 0.28.0. That control is the host's,
 not this mod's: any mod that returns a controller gets the row for free, with
 no manifest change here.
