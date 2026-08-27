@@ -8,7 +8,15 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
-## Unreleased
+## 1.1.0 - 2026-08-27
+
+### Changed
+
+- **This version requires Neo Angband 1.1.0 or newer.** `manifest.json`'s
+  engine range moves from `>=1.0.0` to `>=1.1.0`. Ctrl-Z's own warn-and-confirm
+  gate (#125) is host-side, and an older engine has no way at all to hand this
+  mod the keyboard - installing this version on one would leave the Borg
+  correctly inert rather than broken, but with no path to ever activate it.
 
 ### Removed
 
