@@ -6,3 +6,15 @@
 # the same dependency.
 allowBuilds:
   esbuild: false
+
+# pnpm 11 defaults minimumReleaseAge to 1440 minutes, so a package published in
+# the last day will not resolve - it silently falls back to whatever older
+# version IS old enough, which is worse than an error: a fresh install just
+# after a same-day @rpgm-tools release would silently pin a version older than
+# the declared range's actual latest. neo-angband/pnpm-workspace.yaml already
+# named this exact risk before any mod repository ran pnpm, and mod-forge's
+# migration hit it for real. These are first-party packages this project's
+# own release CI gates before they reach npm, so excluding them is the
+# documented alternative to disabling the protection outright.
+minimumReleaseAgeExclude:
+  - "@rpgm-tools/*"
