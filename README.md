@@ -245,12 +245,12 @@ single rule that arrangement imposes on every other file.
 
 ## Building and testing
 
-    npm ci
-    npm run verify     # typecheck, test, and prove plugin.js is a current build
+    pnpm install --frozen-lockfile
+    pnpm verify     # typecheck, test, and prove plugin.js is a current build
 
 `plugin.js` is committed, because an install fetches it from a pinned tag and runs it
 as it is; nothing rebuilds it on the way in. So a stale artefact passes every other
-check and is the file players actually run. `npm run check` is what stops that.
+check and is the file players actually run. `pnpm check` is what stops that.
 
 The suite runs the port **and** drives the built `plugin.js`, which is a different
 artefact: the engine arrives through ESM live bindings, and whether those survive
@@ -258,7 +258,7 @@ bundling is a separate question from whether they work in TypeScript.
 
 To develop against an unreleased engine:
 
-    NEO_ANGBAND_LOCAL_CORE=1 npm test
+    NEO_ANGBAND_LOCAL_CORE=1 pnpm test
 
 ## Releasing
 

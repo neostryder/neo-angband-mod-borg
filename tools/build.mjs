@@ -52,9 +52,9 @@ const bin = candidates.find((p) => existsSync(p));
 if (bin === undefined) {
   console.error(
     "Cannot find neo-angband-mod-build, the tool that builds plugin.js from src/.\n" +
-      "It ships with the game's mod SDK, so `npm ci` in this repository is normally\n" +
-      "all it takes. If node_modules is missing or its SDK is too old to carry the bin,\n" +
-      "install a newer @rpgm-tools/neo-angband-mod-sdk, check out\n" +
+      "It ships with the game's mod SDK, so `pnpm install --frozen-lockfile` in this\n" +
+      "repository is normally all it takes. If node_modules is missing or its SDK is\n" +
+      "too old to carry the bin, install a newer @rpgm-tools/neo-angband-mod-sdk, check out\n" +
       "https://github.com/neostryder/neo-angband as a sibling of this repository, or set\n" +
       "NEO_ANGBAND_REPO to where that checkout already is.\n" +
       `Looked for:\n${candidates.map((c) => `  ${c}`).join("\n")}`,

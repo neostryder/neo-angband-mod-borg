@@ -15,7 +15,7 @@
  * sibling checkout for the content pack (content.ts) and for the plugin builder
  * (tools/build.mjs); the ENGINE was the one thing it did not reach.
  *
- *   NEO_ANGBAND_LOCAL_CORE=1 npm test
+ *   NEO_ANGBAND_LOCAL_CORE=1 pnpm test
  *
  * A SECOND VARIABLE, not just the presence of the checkout. Most developers here
  * have the sibling checkout - the content pack needs it - so keying off that

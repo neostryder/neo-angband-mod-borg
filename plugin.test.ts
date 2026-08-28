@@ -37,7 +37,7 @@ interface BuiltPlugin {
 }
 
 /* The BUILT file, on purpose. If plugin.js is stale or missing this fails, which
- * is correct: `npm run check` proves it is a current build of the source, and
+ * is correct: `pnpm check` proves it is a current build of the source, and
  * this proves the thing that check blessed actually runs. */
 const built = ((await import("./plugin.js")) as { default: BuiltPlugin }).default;
 
