@@ -8,7 +8,7 @@
  * receives the live engine as `ctx.core` instead, and src/core-api.ts is where
  * this one puts it.
  *
- * The builder is therefore the real gate, and `npm run check` runs it. This test
+ * The builder is therefore the real gate, and `pnpm check` runs it. This test
  * exists anyway, for two reasons. It fails in milliseconds with the FILE NAME,
  * where the builder fails at the end of a bundle with a specifier; and it holds
  * while core-api.ts is a `import type * as Core` - which erases, so the builder

@@ -1,0 +1,8 @@
+# pnpm blocks a dependency's postinstall unless it is named here. esbuild is
+# false, and that is a measurement rather than a guess: it resolves its
+# executable through the platform optionalDependency (@esbuild/<plat>), so
+# `require("esbuild").version` answers and typecheck/test/check all pass with
+# the postinstall skipped. Same call neo-angband/pnpm-workspace.yaml makes for
+# the same dependency.
+allowBuilds:
+  esbuild: false

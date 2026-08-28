@@ -428,7 +428,7 @@ describe("the narrowed loadout shapes still match the engine's own", () => {
    * Narrower is fine; DIVERGED is not, and until 0.25.0 published these types
    * there was nothing here to compare against. The two aliases below are the
    * check, and they are compile-time: a field renamed or retyped in the engine
-   * fails `npm run typecheck` rather than surfacing as the Borg valuing gear
+   * fails `pnpm typecheck` rather than surfacing as the Borg valuing gear
    * wrongly, which is invisible in play.
    */
   type AssignableTo<Wide, Narrow extends Wide> = [Wide, Narrow];
