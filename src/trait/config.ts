@@ -100,6 +100,39 @@ export function resetBorgCfg(): void {
 }
 
 /**
+ * The buff-timer safety net (trait.ts's borgNoticePlayer, buff-timers.ts).
+ *
+ * DELIBERATELY NOT A BorgCfg FIELD. Every BorgCfg key is a borg_cfg[] mirror -
+ * manifest-tunables.test.ts asserts the whole set against UPSTREAM_DEFAULTS,
+ * and there is no upstream toggle for this, because there is no upstream
+ * defect for it to fix. The flag that gates it also is not this mod's own: it
+ * lives in the Bug Fixes mod's manifest ("Borg Fixes" section, patches-scoped
+ * to this mod - neo-angband#32), so it must not be folded into RULE_CFG in
+ * plugin.ts either, which manifest-tunables.test.ts also checks against
+ * Borg's OWN declared rules. A small parallel module-level value, same "one
+ * set per session" shape as activeCfg above, is what stays out of both guards
+ * while still reading like the rest of this module.
+ */
+let buffTimerSafetyNetOn = true;
+
+/** Install the resolved cross-mod flag (plugin.ts's controller()). */
+export function setBuffTimerSafetyNet(on: boolean): void {
+  buffTimerSafetyNetOn = on;
+}
+
+/** Whether the safety net should run. On by default: absent (Bug Fixes not
+ * installed, or an older one with no such section) is a correction missing,
+ * not a feature to switch off. */
+export function buffTimerSafetyNetEnabled(): boolean {
+  return buffTimerSafetyNetOn;
+}
+
+/** Back to stock. For tests, and for a host that tears a Borg down. */
+export function resetBuffTimerSafetyNet(): void {
+  buffTimerSafetyNetOn = true;
+}
+
+/**
  * The spell/device seam. The C queries borg_spell_legal(_fail) and
  * borg_equips_item(act_*) to grant "infinite" amounts of detect/teleport/heal/
  * enchant/etc. These live in the magic + activation subsystems (P8.x). Default:

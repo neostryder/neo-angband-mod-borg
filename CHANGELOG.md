@@ -24,7 +24,10 @@ are, however small.
   rest of the character's life. The cross-check runs on every decision, ahead of
   the message pass, so a buff the engine reports as expired is corrected in time
   to be recast on the same turn. Haste and protection from evil keep upstream's
-  own narrower shape, where the timer can raise the flag but not lower it.
+  own narrower shape, where the timer can raise the flag but not lower it. The
+  toggle for this lives in the Bug Fixes mod's "Borg Fixes" section, not in
+  this mod's own manifest - it defaults to on and is greyed out unless Bug
+  Fixes is also installed.
 
 ## 1.1.0 - 2026-08-27
 

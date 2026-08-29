@@ -5618,6 +5618,13 @@ function setBorgCfg(cfg = {}) {
 function borgCfg() {
   return activeCfg;
 }
+var buffTimerSafetyNetOn = true;
+function setBuffTimerSafetyNet(on2) {
+  buffTimerSafetyNetOn = on2;
+}
+function buffTimerSafetyNetEnabled() {
+  return buffTimerSafetyNetOn;
+}
 function defaultSpellSeam() {
   return {
     spellLegal: () => false,
@@ -5809,7 +5816,7 @@ function borgNoticePlayer(c) {
     if (t[35 /* CLEVEL */] !== 50) t[125 /* ISFIXEXP */] = 1;
   }
   t[45 /* GOLD */] = p.gold;
-  borgCheatBuffTimers(c.temp, p.status);
+  if (buffTimerSafetyNetEnabled()) borgCheatBuffTimers(c.temp, p.status);
   t[27 /* CURHP */] = p.hp;
   t[28 /* MAXHP */] = p.maxHp;
   t[29 /* HP_ADJ */] = p.maxHp;
@@ -15675,6 +15682,7 @@ var plugin_default = {
     const blowMethods = ctx.registries.monsters.blowMethods.values();
     const monsterSpells = ctx.registries.monsters.spells?.values() ?? [];
     const cfg = cfgFromFlags(ctx.flags);
+    setBuffTimerSafetyNet(ctx.flags["bugfix.borgFixes"] ?? true);
     const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,

@@ -49,7 +49,7 @@ import { NOSCORE_BORG } from "./src/activate.js";
 import { bindCore, coreIsBound } from "./src/core-api.js";
 import { createBorg } from "./src/controller.js";
 import { makeCoreResolvers } from "./src/resolvers.js";
-import { defaultCfg, type BorgCfg } from "./src/trait/config.js";
+import { defaultCfg, setBuffTimerSafetyNet, type BorgCfg } from "./src/trait/config.js";
 
 /**
  * What this plugin needs from the host's context, structurally. Declared here
@@ -324,6 +324,9 @@ export default {
     const blowMethods = ctx.registries.monsters.blowMethods.values();
     const monsterSpells = ctx.registries.monsters.spells?.values() ?? [];
     const cfg = cfgFromFlags(ctx.flags);
+    /* Cross-mod, deliberately outside RULE_CFG and cfg itself: see
+     * config.ts's setBuffTimerSafetyNet for why. */
+    setBuffTimerSafetyNet(ctx.flags["bugfix.borgFixes"] ?? true);
     const borg = createBorg({
       resolvers: makeCoreResolvers({
         races,
