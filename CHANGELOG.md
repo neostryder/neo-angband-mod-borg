@@ -8,7 +8,7 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
-## Unreleased
+## 1.1.1 - 2026-08-29
 
 ### Fixed
 
