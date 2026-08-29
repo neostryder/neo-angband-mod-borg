@@ -131,6 +131,12 @@ function shadowWorld(world: BorgWorld): BorgWorld {
       ...world.self,
       trait: [...world.self.trait],
       power: world.self.power,
+      /* borgNotice writes temp too (the buff-timer cross-check at
+       * trait.c:3010), and a shallow spread would hand the simulation the LIVE
+       * flags object to write through. The simulated player carries the same
+       * timers, so the values would agree today; sharing the object is still a
+       * live write from a scoring pass that promises not to make one. */
+      temp: { ...world.self.temp },
     },
     writable: true,
     enumerable: true,

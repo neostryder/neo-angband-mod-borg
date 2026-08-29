@@ -8,6 +8,24 @@ An entry has to matter to somebody running the mod. Documentation wording,
 internal refactoring and test-only additions are not recorded here. Bug fixes
 are, however small.
 
+## Unreleased
+
+### Fixed
+
+- **The buff-timer safety net was not ported (neo-angband#32).** Buff
+  bookkeeping was message-driven only: the Borg learned that a blessing,
+  heroism, a temporary resist or a mystic shield had ended by reading the line
+  the game printed when it expired. Upstream keeps a second, redundant record
+  beside that one, reading the player's real timers out of the game every think
+  and reconciling them against the flags the messages produced
+  (`borg-trait.c:3010`). Without it a message that never arrived left the flag
+  latched on for good, and every maneuver that opens by checking that flag - the
+  ones that would recast the buff - was silently removed from the ladder for the
+  rest of the character's life. The cross-check runs on every decision, ahead of
+  the message pass, so a buff the engine reports as expired is corrected in time
+  to be recast on the same turn. Haste and protection from evil keep upstream's
+  own narrower shape, where the timer can raise the flag but not lower it.
+
 ## 1.1.0 - 2026-08-27
 
 ### Changed
