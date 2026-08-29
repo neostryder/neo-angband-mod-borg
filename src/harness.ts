@@ -26,6 +26,7 @@ import type {
   ItemView,
   GameConstants,
 } from "@rpgm-tools/neo-angband-core";
+import type { BorgTimedStatus } from "./trait/buff-timers.js";
 
 /** A cell override in a scenario (all fields optional; sensible floor default). */
 export type ScenarioCell = Partial<CellView>;
@@ -34,8 +35,15 @@ export type ScenarioCell = Partial<CellView>;
 export interface Scenario {
   width?: number;
   height?: number;
-  /** Player overrides (position defaults to the map center). */
-  player?: Partial<PlayerView>;
+  /**
+   * Player overrides (position defaults to the map center). `status` merges
+   * field by field over the healthy default rather than replacing it, and is
+   * typed as BorgTimedStatus so a scenario can report the Agent API 1.4.0 buff
+   * timers the installed type package is too old to declare (buff-timers.ts).
+   */
+  player?: Partial<Omit<PlayerView, "status">> & {
+    status?: Partial<BorgTimedStatus>;
+  };
   /** Monsters present (each needs at least a grid; other fields default). */
   monsters?: Array<Partial<MonsterView> & { grid: { x: number; y: number } }>;
   /** Per-grid cell overrides, keyed "x,y". Absent grids default to known floor. */
@@ -136,7 +144,13 @@ export function makeScenarioView(scenario: Scenario = {}): AgentView {
   const width = scenario.width ?? DEFAULT_W;
   const height = scenario.height ?? DEFAULT_H;
   const floorFeat = scenario.floorFeat ?? 1;
-  const player = { ...defaultPlayer(width, height), ...scenario.player };
+  const { status: statusOver, ...playerOver } = scenario.player ?? {};
+  const base = defaultPlayer(width, height);
+  const player: PlayerView = {
+    ...base,
+    ...playerOver,
+    status: { ...base.status, ...statusOver },
+  };
   const monsters = (scenario.monsters ?? []).map(completeMonster);
   const cells = scenario.cells ?? {};
   const floor = scenario.floor ?? {};

@@ -4,6 +4,8 @@
  * Public API:
  * - BI / BI_MAX / PREFIX_PREF - the trait index space (borg-trait.h enum).
  * - borgNotice(ctx, opts?) - fill ctx.world.self.trait[BI_*] (borg_notice).
+ * - borgCheatBuffTimers(temp, status) - reconcile the message-derived buff
+ *   flags against the engine's real timers (borg-trait.c:3010).
  * - borgPower(ctx, opts?) - the scalar fitness (borg_power); writes self.power.
  * - borgPrepared(ctx, depth, opts?) - depth-readiness reason or null.
  * - borgRestock(ctx, depth, opts?) - crucial-supply reason or null.
@@ -17,6 +19,7 @@ export * from "./tables.js";
 export * from "./config.js";
 export * from "./state.js";
 export * from "./item-util.js";
+export * from "./buff-timers.js";
 export * from "./trait.js";
 export * from "./power.js";
 export * from "./prepared.js";

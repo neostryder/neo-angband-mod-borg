@@ -5712,6 +5712,47 @@ function present(item) {
   return !!item && item.number > 0;
 }
 
+// src/trait/buff-timers.ts
+var BUFF_TIMER_FIELDS = [
+  "protEvil",
+  "fast",
+  "sprint",
+  "resAcid",
+  "resElec",
+  "resFire",
+  "resCold",
+  "resPois",
+  "blessed",
+  "shield",
+  "stoneskin",
+  "fastcast",
+  "hero",
+  "shero"
+];
+function borgHasBuffTimers(status) {
+  const s = status;
+  return BUFF_TIMER_FIELDS.some((f) => typeof s[f] === "number");
+}
+function on(turns) {
+  return (turns ?? 0) > 0;
+}
+function borgCheatBuffTimers(temp, status) {
+  if (!borgHasBuffTimers(status)) return;
+  const s = status;
+  if (!temp.protFromEvil && on(s.protEvil)) temp.protFromEvil = true;
+  if (!temp.fast && (on(s.fast) || on(s.sprint))) temp.fast = true;
+  temp.resAcid = on(s.resAcid);
+  temp.resElec = on(s.resElec);
+  temp.resFire = on(s.resFire);
+  temp.resCold = on(s.resCold);
+  temp.resPois = on(s.resPois);
+  temp.bless = on(s.blessed);
+  temp.shield = on(s.shield) || on(s.stoneskin);
+  temp.fastcast = on(s.fastcast);
+  temp.hero = on(s.hero);
+  temp.berserk = on(s.shero);
+}
+
 // src/trait/trait.ts
 var SLOT_WIELD = 0;
 var SLOT_BOW = 1;
@@ -5740,6 +5781,7 @@ function borgNotice(ctx, opts = {}) {
     R: R2,
     equip: view.equipment(),
     inven: view.inventory(),
+    temp: ctx.world.self.temp,
     cls,
     spellStat
   };
@@ -5767,6 +5809,7 @@ function borgNoticePlayer(c) {
     if (t[35 /* CLEVEL */] !== 50) t[125 /* ISFIXEXP */] = 1;
   }
   t[45 /* GOLD */] = p.gold;
+  borgCheatBuffTimers(c.temp, p.status);
   t[27 /* CURHP */] = p.hp;
   t[28 /* MAXHP */] = p.maxHp;
   t[29 /* HP_ADJ */] = p.maxHp;
@@ -7298,7 +7341,13 @@ function shadowWorld(world) {
     value: {
       ...world.self,
       trait: [...world.self.trait],
-      power: world.self.power
+      power: world.self.power,
+      /* borgNotice writes temp too (the buff-timer cross-check at
+       * trait.c:3010), and a shallow spread would hand the simulation the LIVE
+       * flags object to write through. The simulated player carries the same
+       * timers, so the values would agree today; sharing the object is still a
+       * live write from a scoring pass that promises not to make one. */
+      temp: { ...world.self.temp }
     },
     writable: true,
     enumerable: true,
@@ -8105,10 +8154,10 @@ function borgObjectSimilar(o, j, d) {
       break;
   }
   if (isIdent2(o, d) !== isIdent2(j, d)) return false;
-  const on = o.inscription;
+  const on2 = o.inscription;
   const jn = j.inscription;
-  if (on && !jn || !on && jn) return false;
-  if (on && jn && on !== jn) return false;
+  if (on2 && !jn || !on2 && jn) return false;
+  if (on2 && jn && on2 !== jn) return false;
   if (total >= maxStackOf(o, d)) return false;
   return true;
 }

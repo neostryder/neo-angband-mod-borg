@@ -419,14 +419,15 @@ export function borgReactMessages(
 
     /*
      * Buff on/off messages (borg-messages.c:772-1025). This is upstream's
-     * PRIMARY bookkeeping for these flags - borg-trait.c:3010's cross-check
-     * against player->timed[] is a safety net for exactly the failure mode
-     * this table cannot fully cover (a missed message), and that net cannot be
-     * ported: PlayerStatusView exposes only the eight afflictions, none of
-     * these buffs (see PLANNED.md). Without this table `world.self.temp.*`
-     * never left its all-false initial state, so the buff-aware defensive
-     * maneuvers (fight/defend.ts) always believed nothing was active and kept
-     * re-casting spells the character already had running.
+     * PRIMARY bookkeeping for these flags. Without this table
+     * `world.self.temp.*` never left its all-false initial state, so the
+     * buff-aware defensive maneuvers (fight/defend.ts) always believed nothing
+     * was active and kept re-casting spells the character already had running.
+     *
+     * The safety net for the failure this table cannot cover - a message that
+     * never arrives, leaving a buff latched on - is borg-trait.c:3010's
+     * cross-check against the player's real timers, ported in
+     * trait/buff-timers.ts and run by borgNotice just before this pass.
      */
     if (msg.startsWith("You feel safe from evil!")) {
       world.self.temp.protFromEvil = true;

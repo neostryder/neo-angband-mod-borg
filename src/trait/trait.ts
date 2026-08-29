@@ -66,6 +66,8 @@ import {
   type ResolvedOpts,
 } from "./config.js";
 import { resetDerived, addHas, type BorgDerived } from "./state.js";
+import { borgCheatBuffTimers } from "./buff-timers.js";
+import type { Temp } from "../world/model.js";
 
 /* Equipment body-slot indices (AgentView.equipment() order == game equip slots,
  * matching INVEN_WIELD..INVEN_FEET; generated/equip-slots.ts EQUIP_*). */
@@ -96,6 +98,8 @@ interface Ctx {
   R: ResolvedOpts;
   equip: Array<ItemView | null>;
   inven: ItemView[];
+  /** The live buff/resist flags, so the cross-check at :3010 can repair them. */
+  temp: Temp;
   cls: number;
   spellStat: number;
 }
@@ -128,6 +132,7 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
     R,
     equip: view.equipment(),
     inven: view.inventory(),
+    temp: ctx.world.self.temp,
     cls,
     spellStat,
   };
@@ -174,6 +179,15 @@ function borgNoticePlayer(c: Ctx): void {
   }
 
   t[BI.GOLD] = p.gold;
+
+  /* The buff-timer cross-check (trait.c:3010-3037): the redundant half of the
+   * bookkeeping perceive-messages.ts drives, reading the engine's own timers so
+   * a missed message cannot leave a buff latched on. It sits here, ahead of the
+   * message pass the controller runs next, because that is where upstream puts
+   * it - borg_notice runs before borg_update (borg-think.c:414-419) - and
+   * because the flags it repairs are read later in the same decision by the
+   * defensive maneuvers. See buff-timers.ts for the two assignment shapes. */
+  borgCheatBuffTimers(c.temp, p.status);
 
   /* HP / SP (trait.c:3043-3052). BI_HP_ADJ is the borg's re-derivation of mhp,
    * identical to the game's mhp by construction, so read maxHp directly. */
