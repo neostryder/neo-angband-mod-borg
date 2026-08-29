@@ -62,6 +62,7 @@ import {
 import { hasFlag, mod, resLevel, hasBrand3, slayMult, present } from "./item-util.js";
 import {
   resolveOpts,
+  buffTimerSafetyNetEnabled,
   type BorgTraitOpts,
   type ResolvedOpts,
 } from "./config.js";
@@ -186,8 +187,12 @@ function borgNoticePlayer(c: Ctx): void {
    * message pass the controller runs next, because that is where upstream puts
    * it - borg_notice runs before borg_update (borg-think.c:414-419) - and
    * because the flags it repairs are read later in the same decision by the
-   * defensive maneuvers. See buff-timers.ts for the two assignment shapes. */
-  borgCheatBuffTimers(c.temp, p.status);
+   * defensive maneuvers. See buff-timers.ts for the two assignment shapes.
+   *
+   * Gated on the Bug Fixes mod's "Borg Fixes" toggle (config.ts's
+   * buffTimerSafetyNetEnabled), not a rule of this mod's own - see config.ts's
+   * doc comment on that flag for why. */
+  if (buffTimerSafetyNetEnabled()) borgCheatBuffTimers(c.temp, p.status);
 
   /* HP / SP (trait.c:3043-3052). BI_HP_ADJ is the borg's re-derivation of mhp,
    * identical to the game's mhp by construction, so read maxHp directly. */

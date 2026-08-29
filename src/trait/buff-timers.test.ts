@@ -10,7 +10,7 @@
  * that would recast it.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { BorgWorld } from "../world/model.js";
 import { makeTemp } from "../world/model.js";
 import { perceive, makePerceiveMemo } from "../perceive.js";
@@ -19,6 +19,7 @@ import { makeBorgRng } from "../rng.js";
 import type { BorgContext } from "../context.js";
 import { borgNotice } from "./trait.js";
 import { borgCheatBuffTimers, borgHasBuffTimers } from "./buff-timers.js";
+import { setBuffTimerSafetyNet, resetBuffTimerSafetyNet } from "./config.js";
 import { getDangerGlobals } from "../danger/index.js";
 import { borgDefend } from "../fight/defend.js";
 import { TV, SVAL } from "../item/svals.js";
@@ -168,6 +169,43 @@ describe("a buff-off message that never arrives", () => {
     expect(world.self.temp.bless).toBe(true);
     getDangerGlobals(world).avoidance = 100;
     expect(borgDefend(ctx, 10)).toBeNull();
+  });
+});
+
+describe("the Bug Fixes cross-mod gate (neo-angband#32)", () => {
+  afterEach(() => resetBuffTimerSafetyNet());
+
+  it("leaves a stale flag latched when the toggle is off", () => {
+    setBuffTimerSafetyNet(false);
+    const world = new BorgWorld();
+    const memo = makePerceiveMemo();
+    tick(world, memo, {
+      messages: ["You feel righteous"],
+      player: { status: { blessed: 12 } },
+    });
+    expect(world.self.temp.bless).toBe(true);
+
+    /* Same reproduction as the suite above - the timer now says expired - but
+     * with the gate off nothing reconciles it. */
+    tick(world, memo, {
+      monsters: [{ grid: { x: 21, y: 12 } }],
+      player: { status: { blessed: 0 } },
+    }, [blessingScroll()]);
+    expect(world.self.temp.bless).toBe(true);
+  });
+
+  it("is on by default, so an absent Bug Fixes still runs the safety net", () => {
+    const world = new BorgWorld();
+    const memo = makePerceiveMemo();
+    tick(world, memo, {
+      messages: ["You feel righteous"],
+      player: { status: { blessed: 12 } },
+    });
+    tick(world, memo, {
+      monsters: [{ grid: { x: 21, y: 12 } }],
+      player: { status: { blessed: 0 } },
+    }, [blessingScroll()]);
+    expect(world.self.temp.bless).toBe(false);
   });
 });
 
