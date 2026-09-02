@@ -25,29 +25,29 @@ fresh set of heuristics that merely look similar.
 > depends on `plugin.ts`, which builds the Borg from host-supplied resolvers -
 > and for a long time most of those did not exist.
 >
-> **All four resolver seams are now wired: danger vision, activation identity,
-> the in-shop signal, and the power of a hypothetical loadout.** The plugin reads
+> All four resolver seams are now wired: danger vision, activation identity,
+> the in-shop signal, and the power of a hypothetical loadout. The plugin reads
 > the game's bound registries from `ctx.registries` and the live state from
 > `ctx.state`, and builds real resolvers from them: `borg_danger` runs on actual
 > blows, spell frequencies and race flags rather than on zeroes, the Borg can tell
 > whether a worn item grants the activation it wants and whether it is charged, it
 > knows which shop it is standing in, and it can score gear it is not wearing - so
 > it wears what it finds, buys what it needs and sells what it is finished with
-> instead of hoarding. **A mod's monsters and items are covered on exactly the
-> same terms as core's**: every registry is bound after mods compose their
+> instead of hoarding. A mod's monsters and items are covered on exactly the
+> same terms as core's: every registry is bound after mods compose their
 > content, and each resolver reads it by index (`ridx`, `tval`/`sval`, ego and
 > artifact name) without consulting provenance, so content a mod added is treated
 > identically to core's.
 >
-> **It starts a new character when it dies**, and that is the engine's own work
+> It starts a new character when it dies, and that is the engine's own work
 > rather than this mod's: a controller can only return an in-game command, so it
 > has nothing to say that means "roll me a new character". The game's death
 > handler does it, whenever a mod holds the keyboard. It is an in-session
 > reincarnation and not a new save - same session, same slot, a rolled race and
 > class each time, exactly as upstream's borg respawns.
 >
-> **Those last two arrived in Neo Angband 0.25.0, and that is why this version
-> requires it rather than degrading on an older game.** Earlier versions declared
+> Those last two arrived in Neo Angband 0.25.0, and that is why this version
+> requires it rather than degrading on an older game. Earlier versions declared
 > `>=0.12.0` and fell back: on a game without the loadout derive the Borg wore
 > nothing it found, bought nothing it needed and sold nothing it was done with,
 > and on a game without the death handler a death simply ended the run. Between
@@ -56,8 +56,8 @@ fresh set of heuristics that merely look similar.
 > earlier version of this mod ran a working autoplayer on any engine, so there is
 > no installation the floor could take away from.
 >
-> **The three stalls that stopped it playing are fixed, and there is now a test
-> that plays.** Watched in the released 0.25.0 desktop build on 2026-08-21, over
+> The three stalls that stopped it playing are fixed, and there is now a test
+> that plays. Watched in the released 0.25.0 desktop build on 2026-08-21, over
 > two characters, it took the keyboard, shopped, wore what it bought, found the
 > town's down staircase and descended - and then stalled on the first dungeon
 > level both times without dying. Five separate causes came out of that, four of
@@ -83,7 +83,7 @@ fresh set of heuristics that merely look similar.
 > disarms real traps, changes level under its own steam, and dies - which is the
 > ending upstream's borg reaches too, and the half the restart loop needs.
 >
-> **Then it was watched again, and it lost a fight it should have won.** A
+> Then it was watched again, and it lost a fight it should have won. A
 > level-one character stood still in town while something it could not see killed
 > it. That was not a bad decision on good information: it was six more values the
 > ported decision code reads and nothing in this mod ever wrote. Upstream's whole
@@ -105,7 +105,7 @@ fresh set of heuristics that merely look similar.
 > nothing in sight and nothing to heal went from 403 to zero, and the ground
 > covered nearly doubled.
 >
-> **Then it was watched playing, and this time it played.** 2026-08-22, thirteen
+> Then it was watched playing, and this time it played. 2026-08-22, thirteen
 > minutes in the development build and four in the packaged 0.26.0 artifact, each
 > on its own isolated data directory: no mod faults, no console errors, 37 blocking
 > prompts answered without a human, four locked doors picked a turn at a time, four
@@ -114,7 +114,7 @@ fresh set of heuristics that merely look similar.
 > low-hitpoint warning by taking the stairs, arrived in town at 6 of 11 hit points,
 > and rested back to 10 before diving again.
 >
-> **The shopping mechanism itself is proven, end to end.** Borg can identify its
+> The shopping mechanism itself is proven, end to end. Borg can identify its
 > current shop, evaluate purchases and sales, and issue `shop-buy`, `shop-sell`
 > and `shop-exit` through the engine's command registry. Placed by hand on a real
 > shop door across ten seeds, it sold something with a real inventory change on
@@ -134,10 +134,10 @@ fresh set of heuristics that merely look similar.
 It is a **mod**, not part of the engine, and that division is decided rather than
 incidental:
 
-- **It is not core.** Putting an automatic player inside the parity target would
+- It is not core. Putting an automatic player inside the parity target would
   put an AI control surface inside the thing being kept faithful to Angband 4.2.6.
   Upstream's borg is a compile-time option precisely because it is not the game.
-- **It reaches the game through a published API**, the same one any third-party
+- It reaches the game through a published API, the same one any third-party
   automation would use: perceive through a read-only view of the game state, act
   through the command queue. No private path, no test hook. If the borg could only
   be written against internals, then the modding API would not be finished, and
@@ -170,19 +170,19 @@ Every default is upstream's own, so leaving all of them alone gets the Borg
 Angband ships. *Save up for something it wants* is the one that starts on,
 because `borg_self_scum` does.
 
-**Play risky** is the setting that changes the most. It skips the early hit-point
+Play risky is the setting that changes the most. It skips the early hit-point
 and character-level floors that hold the Borg above a depth, makes it wait longer
 before drinking a cure, and makes it back away later in a losing fight. It gets
 deeper faster and it dies more.
 
-**The five "Value" settings are how the Borg weighs a piece of gear**, and they
+The five "Value" settings are how the Borg weighs a piece of gear, and they
 stack: switching on two adds both weights. They are the closest thing here to
 telling it what kind of character to be, because what a Borg wears is most of
 what it becomes. There is no separate setting for stat priorities, and there is
 none upstream either - `borg.txt` describes one in a comment, but no setting
 backs it and the reincarnation code just takes the game's default point-buy.
 
-**Skimp on stockpiles for an early munchkin run** moves how the Borg values
+Skimp on stockpiles for an early munchkin run moves how the Borg values
 consumables at a low character level, on the assumption that a young character
 is cashing out for gold rather than settling in. It does not make the Borg
 stair-scum for loot the way `borg_munchkin_start` also does upstream - that
@@ -212,11 +212,11 @@ no manifest change here.
 
 ## Two things it does not do
 
-- **It cannot cheat.** Upstream's borg reads the game's own structures directly
+- It cannot cheat. Upstream's borg reads the game's own structures directly
   (its comments call these "cheats") and scrapes the terminal for the rest. This
   one sees exactly what the perceive facade grants it, and acts only through
   commands a player could issue.
-- **It does not cost you reproducibility.** Borg is deterministic: it draws
+- It does not cost you reproducibility. Borg is deterministic: it draws
   only its own seeded generator and never the game's, so a Borg game stays
   replayable and the save's determinism ratchet stays untripped. An autoplayer that
   used a wall clock or a network would trip it, and would have to declare that in
