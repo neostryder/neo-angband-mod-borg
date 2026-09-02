@@ -23,7 +23,7 @@ conservative behavior (zero-magnitude danger, no activations, never in a shop, n
 power gain from an unevaluated swap/buy/sell) so the Borg is correct-but-cautious
 until a host wires real engine data."
 
-**No host wired any of them.** So the shipped Borg played with no danger
+No host wired any of them. So the shipped Borg played with no danger
 perception, never shopped, never used an activation, and could not evaluate an
 equipment swap.
 
@@ -48,7 +48,7 @@ Three claims, and the third is the one that decides it:
    `AgentCommand` is `PlayerCommand` and birth has no representation in it. It
    landed as `StartedGame.reincarnate` plus the game loop's death handler in Neo
    Angband 0.25.0.
-3. **It has been WATCHED playing, in the installed build, over several runs**, and
+3. It has been WATCHED playing, in the installed build, over several runs, and
    what it did is written down: what depth it reached, whether it fled, whether it
    shopped, whether it used an activation, how it died, and whether it started
    again. A green test suite is not this claim and cannot become it.
@@ -58,14 +58,14 @@ Three claims, and the third is the one that decides it:
    it starts again on its own; it does not shop, and that is the reason it is
    still dying at character level one.
 
-   **First attempted 2026-08-21, and that attempt failed.** The watching happened
+   First attempted 2026-08-21, and that attempt failed. The watching happened
    and is written down below; what it showed is that the Borg does not yet get far
    enough for this claim to be answerable. It reached 50 feet twice and stalled
    both times without dying, so the restart loop was never exercised at all. Three
    distinct stalls are named in "Watched playing" below, one of them in this
    repository and two of them in the game's.
 
-   **All three stalls are now closed, and there is a test that plays.** That
+   All three stalls are now closed, and there is a test that plays. That
    changes what claim 3 is waiting for, and does not satisfy it. Every stall was
    found and fixed with `src/play.test.ts`, which boots a real game, hands it to
    the Borg and drives 1500 decisions on each of four seeds: it now explores
@@ -75,7 +75,7 @@ Three claims, and the third is the one that decides it:
    this bullet used to end with - "not one of them plays a turn" was true of the
    whole suite and is not any more.
 
-   **A second watching found two more symptoms, and they were not stalls.** The
+   A second watching found two more symptoms, and they were not stalls. The
    Borg paced with nothing in sight, and it stood still in town while something it
    could not see killed it. Both are diagnosed and fixed below (symptoms 4 and 5),
    and both were found by asking the harness new questions rather than by watching
@@ -117,8 +117,8 @@ staircase and used it.
 
 ### The three stalls, and which repository each belongs to
 
-**1. A refused command repeats forever, and no game time passes. THIS
-REPOSITORY.** On L1 the Borg stood beside a closed door and issued `disarm` at it
+The first problem was a refused command repeating forever while no game time
+passed. THIS REPOSITORY. On L1 the Borg stood beside a closed door and issued `disarm` at it
 without end. The chain is exact:
 
 - A door's lock is stored as a "door lock" **trap record** on that grid. That is
@@ -147,7 +147,7 @@ the field it copied was not. The second question the paragraph above asked - a
 general guard against a command refused for free - was not needed once the field
 told the truth, and a guard would have papered over it.
 
-**2. It does not explore a dungeon level. THIS REPOSITORY.** With the first stall
+The second problem was that it did not explore a dungeon level. THIS REPOSITORY. With the first stall
 avoided, run 2 spent nine minutes moving between two squares of the corridor it
 arrived in, standing on the up staircase. Game time passed, so this is a decision
 loop rather than a freeze: the flow either finds no dark target or re-targets the
@@ -182,7 +182,7 @@ reading the code again:
   (`borg-update.c:2135`). With the two above fixed, this surfaced immediately as a
   town/level-one shuttle: 215 descend/ascend pairs and nothing else. The same wipe
   was also too broad in the other direction - it reset `rising` and
-  `fleeingToTown`, which are journeys across several levels that upstream keeps.
+  `fleeingToTown`, which are routes across several levels that upstream keeps.
 - **The equipment swap loop**, which is its own entry in CHANGELOG.md: three
   missing guards in `borg_wear_stuff` plus a comparison between two differently
   derived scores. It dominated every run once the stalls above were gone, and it
@@ -195,8 +195,8 @@ time passed. All four facts above were found with it and all four are guarded by
 it. Not one of the other seventeen test files could see any of them, because each
 loop is a decision that is individually correct.
 
-**3. A blocking prompt parks the autoplayer, and only a human can free it. THE
-GAME'S REPOSITORY.** Descending prints "You enter a maze of down staircases."
+The third problem was a blocking prompt that parks the autoplayer, leaving only
+a human able to free it. THE GAME'S REPOSITORY. Descending prints "You enter a maze of down staircases."
 behind a `-more-`, inside a modal, and the host's autoplayer clock skips every
 tick while a modal is open. Nothing answers the prompt, so the Borg waits for a
 keypress that will never come; a human pressing any key frees it and it resumes.
@@ -278,34 +278,34 @@ handed a character rolled with the birth screen's own random-everything key.
 
 ### What was actually seen, message by message
 
-**It answers its own prompts and keeps going.** 37 `answered a blocking prompt`
+It answers its own prompts and keeps going. 37 `answered a blocking prompt`
 events in the 9-minute sample, including the forced `-more-` in front of every
 level change. Nothing ever waited for a human.
 
-**A locked door is opened rather than disarmed forever.** Four locks picked in the
+A locked door is opened rather than disarmed forever. Four locks picked in the
 sample, each preceded by two to five `You failed to pick the lock.`, one per
 second - failures that SPEND A TURN, where the old refusal loop spent none and
 froze game time. This is the 2026-08-21 stall, gone, in the shell.
 
-**It explores.** Four secret doors found by searching, rubble tunnelled through
+It explores. Four secret doors found by searching, rubble tunnelled through
 with its weapon, two piles of copper picked up, and screenshots showing whole
 rooms and corridor networks revealed. Nothing resembling the reported three-cell
 shuffle appeared in either run.
 
-**It flees, and the cleanest example is unambiguous.** In the artifact run a crow
+It flees, and the cleanest example is unambiguous. In the artifact run a crow
 traded blows with it, the low-hitpoint warning fired, it landed one more hit that
 routed the crow, and it left by the up staircase on the next decision. In the
 development run a fruit bat bit it nine times without a single blow in reply, the
 warning fired, and three seconds later it took the stairs. Nine low-hitpoint
 episodes in the artifact run produced one death and eight survivals.
 
-**And it rests to recover, which is what the seam wired to a constant `true` had
-been preventing.** After that fruit-bat retreat it arrived in town at 6 of 11 hit
+And it rests to recover, which is what the seam wired to a constant `true` had
+been preventing. After that fruit-bat retreat it arrived in town at 6 of 11 hit
 points, stood on the down staircase, and was at 10 of 11 four seconds later.
 
 ### The one thing it does not do, and what that costs
 
-**It never enters a shop.** Both runs revealed the whole town, all eight shop
+It never enters a shop. Both runs revealed the whole town, all eight shop
 entrances included, and walked past every one of them. Gold only ever went UP
 (204 to 314 in one character, from finds), so nothing was bought - which is item
 5 below, exactly as written: `shop-buy`, `shop-sell` and `shop-exit` have no
