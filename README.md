@@ -150,6 +150,8 @@ bugs rather than Borg bugs.
 
 ## Telling it how to play
 
+See the [settings reference](SETTINGS.md) for every flag, its default, and when a change takes effect.
+
 Upstream's borg reads a `borg.txt` out of the user's Angband folder and takes
 about thirty settings from it. There is no such folder here, and no path to one
 on a phone, so those settings are toggles in the mod manager. Each one's
