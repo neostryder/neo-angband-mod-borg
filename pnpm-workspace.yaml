@@ -7,8 +7,8 @@
 allowBuilds:
   esbuild: false
 
-# pnpm 11 defaults minimumReleaseAge to 1440 minutes, so a package published in
-# the last day will not resolve - it silently falls back to whatever older
+# pnpm applies a minimumReleaseAge delay by default, so a recently published
+# package will not resolve - it silently falls back to whatever older
 # version IS old enough, which is worse than an error: a fresh install just
 # after a same-day @rpgm-tools release would silently pin a version older than
 # the declared range's actual latest. neo-angband/pnpm-workspace.yaml already
