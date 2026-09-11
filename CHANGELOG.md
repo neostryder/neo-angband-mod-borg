@@ -20,6 +20,8 @@ were not retagged.
 
 ## [Unreleased]
 
+## 1.2.0 - 2026-09-11
+
 ### Fixed
 
 - [Visible] [Modding-API] **Toggling most Borg settings mid-run now actually applies them.** Play risky, the five gear-scoring weights (damage, speed, hit points, spell points, armour class), save up for something it wants, and skimp on stockpiles for an early munchkin run previously looked like they took effect immediately but were silently ignored until the Borg was restarted; they now correctly prompt a reload (neostryder/neo-angband#186).
