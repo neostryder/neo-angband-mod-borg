@@ -23,6 +23,7 @@ were not retagged.
 ### Changed
 
 - [Visible] [UI] **The Borg's settings read more plainly.** Its description and rule text in the mod manager are rewritten for clarity; every rule works as before.
+- [Visible] [Docs] **The README's long note on which game hooks the Borg is connected to is now a short "How well it plays today" section.** The rest of the README, the terms and the AI usage policy are reworded in plainer English.
 
 ## 1.2.0 - 2026-09-11
 
