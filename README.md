@@ -3,8 +3,7 @@
 Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
-**Needs Neo Angband 0.27.0 or newer.** An older game refuses to load it and says
-so; the blockquote below says why that is a refusal rather than a reduced Borg.
+**Needs Neo Angband 0.27.0 or newer.** An older game refuses to load it and says so; [How well it plays today](#how-well-it-plays-today) explains why it refuses instead of running a reduced Borg.
 
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
 hand it your character: press **Ctrl-Z** in play to warn, confirm, and hand over
@@ -14,139 +13,44 @@ the keyboard. Press Ctrl-Z again (or any other real key) to take it back.
 
 ## What it is
 
-A faithful port of Angband 4.2.6's `borg/`: the same priority ladder, the same
-danger model, the same power scoring, by the original's rules rather than by a
-fresh set of heuristics that merely look similar.
+A faithful port of Angband 4.2.6's `borg/`: the same priority ladder, the same danger model and the same power scoring, following the original's rules instead of a new set of heuristics that only look similar.
 
-> ### What is ported and what is CONNECTED are not the same thing
->
-> Measured 2026-08-21, stated here rather than left for you to find. All of the
-> above is true of the code in `src/`. Whether it is true of the mod you install
-> depends on `plugin.ts`, which builds the Borg from host-supplied resolvers -
-> and for a long time most of those did not exist.
->
-> All four resolver seams are now wired: danger vision, activation identity,
-> the in-shop signal, and the power of a hypothetical loadout. The plugin reads
-> the game's bound registries from `ctx.registries` and the live state from
-> `ctx.state`, and builds real resolvers from them: `borg_danger` runs on actual
-> blows, spell frequencies and race flags rather than on zeroes, the Borg can tell
-> whether a worn item grants the activation it wants and whether it is charged, it
-> knows which shop it is standing in, and it can score gear it is not wearing - so
-> it wears what it finds, buys what it needs and sells what it is finished with
-> instead of hoarding. A mod's monsters and items are covered on exactly the
-> same terms as core's: every registry is bound after mods compose their
-> content, and each resolver reads it by index (`ridx`, `tval`/`sval`, ego and
-> artifact name) without consulting provenance, so content a mod added is treated
-> identically to core's.
->
-> It starts a new character when it dies, and that is the engine's own work
-> rather than this mod's: a controller can only return an in-game command, so it
-> has nothing to say that means "roll me a new character". The game's death
-> handler does it, whenever a mod holds the keyboard. It is an in-session
-> reincarnation and not a new save - same session, same slot, a rolled race and
-> class each time, exactly as upstream's borg respawns.
->
-> Those last two arrived in Neo Angband 0.25.0, and that is why this version
-> requires it rather than degrading on an older game. Earlier versions declared
-> `>=0.12.0` and fell back: on a game without the loadout derive the Borg wore
-> nothing it found, bought nothing it needed and sold nothing it was done with,
-> and on a game without the death handler a death simply ended the run. Between
-> them that is not a Borg with a feature missing, it is a Borg that cannot do the
-> two things the word means. Nothing was preserved by loading anyway, either: no
-> earlier version of this mod ran a working autoplayer on any engine, so there is
-> no installation the floor could take away from.
->
-> The three stalls that stopped it playing are fixed, and there is now a test
-> that plays. Watched in the released 0.25.0 desktop build on 2026-08-21, over
-> two characters, it took the keyboard, shopped, wore what it bought, found the
-> town's down staircase and descended - and then stalled on the first dungeon
-> level both times without dying. Five separate causes came out of that, four of
-> them one-line facts:
->
-> - a locked door arrived as a trap to disarm, and `disarm` refuses one for free;
-> - nothing in the port ever used a staircase it was standing on;
-> - a readiness flag was initialised to "never asked" and never asked;
-> - arriving on a level did not clear "use the next staircase", so town and level
->   one became a shuttle;
-> - and a hypothetical loadout's score was compared against a live one derived a
->   different way, which in a daytime town differed by 14000 points, made every
->   wearable item an upgrade, and turned two identical torches into an endless
->   swap.
->
-> Four of those are in this repository. The first is in the game's, as is the
-> sixth: an autoplayer used to park on every prompt that blocks for a keypress, so
-> going downstairs needed a human. `src/play.test.ts`
-> is the instrument that found the last four and now guards all five: it boots a
-> real game, hands it to the Borg, and drives 1500 decisions per seed, checking
-> that no single command ran away with the session and that the character covered
-> ground. Over four seeds it now explores hundreds of squares, opens doors,
-> disarms real traps, changes level under its own steam, and dies - which is the
-> ending upstream's borg reaches too, and the half the restart loop needs.
->
-> Then it was watched again, and it lost a fight it should have won. A
-> level-one character stood still in town while something it could not see killed
-> it. That was not a bad decision on good information: it was six more values the
-> ported decision code reads and nothing in this mod ever wrote. Upstream's whole
-> answer to an attacker it cannot find is regional fear, and this port had the
-> caches, the two functions that fill them and every reader that consults them,
-> with nothing in between. Alongside it: the seam carrying "is it safe to rest
-> here" was the constant `true`; none of the durations the Borg tracks were ever
-> decremented, so each latched on first use; and the table that tells the
-> self-model which object is a Ration of Food defaulted to empty, so a full pack
-> counted as no food, no cures, no phase doors and no fuel. All six are closed.
->
-> The "sitting there or moving frantically back and forth across three cells" half
-> of that report had two causes. One was the staircase shuttle above, watched on
-> the version before it was fixed. The other was a phantom: nothing in the port
-> ever revised a monster record downward, so a monster that died out of sight or
-> walked away stayed on the Borg's map for two thousand turns and the Borg kept
-> walking to where it used to be. Measured over four seeds and 2000 decisions
-> each, the number of sixty-decision stretches spent inside three squares with
-> nothing in sight and nothing to heal went from 403 to zero, and the ground
-> covered nearly doubled.
->
-> Then it was watched playing, and this time it played. 2026-08-22, thirteen
-> minutes in the development build and four in the packaged 0.26.0 artifact, each
-> on its own isolated data directory: no mod faults, no console errors, 37 blocking
-> prompts answered without a human, four locked doors picked a turn at a time, four
-> secret doors found by searching, thirteen monsters killed in the artifact run, and
-> four characters that died and started again on their own. It fled twice under a
-> low-hitpoint warning by taking the stairs, arrived in town at 6 of 11 hit points,
-> and rested back to 10 before diving again.
->
-> The shopping mechanism itself is proven, end to end. Borg can identify its
-> current shop, evaluate purchases and sales, and issue `shop-buy`, `shop-sell`
-> and `shop-exit` through the engine's command registry. Placed by hand on a real
-> shop door across ten seeds, it sold something with a real inventory change on
-> all ten and bought something with gold actually decreasing on three of ten.
-> What has not been observed is a Borg *walking itself* to a shop during real
-> play: in every seed tried, a fresh level-one character heads straight to the
-> dungeon stairs before the "deal with shops" decision is ever reached, so the
-> town returns above are upstream's own cautious level-one behaviour, not the
-> ladder choosing to shop.
->
-> So: install it to watch it try, not to watch it win. And do not take the rest of
-> the suite for evidence - most of the other files cover dispatch, ladder ordering
-> and resolver wiring, and they do not play a turn. That was exactly the gap;
-> `play.test.ts` is the answer to it, and `rest.test.ts` pins the path that death
-> went through.
+### How well it plays today
 
-It is a **mod**, not part of the engine, and that division is decided rather than
-incidental:
+The port in `src/` and the mod you install are not quite the same thing. The installed mod depends on `plugin.ts`, which builds the Borg from resolvers the game supplies, and for a long time most of those did not exist.
 
-- It is not core. Putting an automatic player inside the parity target would
-  put an AI control surface inside the thing being kept faithful to Angband 4.2.6.
-  Upstream's borg is a compile-time option precisely because it is not the game.
-- It reaches the game through a published API, the same one any third-party
-  automation would use: perceive through a read-only view of the game state, act
-  through the command queue. No private path, no test hook. If the borg could only
-  be written against internals, then the modding API would not be finished, and
-  that is worth finding out.
+All four resolvers are now wired: danger vision, activation identity, the in-shop signal, and the power of a hypothetical loadout. The plugin reads the game's bound registries from `ctx.registries` and the live state from `ctx.state`, and builds real resolvers from them. `borg_danger` runs on actual blows, spell frequencies and race flags instead of zeroes. The Borg can tell whether a worn item grants the activation it wants and whether that item is charged, it knows which shop it is standing in, and it can score gear it is not wearing, so it wears what it finds, buys what it needs and sells what it no longer needs instead of hoarding. Monsters and items added by other mods are handled exactly like core's: every registry is bound after mods compose their content, and each resolver looks things up by index (`ridx`, `tval`/`sval`, ego and artifact name) without checking where they came from.
 
-That second point is the real reason it is worth having: it is the most demanding
-mod anyone could write against this API, so it is the best available test of
-whether the API is honest. Two of the things found while wiring it up were engine
-bugs rather than Borg bugs.
+When it dies it starts a new character, and the game does that, not this mod. A controller can only return an in-game command, and there is no command for "roll me a new character", so the game's death handler does it whenever a mod holds the keyboard. It is an in-session reincarnation, not a new save: same session, same slot, a rolled race and class each time, as upstream's borg respawns.
+
+The loadout scoring and the death handler both arrived in Neo Angband 0.25.0, which is why this version requires it instead of running in a reduced form on an older game. Earlier versions declared `>=0.12.0` and fell back. On a game without the loadout support, the Borg wore nothing it found, bought nothing it needed and sold nothing it was done with, and on a game without the death handler, a death simply ended the run. That left a Borg unable to do the two things a Borg is for. No earlier version of this mod ran a working autoplayer on any game, so the stricter requirement takes nothing away from anyone.
+
+Watched in the released 0.25.0 desktop build on 2026-08-21, over two characters, the Borg took the keyboard, shopped, wore what it bought, found the town's down staircase and descended, and then stalled on the first dungeon level both times without dying. Five separate causes turned up, four of them one-line fixes:
+
+- a locked door arrived as a trap to disarm, and `disarm` refuses one for free;
+- nothing in the port ever used a staircase it was standing on;
+- a readiness flag was initialised to "never asked" and never asked;
+- arriving on a level did not clear "use the next staircase", so the Borg shuttled between town and level one;
+- a hypothetical loadout's score was compared against a live one derived a different way, which in a daytime town differed by 14000 points, made every wearable item look like an upgrade, and turned two identical torches into an endless swap.
+
+The first of those was in the game, and so was a sixth problem: an autoplayer used to stop at every prompt that waits for a keypress, so going downstairs needed a human. The other four were in this repository. `src/play.test.ts` found those four and now guards all five. It boots a real game, hands it to the Borg and drives 1500 decisions per seed, checking that no single command takes over the session and that the character covers ground. Over four seeds the Borg now explores hundreds of squares, opens doors, disarms real traps, changes level on its own, and dies, which is where upstream's borg ends up too and is what the restart loop needs.
+
+Watched again, it lost a fight it should have won: a level-one character stood still in town while something it could not see killed it. The decision code was working correctly on bad information, reading six values that nothing in this mod ever wrote. Upstream's answer to an attacker it cannot find is regional fear, and this port had the caches, the two functions that fill them and every reader that consults them, with nothing connecting them. Alongside that, the check for "is it safe to rest here" was the constant `true`; none of the durations the Borg tracks were ever counted down, so each one stuck after its first use; and the table that tells the Borg which object is a Ration of Food started out empty, so a full pack counted as no food, no cures, no phase doors and no fuel. All six are fixed.
+
+The reported habit of "sitting there or moving frantically back and forth across three cells" had two causes. One was the staircase shuttle above, seen on the version before it was fixed. The other was a phantom: nothing in the port ever downgraded a monster record, so a monster that died out of sight or walked away stayed on the Borg's map for two thousand turns, and the Borg kept walking to where it used to be. Over four seeds of 2000 decisions each, the number of sixty-decision stretches spent inside three squares with nothing in sight and nothing to heal went from 403 to zero, and the ground covered nearly doubled.
+
+On 2026-08-22 it was watched again, and this time it played: thirteen minutes in the development build and four in the packaged 0.26.0 artifact, each on its own isolated data directory. There were no mod faults and no console errors. It answered 37 blocking prompts without a human, picked four locked doors a turn at a time, found four secret doors by searching, killed thirteen monsters in the artifact run, and had four characters die and start again on their own. It fled twice under a low-hitpoint warning by taking the stairs, arrived in town at 6 of 11 hit points, and rested back to 10 before diving again.
+
+Shopping works end to end. The Borg can identify the shop it is in, evaluate purchases and sales, and issue `shop-buy`, `shop-sell` and `shop-exit` through the engine's command registry. Placed by hand on a real shop door across ten seeds, it sold something with a real inventory change in all ten, and bought something, with gold actually decreasing, in three of the ten. What nobody has seen yet is the Borg walking itself to a shop during real play. In every seed tried, a fresh level-one character heads straight for the dungeon stairs before the "deal with shops" decision comes up, so its trips back to town are upstream's own cautious level-one behaviour, not the ladder choosing to shop.
+
+Install it to watch it try, not to watch it win. Most of the other test files cover dispatch, ladder ordering and resolver wiring and never play a turn, so they say nothing about how well it plays; `play.test.ts` covers that, and `rest.test.ts` covers the path the in-town death went through.
+
+It is a mod, not part of the engine, for two reasons:
+
+- It is not core because an automatic player inside the parity target would put an automated control surface inside the thing being kept faithful to Angband 4.2.6. Upstream's borg is a compile-time option precisely because it is not the game.
+- It reaches the game through the same published API any third-party automation would use: it perceives through a read-only view of the game state and acts through the command queue, with no private path and no test hook. If the Borg could only be written against internals, the modding API would not be finished, and that is worth finding out.
+
+The second point is what makes it worth having. It is the most demanding mod anyone could write against this API, so it is the best available test of whether the API does what it claims. Two of the problems found while wiring it up were engine bugs, not Borg bugs.
 
 ## Telling it how to play
 
@@ -224,12 +128,7 @@ no manifest change here.
   used a wall clock or a network would trip it, and would have to declare that in
   its manifest.
 
-  It does mark the character, and that is a different thing. Handing the keyboard
-  over sets the save's `NOSCORE_BORG` flag, which keeps the character off the
-  high-score table and shows in its dump as an `[Autoplayed]` block. That is
-  upstream's own behaviour and it is one-way: a character that has run the Borg
-  for one turn carries the mark for the rest of its life. A game somebody watched
-  is not a game somebody played.
+  It does mark the character. Handing the keyboard over sets the save's `NOSCORE_BORG` flag, which keeps the character off the high-score table and adds an `[Autoplayed]` block to its dump. That is upstream's own behaviour, and it is one-way: a character that has run the Borg for one turn carries the mark for the rest of its life.
 
 Only one autoplayer can hold the keyboard at a time. If another agent mod already
 has it, this one is refused by name rather than silently taking over.
