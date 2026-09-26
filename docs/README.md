@@ -1,6 +1,6 @@
 # Borg: quick reference
 
-Angband's automatic player, ported from 4.2.6's borg/. It plays the way you do -
+Angband's automatic player, ported from the borg in Angband 4.2.6. It plays the way you do -
 through the same commands, over the frozen agent API - so it is a mod like any
 other rather than privileged code inside the engine.
 

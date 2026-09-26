@@ -25,7 +25,7 @@
   ],
   "author": "neostryder",
   "license": "GPL-2.0-only",
-  "description": "Angband's automatic player, ported from 4.2.6's borg/. It plays the way you do - through the same commands, over the frozen agent API - so it is a mod like any other rather than privileged code inside the engine.\n\nInstalling and enabling it does not hand it your character: press Ctrl-Z in play to warn, confirm, and hand over the keyboard. It is deterministic and draws only its own seeded generator, so it does not flag your save as non-reproducible. Only one autoplayer can hold the keyboard at a time.",
+  "description": "Angband's automatic player, ported from the borg in Angband 4.2.6. It plays through the same commands you use, over the frozen agent API, so it is an ordinary mod with no privileged code inside the engine.\n\nInstalling and enabling it does not give it your character. Press Ctrl-Z in play to hand over the keyboard; it warns you and asks you to confirm first. It is deterministic and draws only on its own seeded random number generator, so your save is not flagged as non-reproducible. Only one autoplayer can hold the keyboard at a time.",
   "rules": [
     {
       "flag": "borg.playsRisky",
@@ -58,7 +58,7 @@
     {
       "flag": "borg.worshipsMana",
       "title": "Value spell points",
-      "description": "borg_worships_mana. Add weight to spell points when scoring gear. Nothing for a warrior, who has none.",
+      "description": "borg_worships_mana. Add weight to spell points when scoring gear. Has no effect on a warrior, who has no spell points.",
       "default": false,
       "requiresReload": true
     },
@@ -86,7 +86,7 @@
     {
       "flag": "borg.munchkinStart",
       "title": "Skimp on stockpiles for an early munchkin run",
-      "description": "borg_munchkin_start. Below character level borg_munchkin_level (12), stop valuing potions of resist poison and speed, phase door, word of recall and the deeper cure stockpiles as highly as it normally would, on the assumption that a young character is cashing out rather than settling in. Upstream also has the Borg stair-scum for loot to sell at this stage; that half is not ported, so this changes only what it carries, not how it dives.",
+      "description": "borg_munchkin_start. Below character level borg_munchkin_level (12), value stockpiles of resist poison and speed potions, phase door, word of recall and the deeper cures less than it normally would, on the assumption that a young character is cashing out early. Upstream, this setting also makes the Borg stair-scum for loot to sell at this stage. That part is not ported, so here it changes what the Borg carries and leaves how it dives alone.",
       "default": false,
       "requiresReload": true
     }
