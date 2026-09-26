@@ -20,6 +20,8 @@ were not retagged.
 
 ## [Unreleased]
 
+## 1.2.1 - 2026-09-26
+
 ### Changed
 
 - [Visible] [UI] **The Borg's settings read more plainly.** Its description and rule text in the mod manager are rewritten for clarity; every rule works as before.
