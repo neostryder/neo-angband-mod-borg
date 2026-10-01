@@ -20,10 +20,9 @@
     "engine's module state living inside the mod, which the builder refuses outright.",
     "So it is here for TYPES and for the tests, which boot a real game against the",
     "PUBLISHED engine rather than a workspace build - the version a player runs.",
-    "The mod SDK is deliberately NOT here. Its plugin builder is what tools/build.mjs",
-    "runs, and that script finds it in a sibling checkout of the game first - the same",
-    "checkout the tests already need for the content pack. Depending on the published",
-    "SDK as well would pin a version for a tool this repo can already reach."
+    "The mod SDK is a devDependency for the same reason: tools/build.mjs runs its",
+    "plugin builder, and the tests import its plugin types. Depending on a published",
+    "SDK pins a version that tracks the engine a player actually runs."
   ],
   "scripts": {
     "build": "node tools/build.mjs",
@@ -33,8 +32,8 @@
     "verify": "pnpm typecheck && pnpm test && pnpm check"
   },
   "devDependencies": {
-    "@rpgm-tools/neo-angband-core": "^1.21.0",
-    "@rpgm-tools/neo-angband-mod-sdk": "^1.21.0",
+    "@rpgm-tools/neo-angband-core": "1.21.0",
+    "@rpgm-tools/neo-angband-mod-sdk": "1.21.0",
     "@types/node": "^22.20.1",
     "esbuild": "^0.28.1",
     "typescript": "^5.9.3",

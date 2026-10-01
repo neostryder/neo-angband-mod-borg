@@ -26,7 +26,7 @@ were not retagged.
 
 ### Changed
 
-- [Visible] [Compatibility] **The Borg now needs Neo Angband 1.21.0 or later**, the version it is built and tested against.
+- [Visible] [Compatibility] **The Borg now needs Neo Angband 1.21.0 or later.** It is built and tested against that version.
 - [Internal] [Modding-API] **Builds and tests against Core and the mod SDK 1.21.0.** The Borg reads Core's published `PlayerStatusView` and `ModPluginContext` and drops its local stand-ins for them.
 
 ### Removed
