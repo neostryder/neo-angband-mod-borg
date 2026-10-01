@@ -28,13 +28,13 @@ switch has no flag of its own, the game knows it by its section id instead.
 
 ## What it needs
 
-- **Engine:** `>=1.1.0`
+- **Engine:** `>=1.21.0`
 - **Shape:** `plugin`
 - **Facets:** `plugin`
 - **Capabilities:** `command:add`, `state:player.read`, `state:monsters.read`,
   `state:map.read`, `state:inventory.read`, `state:floor.read`,
   `state:messages.read`, `state:stores.read`, `state:spells.read`,
-  `state:constants.read`
+  `state:constants.read`, `ui:title`, `profiles:manage`, `saves:manage`
 
 What a capability string permits, and what a mod that asks for one cannot do
 without it, is in [the mod lifecycle

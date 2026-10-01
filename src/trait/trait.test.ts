@@ -13,7 +13,7 @@ import type {
 } from "@rpgm-tools/neo-angband-core";
 import type { BorgContext } from "../context.js";
 import { BorgWorld } from "../world/model.js";
-import { makeScenarioView, makeFakeActions } from "../harness.js";
+import { makeScenarioView, makeFakeActions, type Scenario } from "../harness.js";
 import { makeBorgRng } from "../rng.js";
 import {
   BI,
@@ -30,7 +30,7 @@ import { getDerived } from "./state.js";
 /* A complete ItemView from a partial. */
 function item(o: Partial<ItemView>): ItemView {
   return {
-    handle: 0, label: "", tval: 0, sval: 0, pval: 0, number: 1, weight: 0,
+    handle: 0, kindKey: "", nameColor: "", label: "", tval: 0, sval: 0, pval: 0, number: 1, weight: 0,
     ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, ego: false, artifact: false,
     flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [],
     egoName: null, artifactName: null, activation: false, timeout: 0,
@@ -47,7 +47,7 @@ function equipArray(slots: Record<number, ItemView>): Array<ItemView | null> {
 
 /* A BorgContext wrapping a scenario view, with optional item overrides. */
 function mkCtx(
-  player: Partial<PlayerView> = {},
+  player: NonNullable<Scenario["player"]> = {},
   equip: Array<ItemView | null> = [],
   inven: ItemView[] = [],
 ): BorgContext {

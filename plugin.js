@@ -1,5 +1,117 @@
-// borg - generated from plugin.ts by neo-angband-mod-build
+// neo-angband-mod-borg - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
+
+// title.ts
+var TITLE_LABEL = "New Borg character";
+var TITLE_KEY = "B";
+var WHERE_PROMPT = "Choose where the new Borg character plays";
+var WHERE_SEPARATE = "In a separate profile, with its own options, mods and characters";
+var WHERE_HERE = "In this profile";
+var WHICH_PROMPT = "Choose a profile for the Borg";
+var WHICH_FRESH = "Start a fresh profile";
+var WHICH_COPY = "Copy an existing profile";
+var COPY_PROMPT = "Choose a profile to copy. Its options, mods and mod settings come across, and its characters stay behind.";
+var FALLBACK_HERE = "Start the character in this profile";
+var GIVE_UP = "Back to the title";
+var MEMORY_KEY = "neo-angband-borg/profiles";
+var MEMORY_FORMAT = "neo-angband/borg/profiles";
+var ARMED = { kind: "create-character", armController: true };
+function idsFrom(stored) {
+  if (stored === null || typeof stored !== "object") return null;
+  const env = stored;
+  if (env["format"] !== MEMORY_FORMAT) return null;
+  const data = env["data"];
+  const ids = data?.["profileIds"];
+  return Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : null;
+}
+function installMemory(storage) {
+  const page = () => storage ?? globalThis.localStorage;
+  let session = [];
+  return {
+    read() {
+      try {
+        const raw = page()?.getItem(MEMORY_KEY);
+        if (raw !== null && raw !== void 0) return idsFrom(JSON.parse(raw)) ?? session;
+      } catch {
+      }
+      return session;
+    },
+    write(ids) {
+      session = [...ids];
+      try {
+        page()?.setItem(MEMORY_KEY, JSON.stringify({ format: MEMORY_FORMAT, schemaVersion: 1, data: { profileIds: session } }));
+      } catch {
+      }
+    }
+  };
+}
+function freshName(taken) {
+  const used = new Set(taken.map((name) => name.toLowerCase()));
+  if (!used.has("borg")) return "Borg";
+  for (let n = 2; ; n++) if (!used.has(`borg ${String(n)}`)) return `Borg ${String(n)}`;
+}
+function registerBorgTitle(ctx, memory) {
+  const title = ctx.title;
+  const profiles = ctx.profiles;
+  if (title === void 0 || profiles === void 0 || ctx.saves === void 0) return false;
+  const self = ctx.id ?? "borg";
+  async function here() {
+    const listed = profiles.list();
+    const id = listed.ok ? listed.value.find((profile) => profile.active)?.id ?? null : null;
+    const started = profiles.switchTo(id, ARMED);
+    if (!started.ok) await title.choose(`The Borg could not start the character: ${started.reason}`, [GIVE_UP]);
+  }
+  async function refused(reason) {
+    const answer = await title.choose(`The Borg could not use a separate profile: ${reason}`, [FALLBACK_HERE]);
+    if (answer === 0) await here();
+  }
+  async function separate() {
+    const listed = profiles.list();
+    if (!listed.ok) return refused(listed.reason);
+    const all = listed.value;
+    const ours = new Set(memory.read());
+    const made = all.filter((profile) => profile.id !== null && ours.has(profile.id));
+    const which = await title.choose(WHICH_PROMPT, [WHICH_FRESH, WHICH_COPY, ...made.map((profile) => `Use ${profile.name}`)]);
+    if (which === null) return;
+    let target;
+    if (which >= 2) {
+      const chosen = made[which - 2];
+      if (chosen === void 0) return;
+      target = chosen;
+    } else {
+      let copyFrom;
+      if (which === 1) {
+        const source = await title.choose(COPY_PROMPT, all.map((profile) => profile.name));
+        if (source === null) return;
+        const picked = all[source];
+        if (picked === void 0) return;
+        copyFrom = picked.id;
+      }
+      const created = profiles.create(freshName(all.map((profile) => profile.name)), copyFrom === void 0 ? {} : { copyFrom });
+      if (!created.ok) return refused(created.reason);
+      target = created.value;
+      const id = target.id;
+      if (id === null) return refused("the new profile has no id");
+      memory.write([...made.map((profile) => profile.id), id]);
+      if (copyFrom === void 0) {
+        const enabled = profiles.setEnabledMods(id, [self]);
+        if (!enabled.ok) return refused(enabled.reason);
+      }
+    }
+    const switched = profiles.switchTo(target.id, ARMED);
+    if (!switched.ok) return refused(switched.reason);
+  }
+  title.registerRow({
+    label: TITLE_LABEL,
+    key: TITLE_KEY,
+    async run() {
+      const where = await title.choose(WHERE_PROMPT, [WHERE_SEPARATE, WHERE_HERE]);
+      if (where === 0) await separate();
+      else if (where === 1) await here();
+    }
+  });
+  return true;
+}
 
 // src/activate.ts
 var NOSCORE_BORG = 32;
@@ -5741,11 +5853,10 @@ function borgHasBuffTimers(status) {
   return BUFF_TIMER_FIELDS.some((f) => typeof s[f] === "number");
 }
 function on(turns) {
-  return (turns ?? 0) > 0;
+  return turns > 0;
 }
-function borgCheatBuffTimers(temp, status) {
-  if (!borgHasBuffTimers(status)) return;
-  const s = status;
+function borgCheatBuffTimers(temp, s) {
+  if (!borgHasBuffTimers(s)) return;
   if (!temp.protFromEvil && on(s.protEvil)) temp.protFromEvil = true;
   if (!temp.fast && (on(s.fast) || on(s.sprint))) temp.fast = true;
   temp.resAcid = on(s.resAcid);
@@ -6517,6 +6628,8 @@ function emptyItem() {
   if (!_empty) {
     _empty = {
       handle: 0,
+      kindKey: "",
+      nameColor: "",
       label: "",
       tval: 0,
       sval: 0,
@@ -15664,8 +15777,11 @@ function changedFrom(cfg) {
 }
 var plugin_default = {
   api: 1,
+  register(_host, ctx) {
+    registerBorgTitle(ctx, installMemory());
+  },
   controller(ctx) {
-    if (!characterAlreadyAutoplayed(ctx)) return void 0;
+    if (!characterAlreadyAutoplayed(ctx) && ctx.controllerArmed !== true) return void 0;
     bindCore(ctx.core);
     if (!coreIsBound()) {
       throw new Error("the Borg could not take the engine from ctx.core");

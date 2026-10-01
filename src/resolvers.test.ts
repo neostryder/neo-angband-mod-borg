@@ -121,6 +121,8 @@ describe("makeCoreResolvers", () => {
 function fakeItem(over: Partial<ItemView> = {}): ItemView {
   return {
     handle: 1,
+    kindKey: "",
+    nameColor: "",
     label: "test item",
     tval: 30,
     sval: 5,

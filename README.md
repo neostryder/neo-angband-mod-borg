@@ -3,11 +3,13 @@
 Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
-**Needs Neo Angband 0.27.0 or newer.** An older game refuses to load it and says so; [How well it plays today](#how-well-it-plays-today) explains why it refuses instead of running a reduced Borg.
+**Needs Neo Angband 1.21.0 or newer.** An older game refuses to load it and says so; [How well it plays today](#how-well-it-plays-today) explains why it refuses instead of running a reduced Borg.
 
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
 hand it your character: press **Ctrl-Z** in play to warn, confirm, and hand over
 the keyboard. Press Ctrl-Z again (or any other real key) to take it back.
+
+The title screen also has a **New Borg character** row (key B) when you allow the Borg to add title screen rows and manage profiles. It asks where the character should live. The default is a separate profile, so the Borg's options, mods, mod settings and characters stay apart from your own games: start a fresh profile named Borg, copy an existing profile's options, mods and mod settings without its characters, or reuse a profile the Borg made before. You can also start it in the profile you are using. Either way you create the character as usual, and the Borg takes the keyboard when play begins. If the game refuses the separate profile, the row shows the reason and starts the character in your current profile instead.
 
 ![Borg exploring a dungeon level under its own control](docs/img/borg-autoplay.jpg)
 

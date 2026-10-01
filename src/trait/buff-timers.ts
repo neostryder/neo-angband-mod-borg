@@ -39,55 +39,8 @@
 import type { PlayerStatusView } from "@rpgm-tools/neo-angband-core";
 import type { Temp } from "../world/model.js";
 
-/**
- * The buff half of `PlayerStatusView` (Agent API 1.4.0).
- *
- * Declared as an optional overlay rather than read straight off the imported
- * type on purpose. `manifest.json` already requires an engine that carries
- * these fields, so a running game always reports them; the type package this
- * repository compiles and tests against is older than that floor, and a
- * scenario view is free to describe only the fields it cares about. Absent
- * therefore means "no engine record to reconcile against", which is the one
- * reading under which skipping the cross-check is correct rather than
- * destructive: clearing every flag because nothing reported a timer would
- * throw the message table's answer away instead of checking it.
- */
-interface BuffTimers {
-  /** Haste (p->timed[TMD_FAST]). */
-  fast?: number;
-  /** The Ranger/Rogue sprint effect (p->timed[TMD_SPRINT]). */
-  sprint?: number;
-  /** Protection from evil (p->timed[TMD_PROTEVIL]). */
-  protEvil?: number;
-  /** Heroism (p->timed[TMD_HERO]). */
-  hero?: number;
-  /** Berserker strength (p->timed[TMD_SHERO]). */
-  shero?: number;
-  /** Mystic shield (p->timed[TMD_SHIELD]). */
-  shield?: number;
-  /** Stoneskin (p->timed[TMD_STONESKIN]). */
-  stoneskin?: number;
-  /** Blessed (p->timed[TMD_BLESSED]). */
-  blessed?: number;
-  /** Fast spellcasting (p->timed[TMD_FASTCAST]). */
-  fastcast?: number;
-  /** Temporary acid resistance (p->timed[TMD_OPP_ACID]). */
-  resAcid?: number;
-  /** Temporary lightning resistance (p->timed[TMD_OPP_ELEC]). */
-  resElec?: number;
-  /** Temporary fire resistance (p->timed[TMD_OPP_FIRE]). */
-  resFire?: number;
-  /** Temporary cold resistance (p->timed[TMD_OPP_COLD]). */
-  resCold?: number;
-  /** Temporary poison resistance (p->timed[TMD_OPP_POIS]). */
-  resPois?: number;
-}
-
-/** The status view as this module reads it: afflictions plus optional buffs. */
-export type BorgTimedStatus = PlayerStatusView & BuffTimers;
-
 /** Every field Agent API 1.4.0 added, in the order borg-trait.c reads them. */
-const BUFF_TIMER_FIELDS: readonly (keyof BuffTimers)[] = [
+const BUFF_TIMER_FIELDS: readonly (keyof PlayerStatusView)[] = [
   "protEvil",
   "fast",
   "sprint",
@@ -105,18 +58,20 @@ const BUFF_TIMER_FIELDS: readonly (keyof BuffTimers)[] = [
 ];
 
 /**
- * Whether this status view reports buff timers at all. The fourteen fields
- * landed together in one additive API bump, so one of them answering is the
- * whole set answering.
+ * Whether this status view reports buff timers at all. The engine floor in
+ * manifest.json guarantees the fields, so a live game always answers yes. The
+ * check stays because a view that reports none has nothing to reconcile
+ * against, and reading that as "every buff is off" would throw the message
+ * table's answer away instead of checking it.
  */
 export function borgHasBuffTimers(status: PlayerStatusView): boolean {
-  const s = status as BorgTimedStatus;
+  const s: Partial<PlayerStatusView> = status;
   return BUFF_TIMER_FIELDS.some((f) => typeof s[f] === "number");
 }
 
 /** A timer counts as active while it has turns left on it. */
-function on(turns: number | undefined): boolean {
-  return (turns ?? 0) > 0;
+function on(turns: number): boolean {
+  return turns > 0;
 }
 
 /**
@@ -126,10 +81,9 @@ function on(turns: number | undefined): boolean {
  */
 export function borgCheatBuffTimers(
   temp: Temp,
-  status: PlayerStatusView,
+  s: PlayerStatusView,
 ): void {
-  if (!borgHasBuffTimers(status)) return;
-  const s = status as BorgTimedStatus;
+  if (!borgHasBuffTimers(s)) return;
 
   /* Raised by the timer, never lowered by it (:3013-3022). */
   if (!temp.protFromEvil && on(s.protEvil)) temp.protFromEvil = true;

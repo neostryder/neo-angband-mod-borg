@@ -20,6 +20,15 @@ were not retagged.
 
 ## [Unreleased]
 
+### Added
+
+- [Visible] [UI] **A New Borg character row on the title screen (key B).** It starts a character with the Borg at the keyboard, in a separate profile with its own options, mods and characters (fresh, copied from another profile without its characters, or one the Borg made before), or in the current profile. If the game refuses the separate profile, the row shows why and uses the current profile (neostryder/neo-angband#327).
+
+### Changed
+
+- [Visible] [Compatibility] **The Borg now needs Neo Angband 1.21.0 or later**, the version it is built and tested against.
+- [Internal] [Modding-API] **Builds and tests against Core and the mod SDK 1.21.0.** The Borg reads Core's published `PlayerStatusView` and `ModPluginContext` and drops its local stand-ins for them.
+
 ### Removed
 
 - [Internal] **Removed this repo's own Discord release announcer.** Its workflow, script and test are gone. The releases site at releases.rpgm.tools now posts each new release to the Neo Angband announcements forum.

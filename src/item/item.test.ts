@@ -42,6 +42,8 @@ import {
 function item(p: Partial<ItemView>): ItemView {
   return {
     handle: p.handle ?? 1,
+    kindKey: p.kindKey ?? "",
+    nameColor: p.nameColor ?? "",
     label: p.label ?? "item",
     tval: p.tval ?? 0,
     sval: p.sval ?? 0,
@@ -113,6 +115,8 @@ function mageBook(overrides: Partial<SpellView> = {}): SpellbookView {
     learned: true,
     worked: true,
     forgotten: false,
+    studyEligible: false,
+    infoLine: "",
     ...overrides,
   };
   return {

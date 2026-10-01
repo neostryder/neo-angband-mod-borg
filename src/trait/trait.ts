@@ -1079,7 +1079,7 @@ let _empty: ItemView | null = null;
 function emptyItem(): ItemView {
   if (!_empty) {
     _empty = {
-      handle: 0, label: "", tval: 0, sval: 0, pval: 0, number: 0, weight: 0,
+      handle: 0, kindKey: "", nameColor: "", label: "", tval: 0, sval: 0, pval: 0, number: 0, weight: 0,
       ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, ego: false, artifact: false,
       flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [],
       egoName: null, artifactName: null, activation: false, timeout: 0,

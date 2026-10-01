@@ -23,7 +23,7 @@ import { setBuffTimerSafetyNet, resetBuffTimerSafetyNet } from "./config.js";
 import { getDangerGlobals } from "../danger/index.js";
 import { borgDefend } from "../fight/defend.js";
 import { TV, SVAL } from "../item/svals.js";
-import type { ItemView } from "@rpgm-tools/neo-angband-core";
+import type { ItemView, PlayerStatusView } from "@rpgm-tools/neo-angband-core";
 
 describe("borgCheatBuffTimers (borg-trait.c:3010-3037)", () => {
   it("clears a flag the engine reports as expired", () => {
@@ -83,10 +83,9 @@ describe("borgCheatBuffTimers (borg-trait.c:3010-3037)", () => {
   });
 
   it("leaves the message-derived flags alone when no timers are reported", () => {
-    /* An engine below the Agent API 1.4.0 floor, or a scenario that describes
-     * only afflictions. Nothing to reconcile against is not the same as every
-     * buff being off, and reading it that way would discard the whole message
-     * table's answer. */
+    /* A hand-built view that describes only afflictions. Nothing to reconcile
+     * against is not the same as every buff being off, and reading it that way
+     * would discard the whole message table's answer. */
     const bare = {
       blind: 0,
       confused: 0,
@@ -96,7 +95,7 @@ describe("borgCheatBuffTimers (borg-trait.c:3010-3037)", () => {
       stun: 0,
       paralyzed: 0,
       food: 5000,
-    };
+    } as unknown as PlayerStatusView;
     expect(borgHasBuffTimers(bare)).toBe(false);
 
     const temp = makeTemp();
@@ -212,7 +211,7 @@ describe("the Bug Fixes cross-mod gate (neo-angband#32)", () => {
 /* ------------------------------------------------------------------ */
 
 /** A PlayerStatusView carrying healthy afflictions plus the given timers. */
-function status(over: Record<string, number>) {
+function status(over: Partial<PlayerStatusView>): PlayerStatusView {
   return {
     blind: 0,
     confused: 0,
@@ -222,6 +221,20 @@ function status(over: Record<string, number>) {
     stun: 0,
     paralyzed: 0,
     food: 5000,
+    fast: 0,
+    sprint: 0,
+    protEvil: 0,
+    hero: 0,
+    shero: 0,
+    shield: 0,
+    stoneskin: 0,
+    blessed: 0,
+    fastcast: 0,
+    resAcid: 0,
+    resElec: 0,
+    resFire: 0,
+    resCold: 0,
+    resPois: 0,
     ...over,
   };
 }
@@ -230,6 +243,8 @@ function status(over: Record<string, number>) {
 function blessingScroll(): ItemView {
   return {
     handle: 1,
+    kindKey: "",
+    nameColor: "",
     label: "a Scroll of Blessing",
     tval: TV.SCROLL,
     sval: SVAL.scroll.blessing!,

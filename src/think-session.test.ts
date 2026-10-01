@@ -27,6 +27,8 @@ import type { BorgLoadoutChange } from "./trait/simulate.js";
 function item(over: Partial<ItemView> = {}): ItemView {
   return {
     handle: 11,
+    kindKey: "",
+    nameColor: "",
     label: "test item",
     tval: TV.SOFT_ARMOR,
     sval: 2,

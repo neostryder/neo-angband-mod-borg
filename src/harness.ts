@@ -21,12 +21,12 @@ import type {
   AgentActions,
   AgentCommand,
   PlayerView,
+  PlayerStatusView,
   MonsterView,
   CellView,
   ItemView,
   GameConstants,
 } from "@rpgm-tools/neo-angband-core";
-import type { BorgTimedStatus } from "./trait/buff-timers.js";
 
 /** A cell override in a scenario (all fields optional; sensible floor default). */
 export type ScenarioCell = Partial<CellView>;
@@ -37,12 +37,10 @@ export interface Scenario {
   height?: number;
   /**
    * Player overrides (position defaults to the map center). `status` merges
-   * field by field over the healthy default rather than replacing it, and is
-   * typed as BorgTimedStatus so a scenario can report the Agent API 1.4.0 buff
-   * timers the installed type package is too old to declare (buff-timers.ts).
+   * field by field over the healthy default rather than replacing it.
    */
   player?: Partial<Omit<PlayerView, "status">> & {
-    status?: Partial<BorgTimedStatus>;
+    status?: Partial<PlayerStatusView>;
   };
   /** Monsters present (each needs at least a grid; other fields default). */
   monsters?: Array<Partial<MonsterView> & { grid: { x: number; y: number } }>;
@@ -71,6 +69,7 @@ function defaultPlayer(w: number, h: number): PlayerView {
     exp: 0,
     maxExp: 0,
     gold: 0,
+    learnableSpells: 0,
     depth: 0,
     maxDepth: 0,
     hp: 20,
@@ -94,9 +93,26 @@ function defaultPlayer(w: number, h: number): PlayerView {
       stun: 0,
       paralyzed: 0,
       food: 5000,
+      fast: 0,
+      sprint: 0,
+      protEvil: 0,
+      hero: 0,
+      shero: 0,
+      shield: 0,
+      stoneskin: 0,
+      blessed: 0,
+      fastcast: 0,
+      resAcid: 0,
+      resElec: 0,
+      resFire: 0,
+      resCold: 0,
+      resPois: 0,
     },
     dead: false,
     winner: false,
+    hpWarning: 0,
+    recall: 0,
+    descent: 0,
     skills: [],
     shape: null,
     objectFlags: [],
@@ -127,6 +143,9 @@ function completeMonster(
     level: m.level ?? 1,
     poisoned: m.poisoned ?? false,
     raceFlags: m.raceFlags ?? [],
+    unique: m.unique ?? (m.raceFlags ?? []).includes("UNIQUE"),
+    questGuardian: m.questGuardian ?? false,
+    finalGuardian: m.finalGuardian ?? false,
     spellFlags: m.spellFlags ?? [],
     ...(m.raceId !== undefined ? { raceId: m.raceId } : {}),
   };

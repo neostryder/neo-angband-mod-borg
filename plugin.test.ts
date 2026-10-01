@@ -26,13 +26,14 @@ import { makeScenarioView, makeFakeActions } from "./src/harness.js";
 interface BuiltPlugin {
   readonly api: number;
   readonly hooks?: unknown;
-  readonly register?: unknown;
+  register(host: unknown, ctx: Record<string, unknown>): void;
   controller(ctx: {
     flags: Record<string, boolean>;
     core: typeof Core;
     log: (m: string) => void;
     registries: unknown;
     state: unknown;
+    controllerArmed?: boolean;
   }): AgentController | undefined;
 }
 
@@ -100,6 +101,7 @@ function install(
   flags: Record<string, boolean> = {},
   omit: readonly ("registries" | "state")[] = [],
   noscore = 0x0020,
+  armed?: boolean,
 ): {
   controller: AgentController | undefined;
   logs: string[];
@@ -118,6 +120,7 @@ function install(
       ...baseState,
       actor: { ...baseState.actor, player: { noscore } },
     },
+    ...(armed === undefined ? {} : { controllerArmed: armed }),
   };
   for (const key of omit) delete ctx[key];
   const controller = built.controller(
@@ -127,11 +130,25 @@ function install(
 }
 
 describe("the built plugin.js", () => {
-  it("is a plugin whose only member is a controller", () => {
+  it("is a plugin with a controller and a register for the title row, and no hooks", () => {
     expect(built.api).toBe(1);
     expect(built.hooks).toBeUndefined();
-    expect(built.register).toBeUndefined();
+    expect(typeof built.register).toBe("function");
     expect(typeof built.controller).toBe("function");
+  });
+
+  it("registers nothing on a host without the title, profile and save seams", () => {
+    /* title.test.ts covers the row itself; this pins that the bundle wires it
+     * and stays quiet when the capabilities were not granted. */
+    expect(() => built.register({}, { id: "borg" })).not.toThrow();
+    const rows: unknown[] = [];
+    built.register({}, { id: "borg", title: { registerRow: (row: unknown) => rows.push(row), choose: () => Promise.resolve(null) } });
+    expect(rows).toEqual([]);
+  });
+
+  it("takes the keyboard on an unmarked character the title row armed", () => {
+    expect(typeof install({}, [], 0, true).controller).toBe("function");
+    expect(install({}, [], 0, false).controller).toBeUndefined();
   });
 
   it("declines the keyboard until the character has been autoplayed", () => {

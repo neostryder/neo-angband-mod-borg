@@ -1,10 +1,10 @@
 /**
  * Borg, as a mod's entry point.
  *
- * This file is short because it is the only new code in the mod: everything
- * under src/ is the port, carried over from the game's repository unchanged. Its
- * whole job is to satisfy the plugin ABI, hand the port the live engine, and
- * return a controller.
+ * This file and title.ts are the mod's own code: everything under src/ is the
+ * port, carried over from the game's repository unchanged. This file's job is
+ * to satisfy the plugin ABI, hand the port the live engine, and return a
+ * controller. title.ts adds the title screen's "New Borg character" row.
  *
  * ------------------------------------------------------------------
  * WHY BORG IS A MOD AT ALL
@@ -33,18 +33,18 @@
  * and after the game is booted, so `ctx.core` is the live namespace by then.
  *
  * ------------------------------------------------------------------
- * WHY THIS DECLARES NO HOOKS AND REGISTERS NOTHING
+ * WHY THIS DECLARES NO HOOKS
  * ------------------------------------------------------------------
  *
  * Borg changes no rule, adds no record, and overrides no system. It plays
  * the game exactly as a player can, through commands the engine already accepts.
- * A plugin whose only member is `controller` used to be refused by the host as
- * "would do nothing"; that check now counts a controller, because playing the
- * game is not nothing.
+ * `register` adds only the title row, and only when the host grants the title,
+ * profile and save seams (title.ts).
  */
 
 import type * as Core from "@rpgm-tools/neo-angband-core";
-import type { AgentController } from "@rpgm-tools/neo-angband-core";
+import type { AgentController, ModPluginContext } from "@rpgm-tools/neo-angband-core";
+import { installMemory, registerBorgTitle, type TitleCtx } from "./title.js";
 import { NOSCORE_BORG } from "./src/activate.js";
 import { bindCore, coreIsBound } from "./src/core-api.js";
 import { createBorg } from "./src/controller.js";
@@ -52,16 +52,13 @@ import { makeCoreResolvers } from "./src/resolvers.js";
 import { defaultCfg, setBuffTimerSafetyNet, type BorgCfg } from "./src/trait/config.js";
 
 /**
- * What this plugin needs from the host's context, structurally. Declared here
- * rather than imported from the host's mod-plugin.ts because this file has to
- * compile in a standalone mod repository that holds no copy of the host - the
- * same reason bug-fixes and qol declare theirs.
+ * What this plugin needs from the host's context. The plain fields come from
+ * Core's published `ModPluginContext`; the three below are narrower than the
+ * host's own, for the reasons each one gives.
  */
-interface ControllerCtx {
-  readonly flags: Readonly<Record<string, boolean>>;
+type ControllerCtx = Pick<ModPluginContext, "flags" | "log" | "controllerArmed"> & {
   /** The live engine namespace, at the version manifest.json requires. */
   readonly core: typeof Core;
-  readonly log: (msg: string) => void;
   /**
    * The bound content registries (host `ctx.registries`).
    *
@@ -101,7 +98,7 @@ interface ControllerCtx {
      * "worth 1, pick it up and find out". */
     readonly isAware?: (kind: unknown) => boolean;
   };
-}
+};
 
 /**
  * Whether this character has already handed the keyboard to an autoplayer.
@@ -114,6 +111,10 @@ interface ControllerCtx {
  * and a character that has run the Borg before resumes with it at the wheel.
  * Returning a controller from an unmarked save would reintroduce a boot-time
  * confirm every launch merely because the mod is enabled.
+ *
+ * The one other way in is the title row: a character started from "New Borg
+ * character" arrives with `ctx.controllerArmed`, and choosing the row was the
+ * player's consent for that character.
  */
 function characterAlreadyAutoplayed(ctx: ControllerCtx): boolean {
   const noscore = ctx.state?.actor?.player?.noscore ?? 0;
@@ -240,11 +241,16 @@ function changedFrom(cfg: Partial<BorgCfg>): string[] {
 export default {
   api: 1,
 
+  register(_host: unknown, ctx: TitleCtx): void {
+    registerBorgTitle(ctx, installMemory());
+  },
+
   controller(ctx: ControllerCtx): AgentController | undefined {
     /* Returning undefined is a decline, and the host leaves the human at the
      * keyboard. This is the normal case: the mod is installed and enabled, and
-     * this character has never been handed to an autoplayer (Ctrl-Z). */
-    if (!characterAlreadyAutoplayed(ctx)) return undefined;
+     * this character has never been handed to an autoplayer (Ctrl-Z) nor
+     * started from the title row. */
+    if (!characterAlreadyAutoplayed(ctx) && ctx.controllerArmed !== true) return undefined;
 
     bindCore(ctx.core);
     if (!coreIsBound()) {

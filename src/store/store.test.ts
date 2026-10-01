@@ -49,6 +49,8 @@ type PItem = { [K in keyof ItemView]?: ItemView[K] | undefined };
 function item(p: PItem): ItemView {
   return {
     handle: p.handle ?? 1,
+    kindKey: p.kindKey ?? "",
+    nameColor: p.nameColor ?? "",
     label: p.label ?? "item",
     tval: p.tval ?? 0,
     sval: p.sval ?? 0,

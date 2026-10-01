@@ -75,6 +75,17 @@ const ACCESSOR_DOMAIN: Readonly<Record<string, string>> = {
 /** Capabilities that are not perceive domains. `command:add` is the only one. */
 const ACTION_CAPABILITIES = ["command:add"] as const;
 
+/**
+ * The host seams the title row uses (title.ts), each with the context field it
+ * reads. Listed by hand because the row reads a field rather than a view
+ * accessor; the test below still requires each field to be read.
+ */
+const TITLE_CAPABILITIES: Readonly<Record<string, string>> = {
+  "ui:title": "ctx.title",
+  "profiles:manage": "ctx.profiles",
+  "saves:manage": "ctx.saves",
+};
+
 interface Manifest {
   readonly capabilities: readonly string[];
 }
@@ -150,13 +161,20 @@ describe("manifest capabilities", () => {
     expect(used).toContain("player");
     expect(used).toContain("monsters");
 
-    const wanted = new Set<string>(ACTION_CAPABILITIES);
+    const wanted = new Set<string>([...ACTION_CAPABILITIES, ...Object.keys(TITLE_CAPABILITIES)]);
     for (const accessor of used) {
       const domain = ACCESSOR_DOMAIN[accessor];
       if (domain !== undefined) wanted.add(`state:${domain}.read`);
     }
 
     expect([...manifest().capabilities].sort()).toEqual([...wanted].sort());
+  });
+
+  it("reads the context field behind every title capability", () => {
+    const title = readFileSync(join(repoRoot, "title.ts"), "utf8");
+    for (const [capability, field] of Object.entries(TITLE_CAPABILITIES)) {
+      expect(title, `${capability} is declared but ${field} is never read`).toContain(field);
+    }
   });
 
   it("asks for no wildcard read", () => {

@@ -64,6 +64,8 @@ function facts(over: Partial<MonsterFacts> = {}): MonsterFacts {
 function item(over: Partial<ItemView> = {}): ItemView {
   return {
     handle: 1,
+    kindKey: "",
+    nameColor: "",
     label: "x",
     tval: 0,
     sval: 0,

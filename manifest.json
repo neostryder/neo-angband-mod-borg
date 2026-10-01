@@ -7,7 +7,7 @@
     "plugin"
   ],
   "modApi": 1,
-  "engine": ">=1.1.0",
+  "engine": ">=1.21.0",
   "dependencies": {
     "core": "*"
   },
@@ -21,7 +21,10 @@
     "state:messages.read",
     "state:stores.read",
     "state:spells.read",
-    "state:constants.read"
+    "state:constants.read",
+    "ui:title",
+    "profiles:manage",
+    "saves:manage"
   ],
   "author": "neostryder",
   "license": "GPL-2.0-only",
