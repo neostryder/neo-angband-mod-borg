@@ -20,6 +20,8 @@ were not retagged.
 
 ## [Unreleased]
 
+## 1.3.0 - 2026-10-01
+
 ### Added
 
 - [Visible] [UI] **A New Borg character row on the title screen (key B).** It starts a character with the Borg at the keyboard, in a separate profile with its own options, mods and characters (fresh, copied from another profile without its characters, or one the Borg made before), or in the current profile. If the game refuses the separate profile, the row shows why and uses the current profile (neostryder/neo-angband#327).
