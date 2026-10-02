@@ -28,7 +28,7 @@ switch has no flag of its own, the game knows it by its section id instead.
 
 ## What it needs
 
-- **Engine:** `>=1.21.0`
+- **Engine:** `>=1.21.1`
 - **Shape:** `plugin`
 - **Facets:** `plugin`
 - **Capabilities:** `command:add`, `state:player.read`, `state:monsters.read`,

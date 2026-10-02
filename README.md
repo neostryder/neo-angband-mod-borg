@@ -3,7 +3,7 @@
 Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
-**Needs Neo Angband 1.21.0 or newer.** An older game refuses to load it and says so; [How well it plays today](#how-well-it-plays-today) explains why it refuses instead of running a reduced Borg.
+**Needs Neo Angband 1.21.1 or newer.** An older game refuses to load it and says so; [How well it plays today](#how-well-it-plays-today) explains why it refuses instead of running a reduced Borg.
 
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
 hand it your character: press **Ctrl-Z** in play to warn, confirm, and hand over
@@ -25,7 +25,7 @@ All four resolvers are now wired: danger vision, activation identity, the in-sho
 
 When it dies it starts a new character, and the game does that, not this mod. A controller can only return an in-game command, and there is no command for "roll me a new character", so the game's death handler does it whenever a mod holds the keyboard. It is an in-session reincarnation, not a new save: same session, same slot, a rolled race and class each time, as upstream's borg respawns.
 
-The loadout scoring and the death handler both arrived in Neo Angband 0.25.0, and this version requires Neo Angband 1.21.0 or newer instead of running in a reduced form on an older game. Earlier versions declared `>=0.12.0` and fell back. On a game without the loadout support, the Borg wore nothing it found, bought nothing it needed and sold nothing it was done with, and on a game without the death handler, a death simply ended the run. That left a Borg unable to do the two things a Borg is for. No earlier version of this mod ran a working autoplayer on any game, so the stricter requirement takes nothing away from anyone.
+The loadout scoring and the death handler both arrived in Neo Angband 0.25.0, and this version requires Neo Angband 1.21.1 or newer instead of running in a reduced form on an older game. Earlier versions declared `>=0.12.0` and fell back. On a game without the loadout support, the Borg wore nothing it found, bought nothing it needed and sold nothing it was done with, and on a game without the death handler, a death simply ended the run. That left a Borg unable to do the two things a Borg is for. No earlier version of this mod ran a working autoplayer on any game, so the stricter requirement takes nothing away from anyone.
 
 Watched in the released 0.25.0 desktop build on 2026-08-21, over two characters, the Borg took the keyboard, shopped, wore what it bought, found the town's down staircase and descended, and then stalled on the first dungeon level both times without dying. Five separate causes turned up, four of them one-line fixes:
 
