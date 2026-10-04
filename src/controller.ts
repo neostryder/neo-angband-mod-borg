@@ -33,6 +33,7 @@ import { think } from "./think.js";
 import { borgNotice, borgPower, borgCfg, setBorgCfg, BI, type BorgCfg } from "./trait/index.js";
 import { getFightState } from "./fight/index.js";
 import type { BorgContext } from "./context.js";
+import { hostController } from "./core-api.js";
 import {
   buildThinkSession,
   installThinkSession,
@@ -110,7 +111,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
 
   let lastDepth = -1;
 
-  const controller: AgentController = (view, act) => {
+  /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
+  const controller: AgentController = hostController((view, act) => {
     const ctx: BorgContext = { world, view, act, rng };
 
     /* 1. Advance the clocks exactly once (borg-think.c:447). */
@@ -207,7 +209,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     const cmd = think(ctx);
     if (cmd?.code !== "pickup") session.arrivalPickup = false;
     return cmd;
-  };
+  });
 
   return { world, rng, controller };
 }

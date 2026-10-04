@@ -24,7 +24,8 @@
  * Decision subsystems read BorgWorld, never the live engine.
  */
 
-import type { AgentView, ItemView } from "@rpgm-tools/neo-angband-core";
+import type { ItemView } from "@rpgm-tools/neo-angband-core";
+import type { BorgView } from "./core-api.js";
 import {
   AUTO_MAX_X,
   AUTO_MAX_Y,
@@ -65,7 +66,7 @@ export function makePerceiveMemo(): PerceiveMemo {
  */
 export function perceive(
   world: BorgWorld,
-  view: AgentView,
+  view: BorgView,
   memo: PerceiveMemo,
   tables: BorgMessageTables = emptyMessageTables(),
   valuation: TakeValuation = {},
@@ -150,7 +151,7 @@ function decayLevelTimers(world: BorgWorld): void {
 }
 
 /** Fold visible/known cells into borg_grids, setting feat + info flags. */
-function ingestMap(world: BorgWorld, view: AgentView): void {
+function ingestMap(world: BorgWorld, view: BorgView): void {
   const bounds = view.mapBounds();
   const maxY = Math.min(bounds.height, world.map.height);
   const maxX = Math.min(bounds.width, world.map.width);
@@ -301,7 +302,7 @@ function borgUpdateLight(world: BorgWorld): void {
  */
 function ingestMonsters(
   world: BorgWorld,
-  view: AgentView,
+  view: BorgView,
 ): { ids: Set<number>; names: Map<number, string> } {
   // Clear the grid.kill back-pointers; rebuilt below from live positions.
   for (const [, k] of world.kills.entries()) {
@@ -491,7 +492,7 @@ export function takeValue(item: ItemView, valuation: TakeValuation): number {
  */
 function ingestFloor(
   world: BorgWorld,
-  view: AgentView,
+  view: BorgView,
   oldX: number,
   oldY: number,
   valuation: TakeValuation,

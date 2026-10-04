@@ -27,7 +27,8 @@
  * mod its own registries and singletons while the game ran on another set. The
  * host passes the engine in as `ctx.core` instead, and src/core-api.ts is the one
  * file that holds it - read that file's header for how, and for the single rule
- * it imposes on the rest of the port.
+ * it imposes on the rest of the port. That file is also the adapter: this entry
+ * reads its context only through `createAdapter(ctx)`.
  *
  * bindCore is called in `controller()`, which the host invokes after register()
  * and after the game is booted, so `ctx.core` is the live namespace by then.
@@ -42,63 +43,13 @@
  * profile and save seams (title.ts).
  */
 
-import type * as Core from "@rpgm-tools/neo-angband-core";
-import type { AgentController, ModPluginContext } from "@rpgm-tools/neo-angband-core";
+import type { AgentController } from "@rpgm-tools/neo-angband-core";
 import { installMemory, registerBorgTitle, type TitleCtx } from "./title.js";
 import { NOSCORE_BORG } from "./src/activate.js";
-import { bindCore, coreIsBound } from "./src/core-api.js";
+import { createAdapter, type BorgAdapter, type ControllerCtx } from "./src/core-api.js";
 import { createBorg } from "./src/controller.js";
 import { makeCoreResolvers } from "./src/resolvers.js";
 import { defaultCfg, setBuffTimerSafetyNet, type BorgCfg } from "./src/trait/config.js";
-
-/**
- * What this plugin needs from the host's context. The plain fields come from
- * Core's published `ModPluginContext`; the three below are narrower than the
- * host's own, for the reasons each one gives.
- */
-type ControllerCtx = Pick<ModPluginContext, "flags" | "log" | "controllerArmed"> & {
-  /** The live engine namespace, at the version manifest.json requires. */
-  readonly core: typeof Core;
-  /**
-   * The bound content registries (host `ctx.registries`).
-   *
-   * Required, not optional. This is the controller seam's contract rather than
-   * the host's whole `ModPluginContext`, which declares the field optional
-   * because the same type also serves `hooks(ctx)` - and `hooks` runs before the
-   * game exists. At the one call site that invokes `controller()` the host has
-   * already latched the bound registries, so the field is always there.
-   * `Core.CoreRegistries` rather than a hand-written shape, so a change to the
-   * registry the Borg reads fails this repository's build instead of surfacing as
-   * bad play.
-   */
-  readonly registries: Core.CoreRegistries;
-  /**
-   * The live game state (host `ctx.state`). Required for the same reason as
-   * `registries`: `controller()` runs after boot, so a character with a grid
-   * exists by then. Declared as the narrow shape resolvers.ts actually reads
-   * (player grid + level feature lookup) rather than imported, because
-   * `GameState` is an internal host type and not part of the published surface.
-   */
-  readonly state: {
-    readonly actor: {
-      readonly grid: { readonly x: number; readonly y: number };
-      /**
-       * The live player, when the host has one. Optional in this declared
-       * shape because a defective test host can omit it; a real controller()
-       * call always has a character by then.
-       */
-      readonly player?: { readonly noscore: number };
-    };
-    readonly chunk: {
-      feature(grid: { x: number; y: number }): { shopnum: number };
-    };
-    /* Flavour awareness, for pricing a floor object the way borg_new_take
-     * does. Optional in the declared shape because it is optional on the host's
-     * own state; absent, every kind reads as unaware, which is upstream's
-     * "worth 1, pick it up and find out". */
-    readonly isAware?: (kind: unknown) => boolean;
-  };
-};
 
 /**
  * Whether this character has already handed the keyboard to an autoplayer.
@@ -116,8 +67,8 @@ type ControllerCtx = Pick<ModPluginContext, "flags" | "log" | "controllerArmed">
  * character" arrives with `ctx.controllerArmed`, and choosing the row was the
  * player's consent for that character.
  */
-function characterAlreadyAutoplayed(ctx: ControllerCtx): boolean {
-  const noscore = ctx.state?.actor?.player?.noscore ?? 0;
+function characterAlreadyAutoplayed(host: BorgAdapter): boolean {
+  const noscore = host.engine.noscore();
   return (noscore & NOSCORE_BORG) !== 0;
 }
 
@@ -250,10 +201,10 @@ export default {
      * keyboard. This is the normal case: the mod is installed and enabled, and
      * this character has never been handed to an autoplayer (Ctrl-Z) nor
      * started from the title row. */
-    if (!characterAlreadyAutoplayed(ctx) && ctx.controllerArmed !== true) return undefined;
+    const host = createAdapter(ctx);
+    if (!characterAlreadyAutoplayed(host) && host.engine.controllerArmed !== true) return undefined;
 
-    bindCore(ctx.core);
-    if (!coreIsBound()) {
+    if (!host.engine.bind()) {
       /* Unreachable unless bindCore itself changes shape. Checked anyway,
        * because the failure it guards against is not an exception - it is FEAT
        * and TV reading undefined inside a decision ladder, which looks like the
@@ -306,9 +257,7 @@ export default {
      * The force-descend option is still on its default and is NOT covered by
      * this call; see PLANNED.md.
      */
-    const missing: string[] = [];
-    if (!ctx.registries) missing.push("ctx.registries");
-    if (!ctx.state) missing.push("ctx.state");
+    const missing = host.engine.missing();
     if (missing.length > 0) {
       /* Unreachable through the game's own loader. manifest.json declares
        * `engine: ">=0.25.0"`, and for a mod that ships CODE an out-of-range
@@ -326,32 +275,24 @@ export default {
       );
     }
 
-    const races = ctx.registries.monsters.races;
-    const blowMethods = ctx.registries.monsters.blowMethods.values();
-    const monsterSpells = ctx.registries.monsters.spells?.values() ?? [];
-    const cfg = cfgFromFlags(ctx.flags);
+    const input = host.engine.resolverInput();
+    const cfg = cfgFromFlags(host.meta.flags);
     /* Cross-mod, deliberately outside RULE_CFG and cfg itself: see
      * config.ts's setBuffTimerSafetyNet for why. */
-    setBuffTimerSafetyNet(ctx.flags["bugfix.borgFixes"] ?? true);
+    setBuffTimerSafetyNet(host.meta.flags["bugfix.borgFixes"] ?? true);
     const borg = createBorg({
-      resolvers: makeCoreResolvers({
-        races,
-        objects: ctx.registries.objects,
-        state: ctx.state,
-        blowMethods,
-        monsterSpells,
-      }),
+      resolvers: makeCoreResolvers(input),
       cfg,
     });
     /* The race count is in the message because an empty registry is the one
      * remaining way to get a Borg that cannot see danger, and it looks from the
      * outside exactly like a Borg that plays badly. */
-    ctx.log(
-      `the Borg has the keyboard, and danger vision over ${races.length} races, ` +
+    host.meta.log(
+      `the Borg has the keyboard, and danger vision over ${input.races.length} races, ` +
         `activation identity, the in-shop signal and loadout evaluation`,
     );
     const changed = changedFrom(cfg);
-    ctx.log(
+    host.meta.log(
       changed.length === 0
         ? "the Borg is on upstream's stock settings"
         : `the Borg's settings differ from stock: ${changed.join(", ")}`,

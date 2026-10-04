@@ -138,6 +138,186 @@ function bindCore(core) {
 function coreIsBound() {
   return bound;
 }
+function createAdapter(ctx) {
+  return {
+    meta: {
+      get flags() {
+        return ctx.flags;
+      },
+      log: (message) => ctx.log(message)
+    },
+    engine: {
+      bind() {
+        bindCore(ctx.core);
+        return coreIsBound();
+      },
+      missing() {
+        const missing = [];
+        if (!ctx.registries) missing.push("ctx.registries");
+        if (!ctx.state) missing.push("ctx.state");
+        return missing;
+      },
+      noscore: () => ctx.state?.actor?.player?.noscore ?? 0,
+      get controllerArmed() {
+        return ctx.controllerArmed;
+      },
+      resolverInput: () => ({
+        // truth: every race's blows, spells, flags and frequencies, past what monster lore has taught.
+        races: ctx.registries.monsters.races,
+        // content lookup: kind, ego and artifact records by tval/sval or name (content.lookup).
+        objects: ctx.registries.objects,
+        // view field: the player's own grid feature, and flavour awareness.
+        state: ctx.state,
+        // content lookup: blow method message templates (content.records("blow_methods")).
+        blowMethods: ctx.registries.monsters.blowMethods.values(),
+        // content lookup: monster spell messages (content.records("monster_spell")).
+        monsterSpells: ctx.registries.monsters.spells?.values() ?? []
+      })
+    }
+  };
+}
+function racesByIndex(races) {
+  const byRidx = /* @__PURE__ */ new Map();
+  for (const r of races) byRidx.set(r.ridx, r);
+  return byRidx;
+}
+function raceRecord(race) {
+  return {
+    ridx: race.ridx,
+    flags: raceFlagNames(race),
+    level: race.level,
+    sleep: race.sleep,
+    spellPower: race.spellPower,
+    freqInnate: race.freqInnate,
+    freqSpell: race.freqSpell,
+    hasFriends: race.friends.length > 0 || race.friendsBase.length > 0,
+    blows: raceBlows(race),
+    spells: raceSpellOrdinals(race)
+  };
+}
+function raceFlagNames(race) {
+  const out = /* @__PURE__ */ new Set();
+  for (const f of race.flags) {
+    const entry = MON_RACE_FLAG_ENTRIES[f];
+    if (entry) out.add(entry.name);
+  }
+  return out;
+}
+function raceSpellOrdinals(race) {
+  const out = [];
+  for (const f of race.spellFlags) {
+    if (MON_SPELL_ENTRIES[f]) out.push(f);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+function raceBlows(race) {
+  return race.blows.map((b) => {
+    const rv = b.dice ? b.dice.randomValue() : null;
+    return {
+      dice: rv ? rv.dice : 0,
+      sides: rv ? rv.sides : 0,
+      effect: b.effect.name
+    };
+  });
+}
+function artifactActivation(objects, name) {
+  return objects.findArtifact(name)?.activation ?? null;
+}
+function egoActivation(objects, name) {
+  return objects.findEgo(name)?.activation ?? null;
+}
+function kindActivation(objects, tval, sval) {
+  return objects.lookupKind(tval, sval)?.activation ?? null;
+}
+function kindPrice(objects, state, tval, sval) {
+  const kind = objects.lookupKind(tval, sval);
+  if (!kind) return null;
+  return { cost: kind.cost ?? 0, aware: state?.isAware?.(kind) ?? false };
+}
+function shopnumHere(state) {
+  return state.chunk.feature(state.actor.grid).shopnum;
+}
+function borgView(host) {
+  const view = {
+    // view: vitals, stats, status, depth and grid. API 2: view.player(). Speed, to-hit and AC here come
+    // from the live derive, so a worn rune the player has not learned still moves them. KnownPlayer
+    // shows the known values.
+    player: () => host.player(),
+    // view: the level's width and height. API 2: KnownLevel width/height.
+    mapBounds: () => host.mapBounds(),
+    // view: the pack, each item from its known twin. API 2: view.world().inventory.
+    inventory: () => host.inventory(),
+    // view: worn gear by slot, each item from its known twin. API 2: view.world().equipment.
+    equipment: () => host.equipment(),
+    // view: objects remembered exactly on a grid, from their known twins. API 2: KnownLevel cell objects.
+    // The list is the live pile filtered by memory, so an object taken since it was seen drops out.
+    floorItems: (x, y) => host.floorItems(x, y),
+    // view: messages since the previous decision. API 2: the `message` event.
+    messages: () => host.messages(),
+    // view: the live stock of every town store, readable even from the dungeon. API 2
+    // view.world().stores hands over the same data, which keeps this a view read. Upstream's borg only
+    // knew the stock it saw on its last visit.
+    stores: () => host.stores(),
+    // view: the class's books and spells, with fail rates. API 2: view.world().spellbooks.
+    spellbooks: () => host.spellbooks(),
+    // view: the bound game constants (z_info). API 2: no call; a content lookup or a meta field.
+    constants: () => host.constants(),
+    // truth: perceived monsters only, with exact hp/maxHp, current speed, sleep/fear/confusion/stun
+    // timers, and every race flag and spell, learned or not. API 2: truth.monsters(), which also lists
+    // unseen monsters and has no "perceived" flag to filter them by.
+    monsters: () => host.monsters(),
+    // truth: one grid. feat and passable give the live terrain rather than the remembered one, so a
+    // secret door reads as FEAT_SECRET where the player sees granite, and a door that changed out of
+    // sight shows its new state. glow is live too. known, inView, monster, objectCount and trap follow
+    // what the player sees. API 2: truth.level().
+    cell: (x, y) => host.cell(x, y)
+  };
+  const simulate = host.simulateLoadout;
+  if (simulate) {
+    view.simulateLoadout = (change) => simulate.call(host, change);
+  }
+  return view;
+}
+function borgActions(host) {
+  return {
+    move: (...a) => host.move(...a),
+    melee: (...a) => host.melee(...a),
+    hold: (...a) => host.hold(...a),
+    rest: (...a) => host.rest(...a),
+    descend: (...a) => host.descend(...a),
+    ascend: (...a) => host.ascend(...a),
+    tunnel: (...a) => host.tunnel(...a),
+    open: (...a) => host.open(...a),
+    close: (...a) => host.close(...a),
+    disarm: (...a) => host.disarm(...a),
+    quaff: (...a) => host.quaff(...a),
+    read: (...a) => host.read(...a),
+    eat: (...a) => host.eat(...a),
+    wear: (...a) => host.wear(...a),
+    takeoff: (...a) => host.takeoff(...a),
+    drop: (...a) => host.drop(...a),
+    pickup: (...a) => host.pickup(...a),
+    aimWand: (...a) => host.aimWand(...a),
+    zapRod: (...a) => host.zapRod(...a),
+    useStaff: (...a) => host.useStaff(...a),
+    activate: (...a) => host.activate(...a),
+    fire: (...a) => host.fire(...a),
+    throw: (...a) => host.throw(...a),
+    cast: (...a) => host.cast(...a),
+    // Sets the game's target at once, outside any command. API 2: act.submit(token, { kind: "target", midx }).
+    setTargetMonster: (...a) => host.setTargetMonster(...a),
+    // Sets the game's target at once, outside any command. API 2: act.submit(token, { kind: "target", x, y }).
+    setTargetLocation: (...a) => host.setTargetLocation(...a),
+    shopBuy: (...a) => host.shopBuy(...a),
+    shopSell: (...a) => host.shopSell(...a),
+    shopExit: (...a) => host.shopExit(...a),
+    raw: (...a) => host.raw(...a)
+  };
+}
+function hostController(decide) {
+  return (view, act) => decide(borgView(view), borgActions(act));
+}
 
 // src/world/grid.ts
 var AUTO_MAX_X = 198;
@@ -15584,7 +15764,7 @@ function createBorg(opts = {}) {
   const spells = buildSpellTable(session.resolvers.spellMessages ?? []);
   const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
   let lastDepth = -1;
-  const controller = (view, act) => {
+  const controller = hostController((view, act) => {
     const ctx = { world, view, act, rng };
     world.clock += 1;
     world.self.timeThisPanel += 1;
@@ -15629,51 +15809,25 @@ function createBorg(opts = {}) {
     const cmd = think(ctx);
     if (cmd?.code !== "pickup") session.arrivalPickup = false;
     return cmd;
-  };
+  });
   return { world, rng, controller };
 }
 
 // src/resolvers.ts
-function raceFlagNames(race) {
-  const out = /* @__PURE__ */ new Set();
-  for (const f of race.flags) {
-    const entry = MON_RACE_FLAG_ENTRIES[f];
-    if (entry) out.add(entry.name);
-  }
-  return out;
-}
-function raceSpellOrdinals(race) {
-  const out = [];
-  for (const f of race.spellFlags) {
-    if (MON_SPELL_ENTRIES[f]) out.push(f);
-  }
-  out.sort((a, b) => a - b);
-  return out;
-}
-function raceBlows(race) {
-  return race.blows.map((b) => {
-    const rv = b.dice ? b.dice.randomValue() : null;
-    return {
-      dice: rv ? rv.dice : 0,
-      sides: rv ? rv.sides : 0,
-      effect: borgMonBlowEffect(b.effect.name)
-    };
-  });
-}
 function actToken(activation) {
   return `act_${activation.name.toLowerCase()}`;
 }
 function equippedActivation(item, objects) {
   if (!item.activation) return null;
   if (item.artifact && item.artifactName) {
-    const art = objects.findArtifact(item.artifactName);
-    if (art?.activation) return art.activation;
+    const art = artifactActivation(objects, item.artifactName);
+    if (art) return art;
   }
   if (item.ego && item.egoName) {
-    const ego = objects.findEgo(item.egoName);
-    if (ego?.activation) return ego.activation;
+    const ego = egoActivation(objects, item.egoName);
+    if (ego) return ego;
   }
-  return objects.lookupKind(item.tval, item.sval)?.activation ?? null;
+  return kindActivation(objects, item.tval, item.sval);
 }
 function findActivatedItem(ctx, act, checkCharge, objects) {
   for (const item of ctx.view.equipment()) {
@@ -15686,23 +15840,27 @@ function findActivatedItem(ctx, act, checkCharge, objects) {
   return null;
 }
 function makeCoreResolvers(input) {
-  const byRidx = /* @__PURE__ */ new Map();
-  for (const r of input.races) byRidx.set(r.ridx, r);
+  const byRidx = racesByIndex(input.races);
   const resolveMonsterFacts = (ctx, killIndex) => {
     const kill = ctx.world.kills.at(killIndex);
     const race = byRidx.get(kill.rIdx);
     if (!race) return defaultResolveMonsterFacts(ctx, killIndex);
+    const record = raceRecord(race);
     return {
-      rIdx: race.ridx,
-      flags: raceFlagNames(race),
-      level: race.level,
-      sleep: race.sleep,
-      spellPower: race.spellPower,
-      freqInnate: race.freqInnate,
-      freqSpell: race.freqSpell,
-      hasFriends: race.friends.length > 0 || race.friendsBase.length > 0,
-      blows: raceBlows(race),
-      spells: raceSpellOrdinals(race)
+      rIdx: record.ridx,
+      flags: record.flags,
+      level: record.level,
+      sleep: record.sleep,
+      spellPower: record.spellPower,
+      freqInnate: record.freqInnate,
+      freqSpell: record.freqSpell,
+      hasFriends: record.hasFriends,
+      blows: record.blows.map((b) => ({
+        dice: b.dice,
+        sides: b.sides,
+        effect: borgMonBlowEffect(b.effect)
+      })),
+      spells: record.spells
     };
   };
   const objects = input.objects;
@@ -15718,7 +15876,7 @@ function makeCoreResolvers(input) {
   const state = input.state;
   const inShop = (_ctx) => {
     if (!state) return null;
-    const shopnum = state.chunk.feature(state.actor.grid).shopnum;
+    const shopnum = shopnumHere(state);
     return shopnum > 0 ? shopnum - 1 : null;
   };
   const blowActions = [];
@@ -15727,9 +15885,7 @@ function makeCoreResolvers(input) {
   }
   const kindCost = (tval, sval) => {
     if (!objects) return null;
-    const kind = objects.lookupKind(tval, sval);
-    if (!kind) return null;
-    return { cost: kind.cost ?? 0, aware: state?.isAware?.(kind) ?? false };
+    return kindPrice(objects, state, tval, sval);
   };
   return {
     resolveMonsterFacts,
@@ -15748,8 +15904,8 @@ function makeCoreResolvers(input) {
 }
 
 // plugin.ts
-function characterAlreadyAutoplayed(ctx) {
-  const noscore = ctx.state?.actor?.player?.noscore ?? 0;
+function characterAlreadyAutoplayed(host) {
+  const noscore = host.engine.noscore();
   return (noscore & NOSCORE_BORG) !== 0;
 }
 var RULE_CFG = {
@@ -15781,39 +15937,29 @@ var plugin_default = {
     registerBorgTitle(ctx, installMemory());
   },
   controller(ctx) {
-    if (!characterAlreadyAutoplayed(ctx) && ctx.controllerArmed !== true) return void 0;
-    bindCore(ctx.core);
-    if (!coreIsBound()) {
+    const host = createAdapter(ctx);
+    if (!characterAlreadyAutoplayed(host) && host.engine.controllerArmed !== true) return void 0;
+    if (!host.engine.bind()) {
       throw new Error("the Borg could not take the engine from ctx.core");
     }
-    const missing = [];
-    if (!ctx.registries) missing.push("ctx.registries");
-    if (!ctx.state) missing.push("ctx.state");
+    const missing = host.engine.missing();
     if (missing.length > 0) {
       throw new Error(
         `the Borg was given no ${missing.join(" and no ")}: a host that calls controller() supplies both, and this one did not`
       );
     }
-    const races = ctx.registries.monsters.races;
-    const blowMethods = ctx.registries.monsters.blowMethods.values();
-    const monsterSpells = ctx.registries.monsters.spells?.values() ?? [];
-    const cfg = cfgFromFlags(ctx.flags);
-    setBuffTimerSafetyNet(ctx.flags["bugfix.borgFixes"] ?? true);
+    const input = host.engine.resolverInput();
+    const cfg = cfgFromFlags(host.meta.flags);
+    setBuffTimerSafetyNet(host.meta.flags["bugfix.borgFixes"] ?? true);
     const borg = createBorg({
-      resolvers: makeCoreResolvers({
-        races,
-        objects: ctx.registries.objects,
-        state: ctx.state,
-        blowMethods,
-        monsterSpells
-      }),
+      resolvers: makeCoreResolvers(input),
       cfg
     });
-    ctx.log(
-      `the Borg has the keyboard, and danger vision over ${races.length} races, activation identity, the in-shop signal and loadout evaluation`
+    host.meta.log(
+      `the Borg has the keyboard, and danger vision over ${input.races.length} races, activation identity, the in-shop signal and loadout evaluation`
     );
     const changed = changedFrom(cfg);
-    ctx.log(
+    host.meta.log(
       changed.length === 0 ? "the Borg is on upstream's stock settings" : `the Borg's settings differ from stock: ${changed.join(", ")}`
     );
     return borg.controller;
