@@ -5,7 +5,8 @@
  * same way the C borg's file-scope globals did, without actual globals.
  */
 
-import type { AgentView, AgentActions, Rng } from "@rpgm-tools/neo-angband-core";
+import type { Rng } from "@rpgm-tools/neo-angband-core";
+import type { BorgActions, BorgView } from "./core-api.js";
 import type { BorgWorld } from "./world/model.js";
 
 /** Everything a decision subsystem needs, for one think. */
@@ -13,9 +14,9 @@ export interface BorgContext {
   /** Borg's remembered world (written by perceive, read by everyone). */
   world: BorgWorld;
   /** PERCEIVE: the frozen read facade (raw current view). */
-  view: AgentView;
+  view: BorgView;
   /** ACT: the frozen command builders. */
-  act: AgentActions;
+  act: BorgActions;
   /** Borg's private simulation RNG (never the game RNG). */
   rng: Rng;
 }

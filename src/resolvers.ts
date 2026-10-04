@@ -25,7 +25,15 @@
  * depends on.
  */
 
-import { MON_RACE_FLAG_ENTRIES, MON_SPELL_ENTRIES } from "./core-api.js";
+import {
+  artifactActivation,
+  egoActivation,
+  kindActivation,
+  kindPrice,
+  raceRecord,
+  racesByIndex,
+  shopnumHere,
+} from "./core-api.js";
 import type { ItemView, MonsterRace } from "@rpgm-tools/neo-angband-core";
 import type { BorgContext } from "./context.js";
 import type { BorgResolvers } from "./think-session.js";
@@ -95,39 +103,6 @@ export interface CoreResolverInput {
   }>;
 }
 
-/** RF_* code names for the set flags in a race flag set (index == RF value). */
-function raceFlagNames(race: MonsterRace): Set<string> {
-  const out = new Set<string>();
-  for (const f of race.flags) {
-    const entry = MON_RACE_FLAG_ENTRIES[f];
-    if (entry) out.add(entry.name);
-  }
-  return out;
-}
-
-/** RSF_* ordinals the race can cast, ascending (matches the C preload loop). */
-function raceSpellOrdinals(race: MonsterRace): number[] {
-  const out: number[] = [];
-  for (const f of race.spellFlags) {
-    // Only real spell entries (index maps to a known RSF_*), skip padding.
-    if (MON_SPELL_ENTRIES[f]) out.push(f);
-  }
-  out.sort((a, b) => a - b);
-  return out;
-}
-
-/** race.blow[] -> BlowFacts (dice/sides via Dice.randomValue, effect via name). */
-function raceBlows(race: MonsterRace): BlowFacts[] {
-  return race.blows.map((b) => {
-    const rv = b.dice ? b.dice.randomValue() : null;
-    return {
-      dice: rv ? rv.dice : 0,
-      sides: rv ? rv.sides : 0,
-      effect: borgMonBlowEffect(b.effect.name),
-    };
-  });
-}
-
 /**
  * borg's "act_<NAME>" token for an activation record, e.g. an activation named
  * "LIGHT" in the data (activation.txt's own name: field, upstream's identifier
@@ -156,14 +131,14 @@ function equippedActivation(
 ): ActivationLike | null {
   if (!item.activation) return null;
   if (item.artifact && item.artifactName) {
-    const art = objects.findArtifact(item.artifactName);
-    if (art?.activation) return art.activation;
+    const art = artifactActivation(objects, item.artifactName);
+    if (art) return art;
   }
   if (item.ego && item.egoName) {
-    const ego = objects.findEgo(item.egoName);
-    if (ego?.activation) return ego.activation;
+    const ego = egoActivation(objects, item.egoName);
+    if (ego) return ego;
   }
-  return objects.lookupKind(item.tval, item.sval)?.activation ?? null;
+  return kindActivation(objects, item.tval, item.sval);
 }
 
 /** The first equipped item granting `act`, honoring checkCharge, or null. */
@@ -190,8 +165,7 @@ function findActivatedItem(
  * their two seams on the conservative defaults documented in BorgResolvers.
  */
 export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
-  const byRidx = new Map<number, MonsterRace>();
-  for (const r of input.races) byRidx.set(r.ridx, r);
+  const byRidx = racesByIndex(input.races);
 
   const resolveMonsterFacts: FactsResolver = (ctx, killIndex): MonsterFacts => {
     const kill = ctx.world.kills.at(killIndex);
@@ -200,17 +174,22 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     // MonsterView-derived defaults rather than throwing.
     if (!race) return defaultResolveMonsterFacts(ctx, killIndex);
 
+    const record = raceRecord(race);
     return {
-      rIdx: race.ridx,
-      flags: raceFlagNames(race),
-      level: race.level,
-      sleep: race.sleep,
-      spellPower: race.spellPower,
-      freqInnate: race.freqInnate,
-      freqSpell: race.freqSpell,
-      hasFriends: race.friends.length > 0 || race.friendsBase.length > 0,
-      blows: raceBlows(race),
-      spells: raceSpellOrdinals(race),
+      rIdx: record.ridx,
+      flags: record.flags,
+      level: record.level,
+      sleep: record.sleep,
+      spellPower: record.spellPower,
+      freqInnate: record.freqInnate,
+      freqSpell: record.freqSpell,
+      hasFriends: record.hasFriends,
+      blows: record.blows.map((b): BlowFacts => ({
+        dice: b.dice,
+        sides: b.sides,
+        effect: borgMonBlowEffect(b.effect),
+      })),
+      spells: record.spells,
     };
   };
 
@@ -235,7 +214,7 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     if (!state) return null;
     // square_shopnum (cave-square.c:1512): f_info[feat].shopnum - 1, or -1
     // (here null) when the grid is not a shop entrance.
-    const shopnum = state.chunk.feature(state.actor.grid).shopnum;
+    const shopnum = shopnumHere(state);
     return shopnum > 0 ? shopnum - 1 : null;
   };
 
@@ -255,9 +234,7 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
    * plumbing - it just asks the questions nothing had asked. */
   const kindCost: BorgResolvers["kindCost"] = (tval, sval) => {
     if (!objects) return null;
-    const kind = objects.lookupKind(tval, sval);
-    if (!kind) return null;
-    return { cost: kind.cost ?? 0, aware: state?.isAware?.(kind) ?? false };
+    return kindPrice(objects, state, tval, sval);
   };
 
   return {

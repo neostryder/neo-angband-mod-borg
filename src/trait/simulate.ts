@@ -67,7 +67,8 @@
  * derived block. Nothing has to be restored because nothing was touched.
  */
 
-import type { AgentView, ItemView, PlayerView } from "@rpgm-tools/neo-angband-core";
+import type { ItemView, PlayerView } from "@rpgm-tools/neo-angband-core";
+import type { BorgView } from "../core-api.js";
 import type { BorgContext } from "../context.js";
 import type { BorgWorld } from "../world/model.js";
 import { borgNotice } from "./trait.js";
@@ -116,7 +117,7 @@ export interface BorgLoadoutAnswer {
 }
 
 /** The frozen view, with the accessor narrowed to the shapes above. */
-type LoadoutCapableView = AgentView & {
+type LoadoutCapableView = BorgView & {
   simulateLoadout?: (change: BorgLoadoutChange) => BorgLoadoutAnswer | null;
 };
 
@@ -150,7 +151,7 @@ function shadowWorld(world: BorgWorld): BorgWorld {
  * simulated ones. Every other accessor is the real one: the map, the monsters,
  * the messages and the stores are unchanged by putting a ring on.
  */
-function shadowView(view: AgentView, answer: BorgLoadoutAnswer): AgentView {
+function shadowView(view: BorgView, answer: BorgLoadoutAnswer): BorgView {
   return {
     ...view,
     player: () => answer.after.player,
