@@ -20,6 +20,10 @@ were not retagged.
 
 ## [Unreleased]
 
+### Added
+
+- [Internal] [Security] **A CI step reads manifest.json and fails the build if it lists `state:*.read` or `state:map-actual.read`.** The borg names each state domain it reads one by one, and it has no use for the real map.
+
 ## 1.3.0 - 2026-10-01
 
 ### Added
