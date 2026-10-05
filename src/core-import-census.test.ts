@@ -66,19 +66,21 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 function valueImportsOfEngine(text: string): string[] {
   const source = ts.createSourceFile("source.ts", text, ts.ScriptTarget.Latest, true);
   const found: string[] = [];
+  const engineModule = (node: ts.Node): boolean => ts.isStringLiteralLike(node) && (node.text === ENGINE || node.text.startsWith(`${ENGINE}/`));
   const visit = (node: ts.Node): void => {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier) && node.moduleSpecifier.text === ENGINE) {
+    if (ts.isImportDeclaration(node) && engineModule(node.moduleSpecifier)) {
       const clause = node.importClause;
       const names = clause?.namedBindings;
       const erased = clause?.isTypeOnly || (!clause?.name && names && ts.isNamedImports(names) && names.elements.every((name) => name.isTypeOnly));
       if (!erased) found.push(node.getText(source));
     }
-    if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier) && node.moduleSpecifier.text === ENGINE) {
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier && engineModule(node.moduleSpecifier)) {
       const names = node.exportClause;
       const erased = node.isTypeOnly || (names && ts.isNamedExports(names) && names.elements.every((name) => name.isTypeOnly));
       if (!erased) found.push(node.getText(source));
     }
-    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments.some((arg) => ts.isStringLiteralLike(arg) && arg.text === ENGINE)) found.push(node.getText(source));
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments.some(engineModule)) found.push(node.getText(source));
+    if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference) && node.moduleReference.expression && engineModule(node.moduleReference.expression)) found.push(node.getText(source));
     ts.forEachChild(node, visit);
   };
   visit(source);
@@ -123,5 +125,16 @@ describe("nothing in the plugin bundle reaches the engine for a runtime value", 
       valueImportsOfEngine(`import {\n  type A,\n  type B,\n} from "${ENGINE}";`),
     ).toHaveLength(0);
     expect(valueImportsOfEngine(`import { FEAT } from "./core-api.js";`)).toHaveLength(0);
+  });
+
+  it.each([
+    `require("${ENGINE}");`, `import core = require("${ENGINE}");`,
+    `require("${ENGINE}/engine.js");`, `import core = require("${ENGINE}/engine.js");`,
+  ])("counts the restored CommonJS import: %s", (text) => {
+    expect(valueImportsOfEngine(text)).toHaveLength(1);
+  });
+
+  it("allows an erased CommonJS import", () => {
+    expect(valueImportsOfEngine(`import type core = require("${ENGINE}");`)).toHaveLength(0);
   });
 });

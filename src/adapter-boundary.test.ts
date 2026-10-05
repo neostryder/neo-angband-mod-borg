@@ -58,6 +58,21 @@ function member(node: ts.Node): string | undefined {
   return undefined;
 }
 
+function isEngineModule(node: ts.Node): boolean {
+  return ts.isStringLiteralLike(node) && (node.text === ENGINE || node.text.startsWith(`${ENGINE}/`));
+}
+
+function context(node: ts.Expression): boolean {
+  const base = unwrap(node);
+  return ts.isIdentifier(base) ? base.text === "ctx" : member(base) === "ctx";
+}
+
+function castContext(node: ts.Expression): boolean {
+  if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)) return context(node);
+  if (ts.isParenthesizedExpression(node) || ts.isNonNullExpression(node)) return castContext(node.expression);
+  return false;
+}
+
 function violations(text: string, mayNameHostTypes = false, api2 = false, title = false): string[] {
   const source = ts.createSourceFile("source.ts", text, ts.ScriptTarget.Latest, true);
   const found = new Set<string>();
@@ -70,25 +85,30 @@ function violations(text: string, mayNameHostTypes = false, api2 = false, title 
     if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
       const base = unwrap(node.expression);
       const name = member(node);
-      if (ts.isIdentifier(base) && base.text === "ctx" && name && HOST_MEMBERS.has(name) && !(title && TITLE_MEMBERS.has(name))) found.add("a plugin-context read");
+      if (context(base) && (castContext(node.expression) || (name && HOST_MEMBERS.has(name))) && !(title && name && TITLE_MEMBERS.has(name) && !castContext(node.expression))) found.add("a plugin-context read");
       if (name === "registries") found.add("a registry read");
+      if (name && /engine$/iu.test(name) && !(name === "engine" && ts.isIdentifier(base) && base.text === "host")) found.add("an engine namespace read");
       if (ts.isIdentifier(base) && /engine$/iu.test(base.text)) found.add("an engine namespace read");
     }
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(unwrap(node.initializer)) && context(node.initializer)) found.add("a plugin-context read");
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isObjectBindingPattern(node.name) && context(node.initializer)) found.add("a plugin-context read");
+    if (ts.isBinaryExpression(node) && ts.isIdentifier(unwrap(node.left)) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && context(node.right)) found.add("a plugin-context read");
     if (ts.isCallExpression(node)) {
       const call = unwrap(node.expression);
       const name = member(call);
       if (name && ["randomValue", "lookupKind", "findEgo", "findArtifact"].includes(name)) found.add("an engine record method");
       if ((ts.isPropertyAccessExpression(call) || ts.isElementAccessExpression(call)) && name === "feature" && member(unwrap(call.expression)) === "chunk") found.add("a live level read");
       if (ts.isIdentifier(call) && call.text === "bindCore") found.add("binding the engine");
-      if (call.kind === ts.SyntaxKind.ImportKeyword && node.arguments.some((arg) => ts.isStringLiteralLike(arg) && arg.text === ENGINE)) found.add("a runtime engine import");
+      if ((call.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(call) && call.text === "require")) && node.arguments.some(isEngineModule)) found.add("a runtime engine import");
     }
-    if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier) && node.moduleSpecifier.text === ENGINE) {
+    if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference) && node.moduleReference.expression && isEngineModule(node.moduleReference.expression)) found.add("a runtime engine import");
+    if (ts.isImportDeclaration(node) && isEngineModule(node.moduleSpecifier)) {
       const clause = node.importClause;
       const names = clause?.namedBindings;
       const erased = clause?.isTypeOnly || (!clause?.name && names && ts.isNamedImports(names) && names.elements.every((name) => name.isTypeOnly));
       if (!erased) found.add("a runtime engine import");
     }
-    if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier) && node.moduleSpecifier.text === ENGINE) {
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier && isEngineModule(node.moduleSpecifier)) {
       const names = node.exportClause;
       const erased = node.isTypeOnly || (names && ts.isNamedExports(names) && names.elements.every((name) => name.isTypeOnly));
       if (!erased) found.add("a runtime engine import");
@@ -104,7 +124,7 @@ describe("only the adapter reads the host", () => {
 
   it("scans the port and the entry files", () => {
     expect(files.length).toBeGreaterThan(50);
-    expect(files.map((f) => f.rel)).toEqual(expect.arrayContaining(["plugin.ts", "src/core-api.ts"]));
+    expect(files.map((f) => f.rel)).toEqual(expect.arrayContaining(["plugin.ts", "title.ts", "src/core-api.ts"]));
   });
 
   it("finds no host read outside the adapter", () => {
@@ -138,6 +158,13 @@ describe("only the adapter reads the host", () => {
     `export { FEAT } from "${ENGINE}";`, `export * from "${ENGINE}";`,
     `import("${ENGINE}");`, `import "${ENGINE}";`,
     "gameEngine.FEAT", "engine.FEAT", "otherengine.FEAT", "(gameEngine as any) . FEAT", "const { FEAT } = gameEngine;",
+    "const x = ctx; x.core;", "let y = ctx;", "let x; x = ctx; x.state;",
+    "const { core } = ctx;", "const { state } = ctx;",
+    "this.ctx.core;", "obj.ctx.state;",
+    "(ctx as any).anythingElse;", "(ctx satisfies Host).anythingElse;",
+    "host.gameEngine.FEAT;", "obj.engine.FEAT;",
+    `require("${ENGINE}");`, `import core = require("${ENGINE}");`,
+    `require("${ENGINE}/engine.js");`, `import core = require("${ENGINE}/engine.js");`,
   ])("rejects the restored violation: %s", (text) => {
     expect(violations(text).length).toBeGreaterThan(0);
   });
@@ -148,6 +175,7 @@ describe("only the adapter reads the host", () => {
 
   it("allows erased imports and the Borg's delegated engine group", () => {
     expect(violations(`import type { ItemView } from "${ENGINE}"; export { type ItemView } from "${ENGINE}"; host.engine.noscore();`)).toEqual([]);
+    expect(violations(`import type core = require("${ENGINE}");`)).toEqual([]);
     expect(violations('const url = "https://example.com/ctx.core"; // ctx.core')).toEqual([]);
   });
 });
