@@ -147,6 +147,7 @@ function completeMonster(
     questGuardian: m.questGuardian ?? false,
     finalGuardian: m.finalGuardian ?? false,
     spellFlags: m.spellFlags ?? [],
+    knownSpellFlags: m.knownSpellFlags ?? [],
     ...(m.raceId !== undefined ? { raceId: m.raceId } : {}),
   };
 }

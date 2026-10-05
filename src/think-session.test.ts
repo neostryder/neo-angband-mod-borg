@@ -28,6 +28,7 @@ function item(over: Partial<ItemView> = {}): ItemView {
   return {
     handle: 11,
     kindKey: "",
+    aware: true,
     nameColor: "",
     label: "test item",
     tval: TV.SOFT_ARMOR,

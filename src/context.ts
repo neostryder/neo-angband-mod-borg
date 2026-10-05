@@ -5,7 +5,7 @@
  * same way the C borg's file-scope globals did, without actual globals.
  */
 
-import type { Rng } from "@rpgm-tools/neo-angband-core";
+import type { Rng } from "./rng.js";
 import type { BorgActions, BorgView } from "./core-api.js";
 import type { BorgWorld } from "./world/model.js";
 
