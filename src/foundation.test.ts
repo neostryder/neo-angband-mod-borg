@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { Rng as CoreRng } from "@rpgm-tools/neo-angband-core";
 import { createBorg } from "./controller.js";
 import { perceive, makePerceiveMemo } from "./perceive.js";
 import { BorgWorld } from "./world/model.js";
@@ -128,6 +129,30 @@ describe("controller cycle", () => {
 });
 
 describe("borg RNG isolation + reproducibility", () => {
+  it.each([0, 1, BORG_LOCAL_SEED, 0xffffffff])("matches Core's quick stream for seed %s", (seed) => {
+    const local = makeBorgRng(seed);
+    const core = new CoreRng(seed, { quick: true });
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < 200; i++) {
+        for (const bound of [-1, 0, 1, 2, 10, 100, 0x08000001, 0x10000000]) {
+          expect(local.randint0(bound)).toBe(core.randint0(bound));
+        }
+        expect(local.randint1(100)).toBe(core.randint1(100));
+        expect(local.randSpread(20, 7)).toBe(core.randSpread(20, 7));
+      }
+      reseedBorgRng(local, seed);
+      core.reseed(seed);
+    }
+    expect(() => local.randint0(0x10000001)).toThrow(RangeError);
+  });
+
+  it("leaves the game's random stream unchanged", () => {
+    const game = new CoreRng(123);
+    const before = game.getState();
+    const local = makeBorgRng();
+    for (let i = 0; i < 1000; i++) local.randint0(100);
+    expect(game.getState()).toEqual(before);
+  });
   it("is quick-mode and reproducible from the fixed local seed", () => {
     const a = makeBorgRng();
     const b = makeBorgRng();

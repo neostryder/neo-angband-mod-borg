@@ -43,6 +43,7 @@ function item(p: Partial<ItemView>): ItemView {
   return {
     handle: p.handle ?? 1,
     kindKey: p.kindKey ?? "",
+    aware: p.aware ?? true,
     nameColor: p.nameColor ?? "",
     label: p.label ?? "item",
     tval: p.tval ?? 0,

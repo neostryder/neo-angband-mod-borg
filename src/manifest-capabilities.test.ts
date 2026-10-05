@@ -34,6 +34,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { validateManifest } from "@rpgm-tools/neo-angband-mod-sdk";
 import { AGENT_STATE_DOMAINS } from "@rpgm-tools/neo-angband-core";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -91,7 +92,7 @@ interface Manifest {
 }
 
 function manifest(): Manifest {
-  return JSON.parse(readFileSync(join(repoRoot, "manifest.json"), "utf8")) as Manifest;
+  return validateManifest(JSON.parse(readFileSync(join(repoRoot, "manifest.json"), "utf8"))) as Manifest;
 }
 
 /** Every shipped .ts in the port, plus the plugin entry point. */

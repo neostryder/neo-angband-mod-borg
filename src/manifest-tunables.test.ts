@@ -21,6 +21,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { validateManifest } from "@rpgm-tools/neo-angband-mod-sdk";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +42,7 @@ interface Manifest {
 }
 
 function manifest(): Manifest {
-  return JSON.parse(readFileSync(join(repoRoot, "manifest.json"), "utf8")) as Manifest;
+  return validateManifest(JSON.parse(readFileSync(join(repoRoot, "manifest.json"), "utf8"))) as Manifest;
 }
 
 /**

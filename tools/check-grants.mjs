@@ -6,8 +6,9 @@
  */
 
 import { readFileSync } from "node:fs";
+import { validateManifest } from "@rpgm-tools/neo-angband-mod-sdk";
 
-const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
+const manifest = validateManifest(JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8")));
 const refused = (manifest.capabilities ?? []).filter((grant) => /^state:[^.]*\*/.test(grant) || grant === "state:map-actual.read");
 if (refused.length > 0) {
   console.error(`manifest.json must name each state domain it reads and must not read the real map. Remove these grants: ${refused.join(", ")}`);

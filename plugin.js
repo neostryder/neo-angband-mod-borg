@@ -1,4 +1,4 @@
-// neo-angband-mod-borg - generated from plugin.ts by neo-angband-mod-build
+// overhaul-api2 - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // title.ts
@@ -116,11 +116,41 @@ function registerBorgTitle(ctx, memory) {
 // src/activate.ts
 var NOSCORE_BORG = 32;
 
+// src/rng.ts
+var Rng = class {
+  value;
+  constructor(seed) {
+    this.value = seed >>> 0;
+  }
+  reseed(seed) {
+    this.value = seed >>> 0;
+  }
+  randint0(m) {
+    if (m > 268435456) throw new RangeError(`Rand_div: m must be <= 0x10000000, got ${m}`);
+    if (m <= 1) return 0;
+    const n = Math.trunc(268435456 / m);
+    for (; ; ) {
+      this.value = Math.imul(this.value, 1103515245) + 12345 >>> 0;
+      const r = Math.trunc((this.value >>> 4 & 268435455) / n);
+      if (r < m) return r;
+    }
+  }
+  randint1(m) {
+    return this.randint0(m) + 1;
+  }
+  randSpread(a, d) {
+    return a + this.randint0(1 + d + d) - d;
+  }
+};
+var BORG_LOCAL_SEED = 12648430;
+function makeBorgRng(seed = BORG_LOCAL_SEED) {
+  return new Rng(seed >>> 0);
+}
+
 // src/core-api.ts
 var FEAT;
 var TV;
 var RSF;
-var Rng;
 var MON_RACE_FLAG_ENTRIES;
 var MON_SPELL_ENTRIES;
 var REST_COMPLETE;
@@ -129,7 +159,6 @@ function bindCore(core) {
   FEAT = core.FEAT;
   TV = core.TV;
   RSF = core.RSF;
-  Rng = core.Rng;
   MON_RACE_FLAG_ENTRIES = core.MON_RACE_FLAG_ENTRIES;
   MON_SPELL_ENTRIES = core.MON_SPELL_ENTRIES;
   REST_COMPLETE = core.REST_COMPLETE;
@@ -769,12 +798,6 @@ var BorgWorld = class {
     this.detect.wipe();
   }
 };
-
-// src/rng.ts
-var BORG_LOCAL_SEED = 12648430;
-function makeBorgRng(seed = BORG_LOCAL_SEED) {
-  return new Rng(seed >>> 0, { quick: true });
-}
 
 // src/trait/trait-index.ts
 var BI_MAX = 265 /* MAX */;
@@ -6821,6 +6844,7 @@ function emptyItem() {
     _empty = {
       handle: 0,
       kindKey: "",
+      aware: false,
       nameColor: "",
       label: "",
       tval: 0,

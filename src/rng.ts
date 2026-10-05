@@ -26,7 +26,37 @@
  * borg_rand_local is a process-lifetime global, re-drawn on the next start-up.
  */
 
-import { Rng } from "./core-api.js";
+/** The private stream keeps simulation rolls out of the game's generator. */
+export class Rng {
+  private value: number;
+
+  constructor(seed: number) {
+    this.value = seed >>> 0;
+  }
+
+  reseed(seed: number): void {
+    this.value = seed >>> 0;
+  }
+
+  randint0(m: number): number {
+    if (m > 0x10000000) throw new RangeError(`Rand_div: m must be <= 0x10000000, got ${m}`);
+    if (m <= 1) return 0;
+    const n = Math.trunc(0x10000000 / m);
+    for (;;) {
+      this.value = (Math.imul(this.value, 1103515245) + 12345) >>> 0;
+      const r = Math.trunc(((this.value >>> 4) & 0x0fffffff) / n);
+      if (r < m) return r;
+    }
+  }
+
+  randint1(m: number): number {
+    return this.randint0(m) + 1;
+  }
+
+  randSpread(a: number, d: number): number {
+    return a + this.randint0(1 + d + d) - d;
+  }
+}
 
 /**
  * Borg's default local seed. Upstream draws its start-up value from the
@@ -41,7 +71,7 @@ export const BORG_LOCAL_SEED = 0x00c0ffee;
  * mode the C borg used for its local rolls. Seeded from BORG_LOCAL_SEED.
  */
 export function makeBorgRng(seed: number = BORG_LOCAL_SEED): Rng {
-  return new Rng(seed >>> 0, { quick: true });
+  return new Rng(seed >>> 0);
 }
 
 /**

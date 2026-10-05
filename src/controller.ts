@@ -22,9 +22,9 @@
  * continuously across thinks, exactly as borg_rand_local does (see rng.ts).
  */
 
-import type { AgentController, Rng } from "@rpgm-tools/neo-angband-core";
+import type { AgentController } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "./world/model.js";
-import { makeBorgRng } from "./rng.js";
+import { makeBorgRng, type Rng } from "./rng.js";
 import { perceive, makePerceiveMemo } from "./perceive.js";
 import { buildHitByTable, buildSpellTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";

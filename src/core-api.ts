@@ -58,10 +58,7 @@ import type { CoreObjectLookup, CoreResolverInput, CoreShopLookup } from "./reso
  * engine: live bindings from ctx.core
  * ================================================================== */
 
-/* Both a TYPE and a VALUE, because the Borg uses Rng as both: `new Rng(...)` in
- * rng.ts and `rng: Rng` in a great many signatures. TypeScript keeps the type
- * and value declaration spaces separate, so one name can be both. */
-export type Rng = Core.Rng;
+export { Rng } from "./rng.js";
 
 /** Terrain indices the map model compares CellView.feat with. API 2: content lookup (terrain records or featCode). */
 export let FEAT!: typeof Core.FEAT;
@@ -69,8 +66,6 @@ export let FEAT!: typeof Core.FEAT;
 export let TV!: typeof Core.TV;
 /** Monster spell indices the danger math switches on. API 2: content lookup (monster_spell records). */
 export let RSF!: typeof Core.RSF;
-/** The engine's RNG class, for the Borg's private quick-LCRNG (rng.ts). API 2: none; the mod carries its own copy. */
-export let Rng!: typeof Core.Rng;
 /** RF_* index to name table, for decoding a race's flag set. API 2: content lookup (monster flag names). */
 export let MON_RACE_FLAG_ENTRIES!: typeof Core.MON_RACE_FLAG_ENTRIES;
 /** RSF_* index table, for telling real spell entries from padding. API 2: content lookup (monster_spell records). */
@@ -96,7 +91,6 @@ export function bindCore(core: typeof Core): void {
   FEAT = core.FEAT;
   TV = core.TV;
   RSF = core.RSF;
-  Rng = core.Rng;
   MON_RACE_FLAG_ENTRIES = core.MON_RACE_FLAG_ENTRIES;
   MON_SPELL_ENTRIES = core.MON_SPELL_ENTRIES;
   REST_COMPLETE = core.REST_COMPLETE;

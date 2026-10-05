@@ -1,26 +1,4 @@
-/**
- * No engine value may be read at MODULE TOP LEVEL.
- *
- * core-api.ts hands out FEAT, TV, RSF, Rng and the two flag tables as ESM live
- * bindings that `bindCore` fills from `ctx.core`. Modules evaluate at import
- * time and bindCore runs after, so anything that reads one of those at module
- * scope captures `undefined` - permanently, because a `const` is evaluated once.
- *
- * WHY THIS NEEDS A TEST RATHER THAN CARE. The failure is silent in every way
- * that matters. It does not throw: `undefined` is a fine thing to put in an
- * array. It does not fail a typecheck: the types say the values are there. It
- * does not fail at load: the plugin installs and reports success. It surfaces as
- * the Borg making inexplicable decisions - a `WEAPON_TVALS` of four undefineds
- * simply means "you are not holding a weapon", forever, and the ladder below it
- * behaves consistently and wrongly.
- *
- * Exactly one site had this problem when the port moved, and it was that array.
- *
- * The scan is deliberately crude - brace depth, and a name match - because the
- * alternative is a TypeScript AST walk in a repository whose only compiler use
- * is `tsc --noEmit`. It over-reports rather than under-reports: a false positive
- * is a comment away, a false negative is the bug above.
- */
+/** Engine bindings are undefined before controller installation, so module initializers must defer those reads. */
 
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -30,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const srcRoot = dirname(fileURLToPath(import.meta.url));
 
 /** The live bindings core-api.ts fills. Reading any of these early is the bug. */
-const LATE_BOUND = ["FEAT", "TV", "RSF", "Rng", "MON_RACE_FLAG_ENTRIES", "MON_SPELL_ENTRIES"];
+const LATE_BOUND = ["FEAT", "TV", "RSF", "MON_RACE_FLAG_ENTRIES", "MON_SPELL_ENTRIES"];
 const NAME_RE = new RegExp(`\\b(${LATE_BOUND.join("|")})\\b`, "u");
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
