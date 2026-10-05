@@ -1,16 +1,16 @@
 # Borg API 2 migration
 
-The shipped entry stays on API 1. The schema 2 manifest declares `>=1.0.0 <2.0.0` and keeps all 13 capabilities. `src/core-adapter-api2.ts` is an unwired twin of `createAdapter` and five reads from `borgView`. The twin provides no controller or engine group. Its calls return `Api2Result` promises, so replacing the import also requires the controller wiring in R2.
+The Borg ships on API 1 with all 13 capabilities and the manifest range `>=1.0.0 <2.0.0`. The unused adapter in `src/core-adapter-api2.ts` reads metadata, map bounds and spellbooks. Its view reads return `Api2Result` promises. The remaining exports and controller loop need implementations before an import swap can run the Borg on API 2.
 
-The table counts grouped rows: 1 moved, 16 with an API 2 home but not wired, and 23 Core requests. Seven home rows have implementations in the twin: own flags, log, map bounds, inventory, equipment, stores and spellbooks. One row groups the 28 command builders. Each target setter has its own row.
+The 40 rows contain 1 local move, 9 API 2 homes and 30 Core requests. The twin implements 4 home rows: own flags, logging, map bounds and spellbooks. The 5 pending homes have no twin implementation. The command row groups 28 builders; the target setters each occupy a row.
 
 | Old member | Status | API 2 home or Core request | Notes |
 | --- | --- | --- | --- |
 | `ctx.core.Rng`, `Rng`, `makeBorgRng`, `reseedBorgRng` | Moved | Local `src/rng.ts` | The private quick LCRNG no longer reads the engine class. Its draw and reseed sequences match Core in the foundation tests. |
-| `ctx.flags` / `BorgMeta.flags` | Home | `meta.flags` | The twin exposes own rule flags. The injected Bug Fixes flag has a separate row. |
-| `ctx.log` / `BorgMeta.log` | Home | `meta.log` | The twin delegates diagnostic messages. |
-| `ctx.id` | Home | `meta.id` | The title row uses the id when enabling the Borg in a new profile. |
-| `plugin.api` | Home | Definition `api` range | The entry keeps integer API 1. The schema 2 manifest keeps the API 1 range. |
+| `ctx.flags` / `BorgMeta.flags` | Home (twin) | `meta.flags` | These flags belong to the Borg. The Bug Fixes flag appears separately under R12. |
+| `ctx.log` / `BorgMeta.log` | Home (twin) | `meta.log` | Diagnostic lines go to the host log. |
+| `ctx.id` | Home (pending) | `meta.id` | New-profile setup uses this id to enable the Borg. |
+| `plugin.api` | Home (pending) | Definition `api` range | The shipped entry uses the API 1 integer; the manifest uses its range. |
 | `plugin.register(_host, ctx)` | Request | Core request R3 | The registry host argument is unused. Registration adds only the title row. `start(mod)` cannot register that row. |
 | `plugin.controller(ctx)`, `hostController(decide)` | Request | Core request R2 | API 2 can manage an existing controller through `act.controller`, but cannot install one or call its decision loop. |
 | `ctx.core`, `bindCore`, `coreIsBound`, `engine.bind`, `engine.missing` | Request | Core request R4 | The versioned P-tier engine domain is absent. API 1 still binds the live namespace and checks required context fields. |
@@ -20,32 +20,32 @@ The table counts grouped rows: 1 moved, 16 with an API 2 home but not wired, and
 | `ctx.state.actor.player.noscore`, `engine.noscore()` | Request | Core request R2 | This view field determines whether Ctrl-Z has permanently marked the character for autoplay. |
 | `ctx.controllerArmed`, `engine.controllerArmed` | Request | Core request R2 | This declaration records consent from the New Borg character row. Current ownership does not establish that consent. |
 | `borgView().player()` | Request | Core request R6 | The read is mixed view/truth: vitals and timers are known along with position. Speed, to-hit and AC use live worn-rune derives. |
-| `borgView().mapBounds()` | Home | `view.level()` width/height | The twin returns the same dimensions inside an asynchronous result. |
-| `borgView().inventory()` | Home | `view.world().inventory` | The twin copies known items into the existing mutable item shape. |
-| `borgView().equipment()` | Home | `view.world().equipment` | The twin keeps equipment slots and null entries. |
-| `borgView().messages()` | Home | `events.on("message", ...)` | A future controller loop buffers event text and drains it once per decision. This export remains absent from the twin until lifecycle wiring exists. |
+| `borgView().mapBounds()` | Home (twin) | `view.level()` width/height | The result contains the level dimensions. |
+| `borgView().inventory()` | Request | Core request R9 | Borg decisions need timeout in turns. Known items give a count of charging items, so this export has no twin. |
+| `borgView().equipment()` | Request | Core request R9 | The light code uses timeout as fuel. Known equipment lacks that number. |
+| `borgView().messages()` | Request | Core request R2 | Message events provide text. The missing controller loop needs a subscription and a buffer drained at each decision, plus cleanup on stop. |
 | `borgView().floorItems(x, y)` | Request | Core request R8 | This view read returns the live pile filtered by memory, so removed objects disappear. Remembered cell objects omit item details, and `floorHere` covers only the player grid. |
-| `borgView().stores()` | Home | `view.world().stores` | The twin preserves all live store stock, including prices. R10 records the knowledge policy needed for dungeon reads. |
-| `borgView().spellbooks()` | Home | `view.world().spellbooks` | The twin preserves spell indices, learned state and failure rates. |
+| `borgView().stores()` | Request | Core requests R9, R10 | The known stock includes prices but lacks item timeout. R10 covers stock reads from the dungeon. |
+| `borgView().spellbooks()` | Home (twin) | `view.world().spellbooks` | The copy keeps spell indices and learned state, including failure rates. |
 | `borgView().constants()` | Request | Core request R4 | This content lookup returns bound z_info constants. API 2 exposes no matching field. |
 | `borgView().monsters()` | Request | Core request R7 | This truth read includes only obvious monsters, with exact hit points, speed, statuses and every race flag and spell. |
 | `borgView().cell(x, y)` | Request | Core request R8 | The live terrain fields feat, passable and glow are truth. The known, inView, monster, objectCount and trap fields follow perception. |
 | `borgView().simulateLoadout(change)` | Request | Core request R6 | This truth derive evaluates real objects and includes unlearned runes. |
 | `racesByIndex`, `raceRecord`, `resolverInput().races` | Request | Core request R7 | These truth reads supply race flags, spell ordinals, blow dice, level, sleep, spellPower, frequencies and friends after a monster leaves view. |
 | `ctx.registries.objects`, `artifactActivation`, `egoActivation`, `kindActivation` | Request | Core request R9 | These content lookups resolve kind, ego and artifact activations by known identity and return engine records with effects. |
-| `ctx.registries.monsters.blowMethods`, `resolverInput().blowMethods` | Home | `content.records("blow_methods")` | Message templates are ordinary composed content. The twin does not yet decode this resolver input. |
-| `ctx.registries.monsters.spells`, `resolverInput().monsterSpells` | Home | `content.records("monster_spell")` | Message templates have an API 2 home. Race membership and spell ordinals remain truth under R7. |
+| `ctx.registries.monsters.blowMethods`, `resolverInput().blowMethods` | Home (pending) | `content.records("blow_methods")` | Composed content contains the templates. The resolver decoder remains unwritten. |
+| `ctx.registries.monsters.spells`, `resolverInput().monsterSpells` | Home (pending) | `content.records("monster_spell")` | Content supplies message templates. R7 covers the hidden spell membership of a race and its numeric spell ordinals. |
 | `kindPrice`, `ctx.state.isAware(kind)` | Request | Core request R9 | The content cost affects floor valuation only when the character knows the flavour. The aware bit is a view read. |
 | `shopnumHere`, `ctx.state.actor.grid`, `ctx.state.chunk.feature(grid).shopnum` | Request | Core request R8 | This view field locates the store entrance under the player. |
 | `ctx.title.registerRow`, `ctx.title.choose` | Request | Core request R3 | No API 2 title-row or host-drawn choice/confirmation member exists. |
-| `ctx.profiles.list`, `create`, `setEnabledMods` | Home | `manage.profiles` | The types and host implementation exist, but the loader supplies no first-party allowlist. R1 enables them. |
+| `ctx.profiles.list`, `create`, `setEnabledMods` | Home (pending) | `manage.profiles` | These calls exist in the SDK and host. The Borg needs the management access in R1 before its title code can use them. |
 | `ctx.profiles.switchTo(id, { kind: "create-character", armController: true })` | Request | Core requests R2, R3 | API 2 `switchTo(id)` drops the create-character action and arming declaration. |
 | `ctx.saves` presence check | Request | Core request R3 | The title action requires the save-management grant even though the Borg calls no save methods. |
 | `installMemory`, page `localStorage` | Request | Core request R11 | Profile ids live outside profiles. Per-profile `store.prefs` would copy the list and change its lifetime. |
 | `meta.flags["bugfix.borgFixes"]` | Request | Core request R12 | API 1 injects this flag from Bug Fixes. API 2 exposes only own flags. `meta.mods()` lists only flags the other mod makes public. |
-| `borgActions().move`, `borgActions().melee`, `borgActions().hold`, `borgActions().rest`, `borgActions().descend`, `borgActions().ascend`, `borgActions().tunnel`, `borgActions().open`, `borgActions().close`, `borgActions().disarm`, `borgActions().quaff`, `borgActions().read`, `borgActions().eat`, `borgActions().wear`, `borgActions().takeoff`, `borgActions().drop`, `borgActions().pickup`, `borgActions().aimWand`, `borgActions().zapRod`, `borgActions().useStaff`, `borgActions().activate`, `borgActions().fire`, `borgActions().throw`, `borgActions().cast`, `borgActions().shopBuy`, `borgActions().shopSell`, `borgActions().shopExit`, `borgActions().raw` | Home | `act.submit(token, { kind: "command", command })` | The 28 API 1 builders return commands synchronously. The twin omits this facade until R2 supplies the decision loop. R5 also supplies the named default rest mode. `raw` accepts unknown argument types on API 1, while the Borg currently sends JSON-compatible fields. |
-| `borgActions().setTargetMonster` | Home | `act.submit(token, { kind: "target", midx })` | API 1 mutates the target immediately. R2 must preserve target-before-command ordering and refresh the input token. |
-| `borgActions().setTargetLocation` | Home | `act.submit(token, { kind: "target", x, y })` | API 1 mutates the target immediately. R2 must preserve target-before-command ordering and refresh the input token. |
+| `borgActions().move`, `borgActions().melee`, `borgActions().hold`, `borgActions().rest`, `borgActions().descend`, `borgActions().ascend`, `borgActions().tunnel`, `borgActions().open`, `borgActions().close`, `borgActions().disarm`, `borgActions().quaff`, `borgActions().read`, `borgActions().eat`, `borgActions().wear`, `borgActions().takeoff`, `borgActions().drop`, `borgActions().pickup`, `borgActions().aimWand`, `borgActions().zapRod`, `borgActions().useStaff`, `borgActions().activate`, `borgActions().fire`, `borgActions().throw`, `borgActions().cast`, `borgActions().shopBuy`, `borgActions().shopSell`, `borgActions().shopExit`, `borgActions().raw` | Request | Core requests R2, R5 | All 28 builders remain on API 1. The API 2 command path is `act.submit(token, { kind: "command", command })`; R2 connects it to decisions and R5 adds the default rest mode. |
+| `borgActions().setTargetMonster` | Request | Core request R2 | The proposed loop submits `{ kind: "target", midx }` before the command and obtains a fresh token. This setter remains on API 1. |
+| `borgActions().setTargetLocation` | Request | Core request R2 | Location targeting uses `{ kind: "target", x, y }` before the command, then refreshes the token. The twin has no setter. |
 
 The Borg uses no `hooks`, `hud`, `menu`, `screen`, `birth`, `frontend`, `regions`, registry declarations or registry overrides. Its `register` argument supplies no engine reads. `ctx.title`, `ctx.profiles`, `ctx.saves` and `ctx.id` remain in `title.ts`, whose existing direct-call tests depend on that interface. The boundary scan permits those four title members and forbids the raw runtime reads handled by `src/core-api.ts` everywhere else. The twin forbids any `ctx` identifier.
 
@@ -53,11 +53,11 @@ The Borg uses no `hooks`, `hud`, `menu`, `screen`, `birth`, `frontend`, `regions
 
 ### R1
 
-The folder loader does not run API 2 definitions. R1 requests a call to the existing in-process shim for an admitted API 2 range, plus a build-owned list that grants the Borg access to `truth` and `manage`. API 2 loading applies to public mods too. The list of trusted mods is P-tier only. Both optional domains already have SDK types and host implementations, although the brief describes `manage` as absent.
+Core already loads in-process API 2 definitions with `api2Plugin`. Grant handling controls the optional domains, and the SDK and host implement `manage.profiles`, `manage.session`, `truth.monsters()` and `truth.level()`. Core's Borg list entry names the real-map and profile seams. The Borg manifest has no real-map grant, and Core blocks management in an in-process mod. R1 needs a P-tier path that can run the Borg's existing truth reads and title/profile code under those grant rules.
 
 ### R2
 
-The Borg installs a controller only after Ctrl-Z marks the character or the title row arms it. R2 requests a P-tier `controller` declaration that receives each input wait and returns the Borg decision. Core keeps target changes ahead of the command and supplies a current token. A known view field `{ noscore }` and an `armed` declaration preserve both consent paths. `owns()` and `newCharacter` do not describe that consent. This addition replaces `hostController`, the action wrapper and both autoplay checks. Core draws the Ctrl-Z confirmation.
+The controller starts after Ctrl-Z marks the character or the title row arms it. R2 needs a P-tier `controller` declaration that calls the Borg at each input wait and accepts its decision. Target submissions run before the command, with a fresh token afterward. Message events need a subscription before play and a buffer drained at each decision; stopping the controller ends the subscription. A known `{ noscore }` field and an `armed` declaration keep the two consent paths. Current `owns()` and `newCharacter` fields cannot answer either consent check. Core continues to draw the Ctrl-Z confirmation.
 
 ### R3
 
@@ -85,11 +85,11 @@ Map and floor tracking combine current terrain with player perception. R8 reques
 
 ### R9
 
-The activation resolvers use decoded object records. R9 requests a content lookup by `{ tval, sval }` or known ego/artifact name that returns `{ activation: { name, effect }, cost }`, plus a view field for flavour awareness. Core supplies the decoded effect and lookup types before the twin implements these reads. P-tier engine lookups keep them available in the meantime. A public lookup still gates hidden item identity.
+Activation lookups need decoded records keyed by `{ tval, sval }` or a known ego/artifact name, returning `{ activation: { name, effect }, cost }`. R9 covers that lookup and the item fields still missing from API 2. Known items have `aware` and a count named `charging`. They lack exact `timeout`, which the Borg uses for light thresholds in `item/light.ts` and stacking checks in `store/sell.ts`. A P-tier item read needs to keep timeout for inventory, equipment and store stock, with a rule for using that hidden value. The twin has no exports for these reads. Public content lookups still need to hide unknown item identities.
 
 ### R10
 
-The Borg reads every shop from the dungeon, and API 2 already returns that stock. The upstream Borg keeps only its last visit. R10 requests a P-tier table that states whether current remote stock can guide a decision. Core can instead return visit snapshots if play changes later. This pass keeps the current stock reads.
+The Borg uses `stores()` from the dungeon to read the store index, feature, home marker and owner, plus each stock item's index and price. Those fields exist at `view.world().stores`. R10 needs one row per shop from a P-tier `truth.storeKnowledge()` call: `{ storeIndex, feat, depth, lastVisitTurn, snapshotTurn, stalenessRule, remoteStockUsable }`. The depth names the level where the Borg uses the stock. Current play uses `stalenessRule: "current"` and `remoteStockUsable: true`; the snapshot turn matches the world turn. Returning only last-visit stock would change play. The current stock reads remain in place.
 
 ### R11
 
@@ -119,10 +119,10 @@ The runtime read of `ctx.core.Rng` and the Core RNG type dependency in the decis
 
 No manifest grant can be removed without changing play. `command:add` gates controller installation and every API 1 action, despite its name. The nine state grants cover player, monsters, map, inventory/equipment, floor items, messages, stores, spells and constants. The remaining three grants cover the title row, profiles and the save permission required to start a character. The required core content dependency and the development Core/SDK dependencies remain. No new grant or package dependency is added.
 
-Engine vocabularies and constants wait on R4, rest mode on R5, live derives on R6, monster/race truth on R7, map/floor/shop fields on R8, and decoded object records on R9. Controller arming and noscore wait on R2, title/profile actions on R3, first-party domains on R1, install storage on R11, and the cross-mod flag on R12. R10 records the remote-store knowledge decision. The API 1 adapter keeps all of these reads.
+The API 1 adapter still supplies the code tables and constants covered by R4, rest mode by R5, loadout derives by R6, monster/race facts by R7, map/floor/shop fields by R8, and object records and item timeout by R9. The remaining work connects the Borg's domains in R1 and controller in R2, adds title/profile actions in R3 and install storage in R11, and supplies the shared flag in R12. R10 covers the rule for remote store stock.
 
 ## Validation scope
 
-The twin tests compare metadata and all five implemented reads with the API 1 adapter on the same facts. The cases include unavailable and refused results, denied grants, missing world parts, empty lists, null equipment slots and copied item arrays. The boundary tests parse TypeScript. They reject assertions and casts around context reads, spacing and bracket access, exports from Core and imports of Core. The scan also rejects identifiers ending in engine and handles URLs inside strings.
+The twin tests compare metadata, map bounds and spellbooks with API 1. Each adapter receives separate flag and spellbook objects with equal contents, and both map reads use the same level dimensions. Result tests cover failures, missing spellbooks and empty lists. Editing copied spells leaves the source unchanged. The TypeScript boundary scan catches context aliases, destructuring and member-held contexts. A cast cannot hide a read of an unlisted member. Spacing and bracket access still count, as do Core exports, CommonJS imports and package subpaths. Engine-suffixed members count except for the Borg's delegated `host.engine` group. Comments and strings contain no reads.
 
 The repository's plugin tests drive the committed bundle, exercise marked and armed characters, and check that an unmarked character declines before binding the engine. The foundation tests cover deterministic decision and RNG behavior. These tests do not establish a complete game-on/game-off replay comparison or rendered Electron parity.

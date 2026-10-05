@@ -26,6 +26,18 @@ describe("the two version sites", () => {
     expect(read("./package.json")).toBe(read("./manifest.json"));
   });
 
+  it("normalizes schema 2 fields for manifest consumers", () => {
+    const document = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8"));
+    expect(document.schemaVersion).toBe(2);
+    const normalized = validateManifest(document);
+    expect(normalized.version).toBe(document.data.version);
+    expect(normalized.version).toBe("1.3.0");
+    expect(normalized.capabilities).toEqual(document.data.capabilities);
+    expect(normalized.capabilities).toHaveLength(13);
+    expect(normalized.rules).toEqual(document.data.rules);
+    expect(normalized.rules!.length).toBeGreaterThan(0);
+  });
+
   it("are the version the changelog's newest released section names", () => {
     const changelog = readFileSync(new URL("./CHANGELOG.md", import.meta.url), "utf8");
     const newest = /^## (\d+\.\d+\.\d+) - /mu.exec(changelog);
