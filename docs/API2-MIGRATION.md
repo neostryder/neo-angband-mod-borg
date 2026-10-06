@@ -69,11 +69,11 @@ Numeric terrain, item and spell codes still come from the bound engine. R4 reque
 
 ### R5
 
-The recovery ladder uses the rest-as-needed sentinel and the command builder supplies it by default. R5 requests the public act argument `{ mode: "complete" }` in place of that number. Core interprets the named mode, so the Borg can remove `REST_COMPLETE` without importing a constant.
+The recovery ladder relies on the rest-as-needed sentinel, which the command builder supplies by default. R5 asks for the public act argument `{ mode: "complete" }` to take that number's place. Core would interpret the named mode itself, so the Borg can drop `REST_COMPLETE` and has no constant to import.
 
 ### R6
 
-Gear scoring evaluates worn objects and hypothetical loadouts through the live player derive. R6 requests a P-tier derive policy `engine.deriveLoadout({ wear, takeoff }, { knowledge: "actual" })` that returns the existing player fields together with inventory and equipment. A known policy can use only learned runes. The actual policy keeps current play while the knowledge audit traces those values to decisions. The current unlearned rune effects are truth and have no player-known source.
+Gear scoring runs worn objects and hypothetical loadouts through the live player derive. R6 asks for a P-tier derive policy, `engine.deriveLoadout({ wear, takeoff }, { knowledge: "actual" })`, that returns the existing player fields along with inventory and equipment. Under a known policy, only learned runes count. The actual policy keeps play as it is today while the knowledge audit traces those values to decisions. Right now the effects of unlearned runes come from truth, and there is no player-known source for them.
 
 ### R7
 
@@ -93,11 +93,11 @@ The Borg uses `stores()` from the dungeon to read the store index, feature, home
 
 ### R11
 
-The Borg profile list lives outside profiles so that profile switches and copies do not change it. R11 requests a P-tier JSON slot such as `store.install` with that lifetime. A later public slot can isolate install data by mod. The existing per-profile `store.prefs` does not supply this storage.
+The Borg keeps its profile list outside the profiles, so switching or copying a profile leaves the list alone. R11 asks for a P-tier JSON slot with that lifetime, such as `store.install`. A public slot could come later and keep each mod's install data separate. The per-profile `store.prefs` that exists today can't hold this.
 
 ### R12
 
-Bug Fixes supplies the resolved `bugfix.borgFixes` flag used by the buff-timer safety net. R12 requests that flag through `meta.mods()` or the existing P-tier metadata injection. `meta.mods()` already exists, but it lists only flags another mod publishes. A public shared flag or P-tier injection keeps the absent-flag default true.
+The buff-timer safety net relies on the resolved `bugfix.borgFixes` flag, which Bug Fixes supplies. R12 asks for that flag through `meta.mods()` or the existing P-tier metadata injection. `meta.mods()` is already there, though it only lists flags that another mod publishes. With either a public shared flag or P-tier injection, the flag still defaults to true when it is absent.
 
 ## Knowledge and action audit
 
@@ -115,14 +115,14 @@ Floor objects come from known twins, but the live-pile filter drops objects that
 
 ## Removal list
 
-The runtime read of `ctx.core.Rng` and the Core RNG type dependency in the decision context and controller are removed. `src/rng.ts` carries only the quick LCRNG operations the Borg calls. The foundation tests compare its stream with Core across seeds, rejection-prone bounds, mixed calls and reseeding, and check that a separate game generator stays unchanged.
+The decision context and controller no longer read `ctx.core.Rng` at runtime, and they no longer depend on the Core RNG type. `src/rng.ts` holds just the quick LCRNG operations the Borg calls. The foundation tests compare its stream with Core's across seeds, bounds prone to rejection, mixed calls and reseeding, and they check that a separate game generator is left unchanged.
 
-No manifest grant can be removed without changing play. `command:add` gates controller installation and every API 1 action, despite its name. The nine state grants cover player, monsters, map, inventory/equipment, floor items, messages, stores, spells and constants. The remaining three grants cover the title row, profiles and the save permission required to start a character. The required core content dependency and the development Core/SDK dependencies remain. No new grant or package dependency is added.
+Every manifest grant is still needed, since removing any of them would change play. Despite its name, `command:add` gates installing the controller and every API 1 action. Nine state grants cover the player, monsters, map, inventory/equipment, floor items, messages, stores, spells and constants. The other three cover the title row, profiles, and the save permission a character needs before it can start. The required core content dependency stays, as do the development Core/SDK dependencies, and no grant or package dependency is added.
 
-The API 1 adapter still supplies the code tables and constants covered by R4, rest mode by R5, loadout derives by R6, monster/race facts by R7, map/floor/shop fields by R8, and object records and item timeout by R9. The remaining work connects the Borg's domains in R1 and controller in R2, adds title/profile actions in R3 and install storage in R11, and supplies the shared flag in R12. R10 covers the rule for remote store stock.
+The API 1 adapter still supplies the pieces covered by R4 to R9. R4 is for the code tables and constants, R5 for rest mode, R6 for loadout derives, R7 for monster/race facts, R8 for map/floor/shop fields, and R9 for object records and item timeout. What's left is connecting the Borg's domains (R1) and its controller (R2), adding title/profile actions (R3) and install storage (R11), and supplying the shared flag (R12). R10 covers the rule for remote store stock.
 
 ## Validation scope
 
-The twin tests compare metadata, map bounds and spellbooks with API 1. Each adapter receives separate flag and spellbook objects with equal contents, and both map reads use the same level dimensions. Result tests cover failures, missing spellbooks and empty lists. Editing copied spells leaves the source unchanged. The TypeScript boundary scan catches context aliases, destructuring and member-held contexts. A cast cannot hide a read of an unlisted member. Spacing and bracket access still count, as do Core exports, CommonJS imports and package subpaths. Engine-suffixed members count except for the Borg's delegated `host.engine` group. Comments and strings contain no reads.
+The twin tests check metadata, map bounds and spellbooks against API 1. Each adapter gets its own flag and spellbook objects with the same contents, and both map reads see the same level dimensions. Result tests cover failures, missing spellbooks and empty lists, and editing a copied spell leaves the source as it was. The TypeScript boundary scan finds context aliases, destructuring and contexts held in members, and a cast won't hide a read of a member that isn't listed. Reads still count when they use spacing or bracket access, and so do Core exports, CommonJS imports and package subpaths. Members with an engine suffix count too, except for the Borg's delegated `host.engine` group. Text inside comments and strings never counts as a read.
 
-The repository's plugin tests drive the committed bundle, exercise marked and armed characters, and check that an unmarked character declines before binding the engine. The foundation tests cover deterministic decision and RNG behavior. These tests do not establish a complete game-on/game-off replay comparison or rendered Electron parity.
+The repository's plugin tests drive the committed bundle with marked and armed characters, and they check that an unmarked character declines before the engine is bound. Deterministic decision and RNG behavior is covered by the foundation tests. None of these tests amounts to a complete game-on/game-off replay comparison, and they don't show rendered Electron parity.
