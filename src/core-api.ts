@@ -48,6 +48,7 @@ import type {
   AgentCommand,
   AgentController,
   AgentView,
+  CellView,
   ModPluginContext,
   MonsterRace,
 } from "@rpgm-tools/neo-angband-core";
@@ -391,6 +392,23 @@ export type BorgTruthReads = Pick<AgentView, "monsters" | "cell" | "simulateLoad
  */
 export type BorgView = BorgKnownReads & BorgTruthReads;
 
+/** The host's cell, with the remembered-terrain fields a newer core adds. */
+type HostCell = CellView & { knownFeat?: number; knownPassable?: boolean };
+
+/** Wraps a host cell so that it reports the terrain the player remembers instead of the live terrain. When the host supplies knownFeat, the returned cell takes feat and passable from the remembered terrain (an unknown square reads feat 0 and not passable), and glow counts only while the square is in view. When the host supplies no knownFeat, as on a core that predates the field, the live cell passes through unchanged. */
+function rememberedCell(cell: CellView | null): CellView | null {
+  if (!cell) return cell;
+  const host = cell as HostCell;
+  if (host.knownFeat === undefined) return cell;
+  const known = host.knownFeat >= 0;
+  return {
+    ...cell,
+    feat: known ? host.knownFeat : 0,
+    passable: known && host.knownPassable === true,
+    glow: cell.inView && cell.glow,
+  };
+}
+
 /** Wrap the host's AgentView, one delegating accessor per read the Borg makes. */
 export function borgView(host: AgentView): BorgView {
   const view: BorgView = {
@@ -425,7 +443,7 @@ export function borgView(host: AgentView): BorgView {
     // secret door reads as FEAT_SECRET where the player sees granite, and a door that changed out of
     // sight shows its new state. glow is live too. known, inView, monster, objectCount and trap follow
     // what the player sees. API 2: truth.level().
-    cell: (x, y) => host.cell(x, y),
+    cell: (x, y) => rememberedCell(host.cell(x, y)),
   };
   const simulate = host.simulateLoadout;
   if (simulate) {

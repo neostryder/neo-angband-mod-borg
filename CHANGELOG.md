@@ -24,6 +24,10 @@ were not retagged.
 
 - [Internal] [Security] **A CI step reads manifest.json and fails the build if it lists `state:*.read` or `state:map-actual.read`.** The borg names each state domain it reads one by one, and it has no use for the real map.
 
+### Fixed
+
+- [Visible] **The Borg now reads the terrain the player remembers instead of the live terrain (neostryder/neo-angband#415).** Before this fix, its map ingest recorded an undiscovered secret door as a secret door, its necromancer darkness check counted glowing floor it could not see, and its corner scan read live passability on known squares. The fix needs a core release that carries the CellView knownFeat and knownPassable fields. On older cores the Borg keeps the old behavior and reads the live cell.
+
 ## 1.3.0 - 2026-10-01
 
 ### Added

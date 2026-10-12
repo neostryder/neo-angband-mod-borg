@@ -17,6 +17,7 @@ import { getFightState } from "./fight/index.js";
 import { borgFollowMissingKills, createFlowState } from "./flow/index.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { makeBorgRng } from "./rng.js";
+import { borgView } from "./core-api.js";
 import type { BorgContext } from "./context.js";
 
 /** Build a primed context (perceive + notice run) for a scenario. */
@@ -274,6 +275,58 @@ describe("fog-of-war invariant", () => {
     );
     // The unknown far corner was skipped -> still feat 0 (unseen).
     expect(world.map.at(1, 1).feat).toBe(0);
+  });
+});
+
+describe("remembered terrain (#415)", () => {
+  const remembered = (cells: Record<string, Record<string, unknown>>) =>
+    borgView(
+      makeScenarioView({
+        width: 10,
+        height: 10,
+        player: { grid: { x: 5, y: 5 } },
+        cells,
+      }),
+    );
+
+  it("records the remembered terrain, not a live secret door", () => {
+    const world = new BorgWorld();
+    perceive(
+      world,
+      remembered({
+        "2,2": { known: true, inView: false, feat: FEAT.SECRET, knownFeat: FEAT.GRANITE, knownPassable: false },
+      }),
+      makePerceiveMemo(),
+    );
+    expect(world.map.at(2, 2).feat).toBe(FEAT.GRANITE);
+  });
+
+  it("reads a door that changed out of sight as the player last saw it", () => {
+    const view = remembered({
+      "2,2": { known: true, inView: false, feat: FEAT.FLOOR, passable: true, knownFeat: FEAT.GRANITE, knownPassable: false },
+    });
+    expect(view.cell(2, 2)).toMatchObject({ feat: FEAT.GRANITE, passable: false });
+  });
+
+  it("treats an unremembered square as unknown whatever the live terrain is", () => {
+    const view = remembered({
+      "2,2": { known: false, inView: false, feat: FEAT.FLOOR, passable: true, knownFeat: -1, knownPassable: false },
+    });
+    expect(view.cell(2, 2)).toMatchObject({ feat: 0, passable: false });
+  });
+
+  it("counts a square as glowing only while the player sees it", () => {
+    const view = remembered({
+      "2,2": { known: true, inView: false, glow: true, knownFeat: FEAT.FLOOR, knownPassable: true },
+      "3,2": { known: true, inView: true, glow: true, knownFeat: FEAT.FLOOR, knownPassable: true },
+    });
+    expect(view.cell(2, 2)?.glow).toBe(false);
+    expect(view.cell(3, 2)?.glow).toBe(true);
+  });
+
+  it("falls back to the live cell when the host reports no remembered terrain", () => {
+    const view = remembered({ "2,2": { known: true, feat: FEAT.GRANITE, passable: false } });
+    expect(view.cell(2, 2)).toMatchObject({ feat: FEAT.GRANITE, passable: false });
   });
 });
 

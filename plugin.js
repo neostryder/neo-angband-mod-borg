@@ -238,6 +238,18 @@ function kindPrice(objects, state, tval, sval) {
 function shopnumHere(state) {
   return state.chunk.feature(state.actor.grid).shopnum;
 }
+function rememberedCell(cell) {
+  if (!cell) return cell;
+  const host = cell;
+  if (host.knownFeat === void 0) return cell;
+  const known = host.knownFeat >= 0;
+  return {
+    ...cell,
+    feat: known ? host.knownFeat : 0,
+    passable: known && host.knownPassable === true,
+    glow: cell.inView && cell.glow
+  };
+}
 function borgView(host) {
   const view = {
     // view: vitals, stats, status, depth and grid. API 2: view.player(). Speed, to-hit and AC here come
@@ -271,7 +283,7 @@ function borgView(host) {
     // secret door reads as FEAT_SECRET where the player sees granite, and a door that changed out of
     // sight shows its new state. glow is live too. known, inView, monster, objectCount and trap follow
     // what the player sees. API 2: truth.level().
-    cell: (x, y) => host.cell(x, y)
+    cell: (x, y) => rememberedCell(host.cell(x, y))
   };
   const simulate = host.simulateLoadout;
   if (simulate) {
