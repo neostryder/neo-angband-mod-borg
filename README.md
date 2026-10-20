@@ -15,9 +15,100 @@ The title screen also has a **New Borg character** row (key B) when you allow th
 
 ## What it is
 
+```mermaid
+sequenceDiagram
+  actor Player
+  participant Game as Neo Angband host
+  participant TitleScreen as title.ts
+  participant Plugin as plugin.ts
+  participant Borg as Borg controller
+  Note over Player,Plugin: Enabling the mod alone leaves the human in control
+  alt Player presses Ctrl-Z in play
+    Player->>Game: Request Borg control
+    Game-->>Player: Warn and ask for confirmation
+    Player->>Game: Confirm handoff
+    Game->>Game: Mark NOSCORE_BORG and reload
+  else Player selects New Borg character with B
+    Player->>TitleScreen: Choose separate or current profile
+    opt Separate profile
+      TitleScreen-->>Player: Offer fresh, copy or reuse Borg profile
+      Player->>TitleScreen: Choose profile
+      TitleScreen->>Game: Create or select profile
+      Note over TitleScreen,Game: A profile copy leaves its characters behind
+    end
+    TitleScreen->>Game: switchTo with controller armed
+    Game-->>Player: Create character as usual
+  end
+  Game->>Plugin: controller with live context
+  alt NOSCORE_BORG is set or controllerArmed is true
+    Plugin-->>Game: Borg controller
+    alt Another autoplayer holds keyboard
+      Game-->>Player: Refuse handoff and name holder
+    else Keyboard is available
+      Game->>Borg: Request in-game command
+      Borg-->>Game: Command or null
+      opt Character dies while Borg holds keyboard
+        Game->>Game: Roll new character in same session and slot
+      end
+    end
+  else Neither condition holds
+    Plugin-->>Game: undefined
+  end
+```
+
+*Source of truth: `plugin.ts`, `title.ts`, and the README. The host owns the permanent autoplay mark.*
+
+```mermaid
+flowchart TD
+  PLUGIN["plugin.ts<br/>after mods compose"] --> EDGE["core-api.ts<br/>resolverInput"]
+  EDGE --> REG["Live registries<br/>and game state"]
+  REG --> FACTS["resolveMonsterFacts<br/>ridx lookup"]
+  FACTS --> DANGER["Danger facts<br/>blows, spells and race flags"]
+  REG --> ACT["resolveActivation and activateHandle<br/>artifact name, ego name, tval and sval"]
+  ACT --> WORN["Worn activation identity<br/>and charge check"]
+  REG --> SHOP["inShop<br/>shopnumHere minus one"]
+  VIEW["Frozen view<br/>simulateLoadout"] --> POWER["loadoutPower<br/>borgSimulatePower"]
+  DANGER --> RES["makeCoreResolvers"]
+  WORN --> RES
+  SHOP --> RES
+  POWER --> RES
+  RES --> BORG["createBorg"]
+  FLOOR["manifest.json<br/>engine at least 1.21.1"] --> PLUGIN
+```
+
+*Source of truth: `plugin.ts`, `src/core-api.ts`, and `src/resolvers.ts`. The factory also supplies kind cost and attack-message data.*
+
 A faithful port of Angband 4.2.6's `borg/`: the same priority ladder, the same danger model and the same power scoring, following the original's rules instead of a new set of heuristics that only look similar.
 
 ### How well it plays today
+
+```mermaid
+flowchart TD
+  A["controller.ts<br/>Advance clocks and handle new depth"] --> B["borgNotice"]
+  B --> C["perceive"]
+  C --> D["Follow missing kills<br/>update fear and borgPower"]
+  D --> E{"think<br/>Player dead"}
+  E -->|"yes"| Y["Return null<br/>Yield to human"]
+  E -->|"no"| S{"inShop returns<br/>a nonnegative shop number"}
+  S -->|"yes"| SHOP["borgThinkStore"]
+  SHOP --> CMD["Return command or null"]
+  S -->|"no"| G["borgThinkDungeon<br/>First command wins"]
+  G --> H["Clock-wrap hold, pickup<br/>clock overflow and leaving goals"]
+  H --> I["Breeders, leash and light<br/>borgNotice runs again"]
+  I --> J["Caution and bad-shape recovery"]
+  J --> K["Attack, gear and objects<br/>light and recovery"]
+  K --> L["Flee, use, identify<br/>enchant, recharge and junk"]
+  L --> M["Objects, exploration<br/>shops and secret doors"]
+  M --> N["Bravery boost 1<br/>borgThinkDungeonBrave"]
+  N --> P["Phase and other escape attempts"]
+  P --> O["Bravery boosts 2 and 3<br/>borgThinkDungeonBrave"]
+  O --> T["Teleport, recall<br/>dig and twitch"]
+  T --> Y
+  G -.->|"A rung returns a command"| CMD
+  H -.->|"Clock at least 30000"| Y
+```
+
+*Source of truth: `src/controller.ts`, `src/think.ts`, and `src/think-ladder.ts`. Several rungs are still unported, including destroy-valueless, play-magic, and ring swaps.*
 
 The port in `src/` and the mod you install are not quite the same thing. The installed mod depends on `plugin.ts`, which builds the Borg from resolvers the game supplies, and for a long time most of those did not exist.
 
@@ -136,6 +227,30 @@ Only one autoplayer can hold the keyboard at a time. If another agent mod alread
 has it, this one is refused by name rather than silently taking over.
 
 ## Layout
+
+```mermaid
+flowchart TD
+  HOST["Neo Angband<br/>live ctx.core, view and actions"] --> EDGE["src/core-api.ts<br/>single runtime engine edge"]
+  EDGE --> PLUGIN["plugin.ts<br/>controller entry"]
+  PLUGIN --> CONT["src/controller.ts"]
+  EDGE --> VIEW["src/perceive.ts<br/>read-only view"]
+  CONT --> VIEW
+  VIEW --> WORLD["world<br/>grid, panel and kills"]
+  CONT --> THINK["src/think.ts<br/>store or dungeon dispatch"]
+  RNG["src/rng.ts<br/>private seeded generator"] --> CONT
+  WORLD --> THINK
+  THINK --> FLOW["flow<br/>stairs, kill, take, glyph and dark"]
+  THINK --> FIGHT["fight<br/>attack, defend, escape and caution"]
+  THINK --> ITEM["item<br/>wear, use, id and enchant"]
+  THINK --> STORE["store<br/>buy, sell and home"]
+  DANGER["danger"] --> FIGHT
+  TRAIT["trait<br/>notice and power"] --> CONT
+  THINK --> CMD["First winning in-game command"]
+  CMD --> EDGE
+  EDGE --> QUEUE["Engine command queue"]
+```
+
+*Source of truth: `src/core-api.ts`, `src/controller.ts`, and `src/think.ts`. The Borg draws from its own seeded generator, not the game's random stream.*
 
     manifest.json    what the game reads: id, engine range, capabilities, toggles
     plugin.js        the built artefact the game fetches and hashes; committed
