@@ -5,11 +5,11 @@
     "id": "borg",
     "name": "Borg",
     "version": "1.3.0",
-    "api": ">=1.0.0 <2.0.0",
+    "api": ">=2.0.0 <3.0.0",
     "runtime": "in-process",
     "engine": {
-      "range": ">=1.21.1",
-      "because": "Earlier builds omit the controller's registry and loadout evaluation fields."
+      "range": ">=1.22.0",
+      "because": "The first Neo Angband release with mod API 2, the truth domain the Borg reads perceived monsters through, and the loadout simulation."
     },
     "dependencies": {
       "required": {
@@ -25,10 +25,13 @@
       "state:map.read",
       "state:inventory.read",
       "state:floor.read",
-      "state:messages.read",
       "state:stores.read",
       "state:spells.read",
-      "state:constants.read",
+      "state:map-actual.read",
+      "state:interaction.read",
+      "input:intent",
+      "input:prompt.reply",
+      "event:message",
       "ui:title",
       "profiles:manage",
       "saves:manage"

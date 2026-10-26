@@ -22,11 +22,19 @@ were not retagged.
 
 ### Added
 
-- [Internal] [Security] **A CI step reads manifest.json and fails the build if it lists `state:*.read` or `state:map-actual.read`.** The borg names each state domain it reads one by one, and it has no use for the real map.
+- [Internal] [Security] **A CI step reads manifest.json and fails the build if it lists a wildcard state grant such as `state:*.read`.** The Borg names each state domain it reads one by one, and a test fails the build if any source file reads the real map or a store's real stock.
+- [Visible] **The Borg gives the keyboard back instead of looping.** That happens after 25 refused commands in a row, 25 decisions in a row with nothing to do, or 40 times in a row that the game takes the same command and nothing changes. At 6 such repeats it first forgets what its map shows on the square the command aims at, which gets it past a door that was opened out of its sight but still looks closed to it.
+
+### Changed
+
+- [Visible] [Compatibility] **The Borg now needs Neo Angband 1.22.0 or later.** It is a mod API 2 mod and does not load on a game that offers only API 1.
+- [Visible] [Security] **The Borg's permission list changed.** New: `state:map-actual.read`, `state:interaction.read`, `input:intent`, `input:prompt.reply` and `event:message`. Gone: `state:messages.read` and `state:constants.read`. The real-map permission is off until you turn it on, and the Borg uses it only for the exact hit points and race records of the monsters the character perceives; it never reads the real map or a store's full stock. Without it, monster health comes from the health bands the look command shows.
+- [Internal] [Modding-API] **The Borg runs on mod API 2.** Each decision starts from one read of the known world, which the ported code sees as a synchronous view. Loadout questions are read in rounds and the decision is made again with the answers. Target choices go in first, then the command, both as intents under the input token. The mod declares no hooks.
 
 ### Fixed
 
-- [Visible] **The Borg now reads the terrain the player remembers instead of the live terrain (neostryder/neo-angband#415).** Before this fix, its map ingest recorded an undiscovered secret door as a secret door, its necromancer darkness check counted glowing floor it could not see, and its corner scan read live passability on known squares. The fix needs a core release that carries the CellView knownFeat and knownPassable fields. On older cores the Borg keeps the old behavior and reads the live cell.
+- [Visible] **The Borg now reads the terrain the player remembers instead of the live terrain (neostryder/neo-angband#415).** Before this fix, its map ingest recorded an undiscovered secret door as a secret door, its necromancer darkness check counted glowing floor it could not see, and its corner scan read live passability on known squares. It builds its map from the level the character remembers.
+- [Visible] **The Borg tests unknown potions and scrolls by using them again, as upstream's borg does (neostryder/neo-angband#377).** It now checks whether the character knows an item's flavour instead of assuming it always does, and it no longer treats an unread scroll as junk.
 
 ## 1.3.0 - 2026-10-01
 

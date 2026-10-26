@@ -351,7 +351,7 @@ export function kindPrice(
 ): { cost: number; aware: boolean } | null {
   const kind = objects.lookupKind(tval, sval);
   if (!kind) return null;
-  return { cost: kind.cost ?? 0, aware: state?.isAware?.(kind) ?? false };
+  return { cost: kind.cost ?? 0, aware: kind.aware ?? state?.isAware?.(kind) ?? false };
 }
 
 /** view field: f_info[feat].shopnum of the player's own grid (square_shopnum, cave-square.c:1512). */

@@ -9,11 +9,14 @@ import { fileURLToPath } from "node:url";
 const srcRoot = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(srcRoot);
 
-/** The adapter itself, and the vitest setup file that stands in for the host. */
-const ALLOWED = new Set(["src/core-api.ts", "src/test-bind-core.ts"]);
+/** The adapter itself, the bridge that binds the engine from the mod API, the vitest setup file that stands in for the host, and the fake game the bundle test drives. */
+const ALLOWED = new Set(["src/core-api.ts", "src/api2/host.ts", "src/test-bind-core.ts", "src/harness-api2.ts"]);
 
-/** Fakes for tests are built from the host's own view and action types. */
-const MAY_NAME_HOST_TYPES = new Set(["src/harness.ts"]);
+/** Fakes for tests, and the bridge that turns the known world into the view, are built from the host's own view and action types. */
+const MAY_NAME_HOST_TYPES = new Set(["src/harness.ts", "src/api2/act.ts", "src/api2/world.ts"]);
+
+/** The entry reads the engine's saved character mark to decide whether to offer the keyboard. */
+const MAY_READ_ENGINE_NAMESPACE = new Set(["plugin.ts"]);
 
 const HOST_MEMBERS = new Set([
   "core", "state", "registries", "snapshot", "intent", "events", "characterStore",
@@ -24,7 +27,7 @@ const HOST_MEMBERS = new Set([
   "title", "profiles", "character", "newCharacter", "net", "backupFolder", "installMod",
   "reloadGame", "loadModForSession", "readMod", "debug", "wizard", "composedRecords",
 ]);
-const TITLE_MEMBERS = new Set(["id", "title", "profiles", "saves"]);
+const TITLE_MEMBERS = new Set(["id", "log", "title", "profiles", "saves"]);
 const HOST_TYPES = new Set(["AgentView", "AgentActions"]);
 const ENGINE = "@rpgm-tools/neo-angband-core";
 
@@ -73,12 +76,12 @@ function castContext(node: ts.Expression): boolean {
   return false;
 }
 
-function violations(text: string, mayNameHostTypes = false, api2 = false, title = false): string[] {
+function violations(text: string, mayNameHostTypes = false, api2 = false, title = false, mayReadEngine = false): string[] {
   const source = ts.createSourceFile("source.ts", text, ts.ScriptTarget.Latest, true);
   const found = new Set<string>();
   const visit = (node: ts.Node): void => {
     if (ts.isIdentifier(node)) {
-      if (/engine$/iu.test(node.text) && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) found.add("an engine namespace read");
+      if (!mayReadEngine && /engine$/iu.test(node.text) && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) found.add("an engine namespace read");
       if (api2 && node.text === "ctx") found.add("an API 1 context identifier");
       if (!mayNameHostTypes && HOST_TYPES.has(node.text)) found.add("a host view or action type");
     }
@@ -87,8 +90,8 @@ function violations(text: string, mayNameHostTypes = false, api2 = false, title 
       const name = member(node);
       if (context(base) && (castContext(node.expression) || (name && HOST_MEMBERS.has(name))) && !(title && name && TITLE_MEMBERS.has(name) && !castContext(node.expression))) found.add("a plugin-context read");
       if (name === "registries") found.add("a registry read");
-      if (name && /engine$/iu.test(name) && !(name === "engine" && ts.isIdentifier(base) && base.text === "host")) found.add("an engine namespace read");
-      if (ts.isIdentifier(base) && /engine$/iu.test(base.text)) found.add("an engine namespace read");
+      if (!mayReadEngine && name && /engine$/iu.test(name) && !(name === "engine" && ts.isIdentifier(base) && base.text === "host")) found.add("an engine namespace read");
+      if (!mayReadEngine && ts.isIdentifier(base) && /engine$/iu.test(base.text)) found.add("an engine namespace read");
     }
     if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(unwrap(node.initializer)) && context(node.initializer)) found.add("a plugin-context read");
     if (ts.isVariableDeclaration(node) && node.initializer && ts.isObjectBindingPattern(node.name) && context(node.initializer)) found.add("a plugin-context read");
@@ -130,7 +133,7 @@ describe("only the adapter reads the host", () => {
   it("finds no host read outside the adapter", () => {
     const offenders = files
       .filter((f) => !ALLOWED.has(f.rel))
-      .map((f) => ({ file: f.rel, reads: violations(readFileSync(f.p, "utf8"), MAY_NAME_HOST_TYPES.has(f.rel), f.rel === "src/core-adapter-api2.ts", f.rel === "title.ts") }))
+      .map((f) => ({ file: f.rel, reads: violations(readFileSync(f.p, "utf8"), MAY_NAME_HOST_TYPES.has(f.rel), false, f.rel === "title.ts", MAY_READ_ENGINE_NAMESPACE.has(f.rel)) }))
       .filter((o) => o.reads.length > 0);
     expect(offenders).toEqual([]);
   });
@@ -171,6 +174,12 @@ describe("only the adapter reads the host", () => {
 
   it.each(["ctx", "ctx.id", "ctx!.title", "(ctx as any).world", "const { id } = ctx;"])("rejects an API 1 context in the API 2 twin: %s", (text) => {
     expect(violations(text, false, true)).toContain("an API 1 context identifier");
+  });
+
+  it("lets the entry name the engine namespace, and nothing else", () => {
+    expect(violations("context.engine?.state", false, false, false, true)).toEqual([]);
+    expect(violations("context.engine?.state")).toEqual(["an engine namespace read"]);
+    expect(violations("ctx.core", false, false, false, true)).toContain("a plugin-context read");
   });
 
   it("allows erased imports and the Borg's delegated engine group", () => {

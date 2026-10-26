@@ -1,4 +1,4 @@
-// overhaul-api2 - generated from plugin.ts by neo-angband-mod-build
+// borg - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // title.ts
@@ -13,37 +13,35 @@ var WHICH_COPY = "Copy an existing profile";
 var COPY_PROMPT = "Choose a profile to copy. Its options, mods and mod settings come across, and its characters stay behind.";
 var FALLBACK_HERE = "Start the character in this profile";
 var GIVE_UP = "Back to the title";
-var MEMORY_KEY = "neo-angband-borg/profiles";
-var MEMORY_FORMAT = "neo-angband/borg/profiles";
 var ARMED = { kind: "create-character", armController: true };
 function idsFrom(stored) {
-  if (stored === null || typeof stored !== "object") return null;
-  const env = stored;
-  if (env["format"] !== MEMORY_FORMAT) return null;
-  const data = env["data"];
-  const ids = data?.["profileIds"];
-  return Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : null;
+  if (stored === null || typeof stored !== "object" || Array.isArray(stored)) return [];
+  const ids = stored["profileIds"];
+  return Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : [];
 }
-function installMemory(storage) {
-  const page = () => storage ?? globalThis.localStorage;
+function installMemory(slot) {
   let session = [];
   return {
-    read() {
+    async read() {
       try {
-        const raw = page()?.getItem(MEMORY_KEY);
-        if (raw !== null && raw !== void 0) return idsFrom(JSON.parse(raw)) ?? session;
+        const result = await slot.get();
+        if (result.ok && result.value !== null) return idsFrom(result.value);
       } catch {
       }
       return session;
     },
-    write(ids) {
+    async write(ids) {
       session = [...ids];
       try {
-        page()?.setItem(MEMORY_KEY, JSON.stringify({ format: MEMORY_FORMAT, schemaVersion: 1, data: { profileIds: session } }));
+        await slot.set({ profileIds: session });
       } catch {
       }
     }
   };
+}
+async function ask(title, label, choices) {
+  const answer = await title.choose(label, choices);
+  return answer.ok ? answer.value : null;
 }
 function freshName(taken) {
   const used = new Set(taken.map((name) => name.toLowerCase()));
@@ -53,25 +51,28 @@ function freshName(taken) {
 function registerBorgTitle(ctx, memory) {
   const title = ctx.title;
   const profiles = ctx.profiles;
-  if (title === void 0 || profiles === void 0 || ctx.saves === void 0) return false;
+  if (title === void 0 || profiles === void 0) {
+    ctx.log?.(`the Borg has no title row, because this game gives it no ${title === void 0 ? "title seam" : "profile seam"}`);
+    return false;
+  }
   const self = ctx.id ?? "borg";
   async function here() {
-    const listed = profiles.list();
+    const listed = await profiles.list();
     const id = listed.ok ? listed.value.find((profile) => profile.active)?.id ?? null : null;
-    const started = profiles.switchTo(id, ARMED);
-    if (!started.ok) await title.choose(`The Borg could not start the character: ${started.reason}`, [GIVE_UP]);
+    const started = await profiles.switchTo(id, ARMED);
+    if (!started.ok) await ask(title, `The Borg could not start the character: ${started.message}`, [GIVE_UP]);
   }
   async function refused(reason) {
-    const answer = await title.choose(`The Borg could not use a separate profile: ${reason}`, [FALLBACK_HERE]);
+    const answer = await ask(title, `The Borg could not use a separate profile: ${reason}`, [FALLBACK_HERE]);
     if (answer === 0) await here();
   }
   async function separate() {
-    const listed = profiles.list();
-    if (!listed.ok) return refused(listed.reason);
+    const listed = await profiles.list();
+    if (!listed.ok) return refused(listed.message);
     const all = listed.value;
-    const ours = new Set(memory.read());
+    const ours = new Set(await memory.read());
     const made = all.filter((profile) => profile.id !== null && ours.has(profile.id));
-    const which = await title.choose(WHICH_PROMPT, [WHICH_FRESH, WHICH_COPY, ...made.map((profile) => `Use ${profile.name}`)]);
+    const which = await ask(title, WHICH_PROMPT, [WHICH_FRESH, WHICH_COPY, ...made.map((profile) => `Use ${profile.name}`)]);
     if (which === null) return;
     let target;
     if (which >= 2) {
@@ -81,284 +82,46 @@ function registerBorgTitle(ctx, memory) {
     } else {
       let copyFrom;
       if (which === 1) {
-        const source = await title.choose(COPY_PROMPT, all.map((profile) => profile.name));
+        const source = await ask(title, COPY_PROMPT, all.map((profile) => profile.name));
         if (source === null) return;
         const picked = all[source];
         if (picked === void 0) return;
         copyFrom = picked.id;
       }
-      const created = profiles.create(freshName(all.map((profile) => profile.name)), copyFrom === void 0 ? {} : { copyFrom });
-      if (!created.ok) return refused(created.reason);
+      const created = await profiles.create(freshName(all.map((profile) => profile.name)), copyFrom);
+      if (!created.ok) return refused(created.message);
       target = created.value;
       const id = target.id;
       if (id === null) return refused("the new profile has no id");
-      memory.write([...made.map((profile) => profile.id), id]);
+      await memory.write([...made.map((profile) => profile.id), id]);
       if (copyFrom === void 0) {
-        const enabled = profiles.setEnabledMods(id, [self]);
-        if (!enabled.ok) return refused(enabled.reason);
+        const enabled = await profiles.setEnabledMods(id, [self]);
+        if (!enabled.ok) return refused(enabled.message);
       }
     }
-    const switched = profiles.switchTo(target.id, ARMED);
-    if (!switched.ok) return refused(switched.reason);
+    const switched = await profiles.switchTo(target.id, ARMED);
+    if (!switched.ok) return refused(switched.message);
   }
-  title.registerRow({
+  void title.registerRow({
+    id: "new-character",
     label: TITLE_LABEL,
     key: TITLE_KEY,
     async run() {
-      const where = await title.choose(WHERE_PROMPT, [WHERE_SEPARATE, WHERE_HERE]);
+      const where = await ask(title, WHERE_PROMPT, [WHERE_SEPARATE, WHERE_HERE]);
       if (where === 0) await separate();
       else if (where === 1) await here();
     }
-  });
+  }).then(
+    (result) => {
+      if (!result.ok) ctx.log?.(`the Borg's title row isn't registered: ${result.message}`);
+    },
+    (error) => ctx.log?.(`the Borg's title row isn't registered: ${String(error)}`)
+  );
   return true;
 }
 
 // src/activate.ts
 var NOSCORE_BORG = 32;
-
-// src/rng.ts
-var Rng = class {
-  value;
-  constructor(seed) {
-    this.value = seed >>> 0;
-  }
-  reseed(seed) {
-    this.value = seed >>> 0;
-  }
-  randint0(m) {
-    if (m > 268435456) throw new RangeError(`Rand_div: m must be <= 0x10000000, got ${m}`);
-    if (m <= 1) return 0;
-    const n = Math.trunc(268435456 / m);
-    for (; ; ) {
-      this.value = Math.imul(this.value, 1103515245) + 12345 >>> 0;
-      const r = Math.trunc((this.value >>> 4 & 268435455) / n);
-      if (r < m) return r;
-    }
-  }
-  randint1(m) {
-    return this.randint0(m) + 1;
-  }
-  randSpread(a, d) {
-    return a + this.randint0(1 + d + d) - d;
-  }
-};
-var BORG_LOCAL_SEED = 12648430;
-function makeBorgRng(seed = BORG_LOCAL_SEED) {
-  return new Rng(seed >>> 0);
-}
-
-// src/core-api.ts
-var FEAT;
-var TV;
-var RSF;
-var MON_RACE_FLAG_ENTRIES;
-var MON_SPELL_ENTRIES;
-var REST_COMPLETE;
-var bound = false;
-function bindCore(core) {
-  FEAT = core.FEAT;
-  TV = core.TV;
-  RSF = core.RSF;
-  MON_RACE_FLAG_ENTRIES = core.MON_RACE_FLAG_ENTRIES;
-  MON_SPELL_ENTRIES = core.MON_SPELL_ENTRIES;
-  REST_COMPLETE = core.REST_COMPLETE;
-  bound = true;
-}
-function coreIsBound() {
-  return bound;
-}
-function createAdapter(ctx) {
-  return {
-    meta: {
-      get flags() {
-        return ctx.flags;
-      },
-      log: (message) => ctx.log(message)
-    },
-    engine: {
-      bind() {
-        bindCore(ctx.core);
-        return coreIsBound();
-      },
-      missing() {
-        const missing = [];
-        if (!ctx.registries) missing.push("ctx.registries");
-        if (!ctx.state) missing.push("ctx.state");
-        return missing;
-      },
-      noscore: () => ctx.state?.actor?.player?.noscore ?? 0,
-      get controllerArmed() {
-        return ctx.controllerArmed;
-      },
-      resolverInput: () => ({
-        // truth: every race's blows, spells, flags and frequencies, past what monster lore has taught.
-        races: ctx.registries.monsters.races,
-        // content lookup: kind, ego and artifact records by tval/sval or name (content.lookup).
-        objects: ctx.registries.objects,
-        // view field: the player's own grid feature, and flavour awareness.
-        state: ctx.state,
-        // content lookup: blow method message templates (content.records("blow_methods")).
-        blowMethods: ctx.registries.monsters.blowMethods.values(),
-        // content lookup: monster spell messages (content.records("monster_spell")).
-        monsterSpells: ctx.registries.monsters.spells?.values() ?? []
-      })
-    }
-  };
-}
-function racesByIndex(races) {
-  const byRidx = /* @__PURE__ */ new Map();
-  for (const r of races) byRidx.set(r.ridx, r);
-  return byRidx;
-}
-function raceRecord(race) {
-  return {
-    ridx: race.ridx,
-    flags: raceFlagNames(race),
-    level: race.level,
-    sleep: race.sleep,
-    spellPower: race.spellPower,
-    freqInnate: race.freqInnate,
-    freqSpell: race.freqSpell,
-    hasFriends: race.friends.length > 0 || race.friendsBase.length > 0,
-    blows: raceBlows(race),
-    spells: raceSpellOrdinals(race)
-  };
-}
-function raceFlagNames(race) {
-  const out = /* @__PURE__ */ new Set();
-  for (const f of race.flags) {
-    const entry = MON_RACE_FLAG_ENTRIES[f];
-    if (entry) out.add(entry.name);
-  }
-  return out;
-}
-function raceSpellOrdinals(race) {
-  const out = [];
-  for (const f of race.spellFlags) {
-    if (MON_SPELL_ENTRIES[f]) out.push(f);
-  }
-  out.sort((a, b) => a - b);
-  return out;
-}
-function raceBlows(race) {
-  return race.blows.map((b) => {
-    const rv = b.dice ? b.dice.randomValue() : null;
-    return {
-      dice: rv ? rv.dice : 0,
-      sides: rv ? rv.sides : 0,
-      effect: b.effect.name
-    };
-  });
-}
-function artifactActivation(objects, name) {
-  return objects.findArtifact(name)?.activation ?? null;
-}
-function egoActivation(objects, name) {
-  return objects.findEgo(name)?.activation ?? null;
-}
-function kindActivation(objects, tval, sval) {
-  return objects.lookupKind(tval, sval)?.activation ?? null;
-}
-function kindPrice(objects, state, tval, sval) {
-  const kind = objects.lookupKind(tval, sval);
-  if (!kind) return null;
-  return { cost: kind.cost ?? 0, aware: state?.isAware?.(kind) ?? false };
-}
-function shopnumHere(state) {
-  return state.chunk.feature(state.actor.grid).shopnum;
-}
-function rememberedCell(cell) {
-  if (!cell) return cell;
-  const host = cell;
-  if (host.knownFeat === void 0) return cell;
-  const known = host.knownFeat >= 0;
-  return {
-    ...cell,
-    feat: known ? host.knownFeat : 0,
-    passable: known && host.knownPassable === true,
-    glow: cell.inView && cell.glow
-  };
-}
-function borgView(host) {
-  const view = {
-    // view: vitals, stats, status, depth and grid. API 2: view.player(). Speed, to-hit and AC here come
-    // from the live derive, so a worn rune the player has not learned still moves them. KnownPlayer
-    // shows the known values.
-    player: () => host.player(),
-    // view: the level's width and height. API 2: KnownLevel width/height.
-    mapBounds: () => host.mapBounds(),
-    // view: the pack, each item from its known twin. API 2: view.world().inventory.
-    inventory: () => host.inventory(),
-    // view: worn gear by slot, each item from its known twin. API 2: view.world().equipment.
-    equipment: () => host.equipment(),
-    // view: objects remembered exactly on a grid, from their known twins. API 2: KnownLevel cell objects.
-    // The list is the live pile filtered by memory, so an object taken since it was seen drops out.
-    floorItems: (x, y) => host.floorItems(x, y),
-    // view: messages since the previous decision. API 2: the `message` event.
-    messages: () => host.messages(),
-    // view: the live stock of every town store, readable even from the dungeon. API 2
-    // view.world().stores hands over the same data, which keeps this a view read. Upstream's borg only
-    // knew the stock it saw on its last visit.
-    stores: () => host.stores(),
-    // view: the class's books and spells, with fail rates. API 2: view.world().spellbooks.
-    spellbooks: () => host.spellbooks(),
-    // view: the bound game constants (z_info). API 2: no call; a content lookup or a meta field.
-    constants: () => host.constants(),
-    // truth: perceived monsters only, with exact hp/maxHp, current speed, sleep/fear/confusion/stun
-    // timers, and every race flag and spell, learned or not. API 2: truth.monsters(), which also lists
-    // unseen monsters and has no "perceived" flag to filter them by.
-    monsters: () => host.monsters(),
-    // truth: one grid. feat and passable give the live terrain rather than the remembered one, so a
-    // secret door reads as FEAT_SECRET where the player sees granite, and a door that changed out of
-    // sight shows its new state. glow is live too. known, inView, monster, objectCount and trap follow
-    // what the player sees. API 2: truth.level().
-    cell: (x, y) => rememberedCell(host.cell(x, y))
-  };
-  const simulate = host.simulateLoadout;
-  if (simulate) {
-    view.simulateLoadout = (change) => simulate.call(host, change);
-  }
-  return view;
-}
-function borgActions(host) {
-  return {
-    move: (...a) => host.move(...a),
-    melee: (...a) => host.melee(...a),
-    hold: (...a) => host.hold(...a),
-    rest: (...a) => host.rest(...a),
-    descend: (...a) => host.descend(...a),
-    ascend: (...a) => host.ascend(...a),
-    tunnel: (...a) => host.tunnel(...a),
-    open: (...a) => host.open(...a),
-    close: (...a) => host.close(...a),
-    disarm: (...a) => host.disarm(...a),
-    quaff: (...a) => host.quaff(...a),
-    read: (...a) => host.read(...a),
-    eat: (...a) => host.eat(...a),
-    wear: (...a) => host.wear(...a),
-    takeoff: (...a) => host.takeoff(...a),
-    drop: (...a) => host.drop(...a),
-    pickup: (...a) => host.pickup(...a),
-    aimWand: (...a) => host.aimWand(...a),
-    zapRod: (...a) => host.zapRod(...a),
-    useStaff: (...a) => host.useStaff(...a),
-    activate: (...a) => host.activate(...a),
-    fire: (...a) => host.fire(...a),
-    throw: (...a) => host.throw(...a),
-    cast: (...a) => host.cast(...a),
-    // Sets the game's target at once, outside any command. API 2: act.submit(token, { kind: "target", midx }).
-    setTargetMonster: (...a) => host.setTargetMonster(...a),
-    // Sets the game's target at once, outside any command. API 2: act.submit(token, { kind: "target", x, y }).
-    setTargetLocation: (...a) => host.setTargetLocation(...a),
-    shopBuy: (...a) => host.shopBuy(...a),
-    shopSell: (...a) => host.shopSell(...a),
-    shopExit: (...a) => host.shopExit(...a),
-    raw: (...a) => host.raw(...a)
-  };
-}
-function hostController(decide) {
-  return (view, act) => decide(borgView(view), borgActions(act));
-}
 
 // src/world/grid.ts
 var AUTO_MAX_X = 198;
@@ -799,6 +562,37 @@ var BorgWorld = class {
   }
 };
 
+// src/rng.ts
+var Rng = class {
+  value;
+  constructor(seed) {
+    this.value = seed >>> 0;
+  }
+  reseed(seed) {
+    this.value = seed >>> 0;
+  }
+  randint0(m) {
+    if (m > 268435456) throw new RangeError(`Rand_div: m must be <= 0x10000000, got ${m}`);
+    if (m <= 1) return 0;
+    const n = Math.trunc(268435456 / m);
+    for (; ; ) {
+      this.value = Math.imul(this.value, 1103515245) + 12345 >>> 0;
+      const r = Math.trunc((this.value >>> 4 & 268435455) / n);
+      if (r < m) return r;
+    }
+  }
+  randint1(m) {
+    return this.randint0(m) + 1;
+  }
+  randSpread(a, d) {
+    return a + this.randint0(1 + d + d) - d;
+  }
+};
+var BORG_LOCAL_SEED = 12648430;
+function makeBorgRng(seed = BORG_LOCAL_SEED) {
+  return new Rng(seed >>> 0);
+}
+
 // src/trait/trait-index.ts
 var BI_MAX = 265 /* MAX */;
 var CLASS_WARRIOR = 0;
@@ -872,6 +666,181 @@ function spellStatForClass(cls) {
     default:
       return -1;
   }
+}
+
+// src/core-api.ts
+var FEAT;
+var TV;
+var RSF;
+var MON_RACE_FLAG_ENTRIES;
+var MON_SPELL_ENTRIES;
+var REST_COMPLETE;
+var bound = false;
+function bindCore(core) {
+  FEAT = core.FEAT;
+  TV = core.TV;
+  RSF = core.RSF;
+  MON_RACE_FLAG_ENTRIES = core.MON_RACE_FLAG_ENTRIES;
+  MON_SPELL_ENTRIES = core.MON_SPELL_ENTRIES;
+  REST_COMPLETE = core.REST_COMPLETE;
+  bound = true;
+}
+function coreIsBound() {
+  return bound;
+}
+function racesByIndex(races) {
+  const byRidx = /* @__PURE__ */ new Map();
+  for (const r of races) byRidx.set(r.ridx, r);
+  return byRidx;
+}
+function raceRecord(race) {
+  return {
+    ridx: race.ridx,
+    flags: raceFlagNames(race),
+    level: race.level,
+    sleep: race.sleep,
+    spellPower: race.spellPower,
+    freqInnate: race.freqInnate,
+    freqSpell: race.freqSpell,
+    hasFriends: race.friends.length > 0 || race.friendsBase.length > 0,
+    blows: raceBlows(race),
+    spells: raceSpellOrdinals(race)
+  };
+}
+function raceFlagNames(race) {
+  const out = /* @__PURE__ */ new Set();
+  for (const f of race.flags) {
+    const entry = MON_RACE_FLAG_ENTRIES[f];
+    if (entry) out.add(entry.name);
+  }
+  return out;
+}
+function raceSpellOrdinals(race) {
+  const out = [];
+  for (const f of race.spellFlags) {
+    if (MON_SPELL_ENTRIES[f]) out.push(f);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+function raceBlows(race) {
+  return race.blows.map((b) => {
+    const rv = b.dice ? b.dice.randomValue() : null;
+    return {
+      dice: rv ? rv.dice : 0,
+      sides: rv ? rv.sides : 0,
+      effect: b.effect.name
+    };
+  });
+}
+function artifactActivation(objects, name) {
+  return objects.findArtifact(name)?.activation ?? null;
+}
+function egoActivation(objects, name) {
+  return objects.findEgo(name)?.activation ?? null;
+}
+function kindActivation(objects, tval, sval) {
+  return objects.lookupKind(tval, sval)?.activation ?? null;
+}
+function kindPrice(objects, state, tval, sval) {
+  const kind = objects.lookupKind(tval, sval);
+  if (!kind) return null;
+  return { cost: kind.cost ?? 0, aware: kind.aware ?? state?.isAware?.(kind) ?? false };
+}
+function shopnumHere(state) {
+  return state.chunk.feature(state.actor.grid).shopnum;
+}
+function rememberedCell(cell) {
+  if (!cell) return cell;
+  const host = cell;
+  if (host.knownFeat === void 0) return cell;
+  const known = host.knownFeat >= 0;
+  return {
+    ...cell,
+    feat: known ? host.knownFeat : 0,
+    passable: known && host.knownPassable === true,
+    glow: cell.inView && cell.glow
+  };
+}
+function borgView(host) {
+  const view = {
+    // view: vitals, stats, status, depth and grid. API 2: view.player(). Speed, to-hit and AC here come
+    // from the live derive, so a worn rune the player has not learned still moves them. KnownPlayer
+    // shows the known values.
+    player: () => host.player(),
+    // view: the level's width and height. API 2: KnownLevel width/height.
+    mapBounds: () => host.mapBounds(),
+    // view: the pack, each item from its known twin. API 2: view.world().inventory.
+    inventory: () => host.inventory(),
+    // view: worn gear by slot, each item from its known twin. API 2: view.world().equipment.
+    equipment: () => host.equipment(),
+    // view: objects remembered exactly on a grid, from their known twins. API 2: KnownLevel cell objects.
+    // The list is the live pile filtered by memory, so an object taken since it was seen drops out.
+    floorItems: (x, y) => host.floorItems(x, y),
+    // view: messages since the previous decision. API 2: the `message` event.
+    messages: () => host.messages(),
+    // view: the live stock of every town store, readable even from the dungeon. API 2
+    // view.world().stores hands over the same data, which keeps this a view read. Upstream's borg only
+    // knew the stock it saw on its last visit.
+    stores: () => host.stores(),
+    // view: the class's books and spells, with fail rates. API 2: view.world().spellbooks.
+    spellbooks: () => host.spellbooks(),
+    // view: the bound game constants (z_info). API 2: no call; a content lookup or a meta field.
+    constants: () => host.constants(),
+    // truth: perceived monsters only, with exact hp/maxHp, current speed, sleep/fear/confusion/stun
+    // timers, and every race flag and spell, learned or not. API 2: truth.monsters(), which also lists
+    // unseen monsters and has no "perceived" flag to filter them by.
+    monsters: () => host.monsters(),
+    // truth: one grid. feat and passable give the live terrain rather than the remembered one, so a
+    // secret door reads as FEAT_SECRET where the player sees granite, and a door that changed out of
+    // sight shows its new state. glow is live too. known, inView, monster, objectCount and trap follow
+    // what the player sees. API 2: truth.level().
+    cell: (x, y) => rememberedCell(host.cell(x, y))
+  };
+  const simulate = host.simulateLoadout;
+  if (simulate) {
+    view.simulateLoadout = (change) => simulate.call(host, change);
+  }
+  return view;
+}
+function borgActions(host) {
+  return {
+    move: (...a) => host.move(...a),
+    melee: (...a) => host.melee(...a),
+    hold: (...a) => host.hold(...a),
+    rest: (...a) => host.rest(...a),
+    descend: (...a) => host.descend(...a),
+    ascend: (...a) => host.ascend(...a),
+    tunnel: (...a) => host.tunnel(...a),
+    open: (...a) => host.open(...a),
+    close: (...a) => host.close(...a),
+    disarm: (...a) => host.disarm(...a),
+    quaff: (...a) => host.quaff(...a),
+    read: (...a) => host.read(...a),
+    eat: (...a) => host.eat(...a),
+    wear: (...a) => host.wear(...a),
+    takeoff: (...a) => host.takeoff(...a),
+    drop: (...a) => host.drop(...a),
+    pickup: (...a) => host.pickup(...a),
+    aimWand: (...a) => host.aimWand(...a),
+    zapRod: (...a) => host.zapRod(...a),
+    useStaff: (...a) => host.useStaff(...a),
+    activate: (...a) => host.activate(...a),
+    fire: (...a) => host.fire(...a),
+    throw: (...a) => host.throw(...a),
+    cast: (...a) => host.cast(...a),
+    // Sets the game's target at once, outside any command. API 2: act.submit(token, { kind: "target", midx }).
+    setTargetMonster: (...a) => host.setTargetMonster(...a),
+    // Sets the game's target at once, outside any command. API 2: act.submit(token, { kind: "target", x, y }).
+    setTargetLocation: (...a) => host.setTargetLocation(...a),
+    shopBuy: (...a) => host.shopBuy(...a),
+    shopSell: (...a) => host.shopSell(...a),
+    shopExit: (...a) => host.shopExit(...a),
+    raw: (...a) => host.raw(...a)
+  };
+}
+function hostController(decide) {
+  return (view, act) => decide(borgView(view), borgActions(act));
 }
 
 // src/trait/tables.ts
@@ -3773,7 +3742,7 @@ function itemLevel(item, d) {
   return d?.itemLevel ? d.itemLevel(item) : 0;
 }
 function isAware(item, d) {
-  return d?.isAware ? d.isAware(item) : true;
+  return d?.isAware ? d.isAware(item) : item.aware;
 }
 function isIdent(item, d) {
   return d?.isIdent ? d.isIdent(item) : true;
@@ -10094,7 +10063,7 @@ function borgCrushJunk(ctx, d) {
   for (const item of ctx.view.inventory()) {
     if (item.number <= 0) continue;
     if (isBook2(item.tval)) continue;
-    if (item.tval === TV.SCROLL && item.value === void 0) continue;
+    if (item.tval === TV.SCROLL && !item.aware) continue;
     if (!valueKnown(item, d)) continue;
     let value = valueOf(item, d);
     if ((item.tval === TV.STAFF || item.tval === TV.WAND) && item.number > item.pval) {
@@ -15800,8 +15769,10 @@ function createBorg(opts = {}) {
   const spells = buildSpellTable(session.resolvers.spellMessages ?? []);
   const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
   let lastDepth = -1;
+  let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
   const controller = hostController((view, act) => {
     const ctx = { world, view, act, rng };
+    before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
     world.clock += 1;
     world.self.timeThisPanel += 1;
     const depth = view.player().depth;
@@ -15846,7 +15817,13 @@ function createBorg(opts = {}) {
     if (cmd?.code !== "pickup") session.arrivalPickup = false;
     return cmd;
   });
-  return { world, rng, controller };
+  const rewind = () => {
+    world.clock -= 1;
+    world.self.timeThisPanel -= 1;
+    session.lastGrid = before.lastGrid;
+    session.arrivalPickup = before.arrival;
+  };
+  return { world, rng, controller, rewind };
 }
 
 // src/resolvers.ts
@@ -15876,12 +15853,12 @@ function findActivatedItem(ctx, act, checkCharge, objects) {
   return null;
 }
 function makeCoreResolvers(input) {
-  const byRidx = racesByIndex(input.races);
+  const byRidx = racesByIndex(input.races ?? []);
   const resolveMonsterFacts = (ctx, killIndex) => {
     const kill = ctx.world.kills.at(killIndex);
     const race = byRidx.get(kill.rIdx);
-    if (!race) return defaultResolveMonsterFacts(ctx, killIndex);
-    const record = raceRecord(race);
+    const record = input.raceRecord?.(kill.rIdx) ?? (race ? raceRecord(race) : void 0);
+    if (!record) return defaultResolveMonsterFacts(ctx, killIndex);
     return {
       rIdx: record.ridx,
       flags: record.flags,
@@ -15911,15 +15888,17 @@ function makeCoreResolvers(input) {
   };
   const state = input.state;
   const inShop = (_ctx) => {
+    if (input.shopnum) return input.shopnum();
     if (!state) return null;
     const shopnum = shopnumHere(state);
     return shopnum > 0 ? shopnum - 1 : null;
   };
-  const blowActions = [];
+  const blowActions2 = [];
   for (const method of input.blowMethods ?? []) {
-    for (const msg of method.messages) blowActions.push(msg);
+    for (const msg of method.messages) blowActions2.push(msg);
   }
   const kindCost = (tval, sval) => {
+    if (input.kindCost) return input.kindCost(tval, sval);
     if (!objects) return null;
     return kindPrice(objects, state, tval, sval);
   };
@@ -15929,7 +15908,7 @@ function makeCoreResolvers(input) {
     activateHandle: activateHandle2,
     inShop,
     kindCost,
-    blowActions,
+    blowActions: blowActions2,
     spellMessages: [...input.monsterSpells ?? []],
     // Installed unconditionally. borgSimulatePower reads view.simulateLoadout,
     // which the agent API declares optional on the view itself, and answers null
@@ -15939,10 +15918,757 @@ function makeCoreResolvers(input) {
   };
 }
 
+// src/api2/caches.ts
+var RaceBook = class {
+  records = /* @__PURE__ */ new Map();
+  missing = /* @__PURE__ */ new Set();
+  get(ridx) {
+    return this.records.get(ridx);
+  }
+  /** Read the races of these indexes that are not known yet. */
+  async ensure(truth, indexes) {
+    const wanted = [...new Set(indexes)].filter((index) => !this.records.has(index) && !this.missing.has(index));
+    await Promise.all(
+      wanted.map(async (index) => {
+        const race = await truth.race(index);
+        if (race === null) {
+          this.missing.add(index);
+          return;
+        }
+        this.records.set(index, {
+          ridx: race.ridx,
+          flags: new Set(race.flags),
+          level: race.level,
+          sleep: race.sleep,
+          spellPower: race.spellPower,
+          freqInnate: race.freqInnate,
+          freqSpell: race.freqSpell,
+          hasFriends: race.hasFriends,
+          blows: race.blows.map((blow) => ({ dice: blow.dice, sides: blow.sides, effect: blow.effect })),
+          spells: [...race.spells].sort((a, b) => a - b)
+        });
+      })
+    );
+  }
+};
+var ActivationBook = class {
+  names = /* @__PURE__ */ new Map();
+  artifact(name) {
+    return this.names.get(`a:${name}`) ?? null;
+  }
+  ego(name) {
+    return this.names.get(`e:${name}`) ?? null;
+  }
+  kind(tval, sval) {
+    return this.names.get(`k:${String(tval)}:${String(sval)}`) ?? null;
+  }
+  /** Read the activations of every worn item that has one, for any source not read yet. */
+  async ensure(api, equipment2) {
+    const asks = /* @__PURE__ */ new Map();
+    for (const item of equipment2) {
+      if (item === null || !item.activation) continue;
+      if (item.artifact && item.artifactName) asks.set(`a:${item.artifactName}`, { artifact: item.artifactName });
+      if (item.ego && item.egoName) asks.set(`e:${item.egoName}`, { ego: item.egoName });
+      asks.set(`k:${String(item.tval)}:${String(item.sval)}`, { tval: item.tval, sval: item.sval });
+    }
+    await Promise.all(
+      [...asks].filter(([key]) => !this.names.has(key)).map(async ([key, ref]) => {
+        const result = await api.content.activation(ref);
+        if (!result.ok) return;
+        this.names.set(key, result.value === null ? null : { name: result.value.name });
+      })
+    );
+  }
+};
+var SIMULATIONS_PER_ROUND = 48;
+var LoadoutBook = class {
+  gear = "";
+  answers = /* @__PURE__ */ new Map();
+  asked = /* @__PURE__ */ new Set();
+  wanted = /* @__PURE__ */ new Map();
+  /** Start a decision over this set of gear. */
+  begin(gear) {
+    if (gear === this.gear) return;
+    this.gear = gear;
+    this.answers.clear();
+    this.asked.clear();
+    this.wanted.clear();
+  }
+  /** How many answered questions the cache holds, for the log. */
+  get size() {
+    return this.answers.size;
+  }
+  /** Whether the last decision asked something the cache could not answer. */
+  get pending() {
+    return this.wanted.size > 0;
+  }
+  /** The answer for a change, or null while it is being read. */
+  answer(change) {
+    const key = JSON.stringify(change);
+    const base = this.answers.get("{}");
+    if (key !== "{}" && base === void 0) this.want("{}", {});
+    const hit = this.answers.get(key);
+    if (hit === void 0) {
+      this.want(key, change);
+      return null;
+    }
+    return key === "{}" || base !== void 0 ? hit : null;
+  }
+  want(key, change) {
+    if (this.asked.has(key)) return;
+    this.wanted.set(key, change);
+  }
+  /** Read the recorded questions from the game, up to a round's worth. Returns how many answers arrived. */
+  async settle(api, convert) {
+    const round = [...this.wanted].slice(0, SIMULATIONS_PER_ROUND);
+    const gear = this.gear;
+    for (const [key] of round) {
+      this.wanted.delete(key);
+      this.asked.add(key);
+    }
+    let arrived = 0;
+    await Promise.all(
+      round.map(async ([key, change]) => {
+        const result = await api.view.simulateLoadout(change);
+        if (!result.ok || gear !== this.gear) return;
+        this.answers.set(key, convert(result.value));
+        arrived += 1;
+      })
+    );
+    return arrived;
+  }
+};
+function gearSignature(inventory, equipment2, stores, player) {
+  const one = (item) => item === null ? "-" : `${String(item.handle)}:${item.kindKey}:${String(item.number)}:${String(item.toH)}:${String(item.toD)}:${String(item.toA)}`;
+  const stock = stores.map((store2) => `${String(store2.feat)}[${store2.stock.map(one).join(",")}]`).join(";");
+  return `${inventory.map(one).join(",")}|${equipment2.map(one).join(",")}|${stock}|${String(player?.level ?? 0)}`;
+}
+
+// src/api2/feed.ts
+async function watchMessages(api) {
+  let batch = [];
+  const result = await api.events.on("message", (event) => {
+    batch.push(event.text);
+  });
+  const subscription = result.ok ? result.value : null;
+  return {
+    drain: () => {
+      const out = batch;
+      batch = [];
+      return out;
+    },
+    stop: async () => {
+      if (subscription !== null) await api.events.off(subscription);
+    }
+  };
+}
+
+// src/api2/records.ts
+async function valueOf2(call) {
+  const result = await call;
+  return result.ok ? result.value : null;
+}
+function recordFlags(value) {
+  const lines = Array.isArray(value) ? value : value === void 0 ? [] : [value];
+  const names = /* @__PURE__ */ new Set();
+  for (const line of lines) {
+    if (typeof line !== "string") continue;
+    for (const name of line.split("|")) {
+      const trimmed = name.trim();
+      if (trimmed !== "") names.add(trimmed);
+    }
+  }
+  return names;
+}
+function joined(value) {
+  return Array.isArray(value) ? value.filter((line) => typeof line === "string").join("") : "";
+}
+async function trapKinds(api) {
+  const records = await valueOf2(api.content.records("trap")) ?? [];
+  return records.map((record) => recordFlags(record["flags"]).has("TRAP"));
+}
+async function blowActions(api) {
+  const records = await valueOf2(api.content.records("blow_methods")) ?? [];
+  const out = [];
+  for (const record of records) {
+    const act = record["act"];
+    if (!Array.isArray(act)) continue;
+    for (const line of act) if (typeof line === "string") out.push(line);
+  }
+  return out;
+}
+async function spellMessages(api) {
+  const records = await valueOf2(api.content.records("monster_spell")) ?? [];
+  const table = RSF;
+  const out = [];
+  for (const record of records) {
+    const name = record["name"];
+    const index = typeof name === "string" ? table[name] : void 0;
+    if (index === void 0) continue;
+    const level = (rec) => ({ message: joined(rec["message-vis"]), blindMessage: joined(rec["message-invis"]), missMessage: joined(rec["message-miss"]) });
+    const cutoffs = Array.isArray(record["power-cutoff"]) ? record["power-cutoff"] : [];
+    out.push({
+      index,
+      levels: [level(record), ...cutoffs.filter((cut) => cut !== null && typeof cut === "object" && !Array.isArray(cut)).map(level)]
+    });
+  }
+  return out;
+}
+async function kindCosts(api) {
+  const records = await valueOf2(api.content.records("object")) ?? [];
+  return records.map((record) => typeof record["cost"] === "number" ? record["cost"] : 0);
+}
+var DEFAULT_CONSTANTS = {
+  moveEnergy: 100,
+  maxSight: 20,
+  maxRange: 20,
+  fleeRange: 5,
+  turnRange: 5,
+  reproMonsterMax: 100,
+  reproMonsterRate: 8,
+  glyphHardness: 550,
+  dayLength: 1e4,
+  foodValue: 100,
+  foodStarve: 100,
+  foodFaint: 400,
+  foodWeak: 800,
+  foodHungry: 1500,
+  allocMonsterChance: 500,
+  storeTurns: 1e3,
+  lifeDrainPercent: 2,
+  levelMonsterMax: 1024,
+  floorSize: 23,
+  maxDepth: 128,
+  stairSkip: 1
+};
+var CONSTANT_SOURCES = {
+  maxSight: ["player", "max-sight"],
+  maxRange: ["player", "max-range"],
+  floorSize: ["carry-cap", "floor-size"],
+  maxDepth: ["world", "max-depth"],
+  stairSkip: ["world", "stair-skip"],
+  dayLength: ["world", "day-length"],
+  foodValue: ["player", "food-value"],
+  allocMonsterChance: ["mon-gen", "chance"],
+  storeTurns: ["store", "turns"],
+  lifeDrainPercent: ["mon-play", "life-drain"],
+  levelMonsterMax: ["level-max", "monsters"]
+};
+async function gameConstants(api) {
+  const records = await valueOf2(api.content.records("constants")) ?? [];
+  const lookup = (section, label) => {
+    for (const record of records) {
+      const entries = record[section];
+      if (!Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        if (entry !== null && typeof entry === "object" && !Array.isArray(entry) && entry["label"] === label && typeof entry["value"] === "number") return entry["value"];
+      }
+    }
+    return void 0;
+  };
+  const out = { ...DEFAULT_CONSTANTS };
+  for (const [field, source] of Object.entries(CONSTANT_SOURCES)) {
+    const value = lookup(source[0], source[1]);
+    if (value !== void 0) out[field] = value;
+  }
+  return out;
+}
+var TIMED_RECORDS = {
+  blind: "BLIND",
+  confused: "CONFUSED",
+  afraid: "AFRAID",
+  poisoned: "POISONED",
+  cut: "CUT",
+  stun: "STUN",
+  paralyzed: "PARALYZED",
+  fast: "FAST",
+  sprint: "SPRINT",
+  protEvil: "PROTEVIL",
+  hero: "HERO",
+  shero: "SHERO",
+  shield: "SHIELD",
+  stoneskin: "STONESKIN",
+  blessed: "BLESSED",
+  fastcast: "FASTCAST",
+  resAcid: "OPP_ACID",
+  resElec: "OPP_ELEC",
+  resFire: "OPP_FIRE",
+  resCold: "OPP_COLD",
+  resPois: "OPP_POIS",
+  terror: "TERROR",
+  amnesia: "AMNESIA",
+  image: "IMAGE"
+};
+async function gradeFloors(api) {
+  const records = await valueOf2(api.content.records("player_timed")) ?? [];
+  const out = /* @__PURE__ */ new Map();
+  for (const record of records) {
+    const name = record["name"];
+    const grades = record["grade"];
+    if (typeof name !== "string" || !Array.isArray(grades)) continue;
+    const floors = /* @__PURE__ */ new Map();
+    let floor = 1;
+    for (const grade of grades) {
+      if (grade === null || typeof grade !== "object" || Array.isArray(grade)) continue;
+      const label = grade["name"];
+      if (typeof label === "string" && label !== "" && !floors.has(label)) floors.set(label, floor);
+      if (typeof grade["max"] === "number") floor = grade["max"] + 1;
+    }
+    out.set(name, floors);
+  }
+  return out;
+}
+
+// src/api2/truth.ts
+function borgTruth(mod2) {
+  const truth = mod2.truth;
+  if (truth === void 0) return null;
+  return {
+    async perceivedMonsters() {
+      const result = await truth.monsters();
+      return result.ok ? result.value.filter((monster) => monster.perceived) : null;
+    },
+    async race(index) {
+      const result = await truth.race(index);
+      return result.ok ? result.value : null;
+    }
+  };
+}
+
+// src/api2/world.ts
+function writable(value) {
+  return structuredClone(value);
+}
+function playerView(known, floors) {
+  const { status, recall, descent, ...rest } = writable(known);
+  const timed = {};
+  for (const [field, record] of Object.entries(TIMED_RECORDS)) {
+    const grade = status[field];
+    timed[field] = grade === null ? 0 : floors.get(record)?.get(grade) ?? 1;
+  }
+  return { ...rest, status: { ...timed, food: status.food * 100, fearful: status.fearful }, recall: recall ? 1 : 0, descent: descent ? 1 : 0 };
+}
+function itemView(item) {
+  const { charging, fuel, unknownRunes: _unknownRunes, ...rest } = writable(item);
+  return { ...rest, timeout: fuel ?? charging };
+}
+function storeItemView(item) {
+  const { index, price } = item;
+  return { ...itemView(item), index, ...price === void 0 ? {} : { price } };
+}
+var BAND_SHARE = { unhurt: 1, somewhat: 0.8, wounded: 0.42, badly: 0.17, almost: 0.05 };
+function knownMonsterView(monster) {
+  const has2 = (status) => monster.status.includes(status);
+  const maxHp = monster.averageHp !== null && monster.averageHp > 0 ? monster.averageHp : 100;
+  const hp = monster.health === "unhurt" ? maxHp : Math.min(maxHp - 1, Math.max(1, Math.round(maxHp * BAND_SHARE[monster.health])));
+  const view = {
+    id: monster.id,
+    race: monster.race,
+    raceIndex: monster.raceIndex,
+    grid: { x: monster.grid.x, y: monster.grid.y },
+    visible: monster.visible,
+    hp,
+    maxHp,
+    speed: monster.raceSpeed,
+    asleep: has2("asleep"),
+    afraid: has2("afraid"),
+    confused: has2("confused"),
+    stunned: has2("stunned"),
+    level: monster.raceLevel,
+    poisoned: false,
+    raceFlags: [...monster.knownFlags],
+    unique: monster.unique,
+    questGuardian: monster.questGuardian,
+    finalGuardian: monster.finalGuardian,
+    spellFlags: [...monster.knownSpells],
+    knownSpellFlags: [...monster.knownSpells]
+  };
+  if (monster.raceId !== void 0) view.raceId = monster.raceId;
+  if (monster.glyph !== void 0) view.glyph = monster.glyph;
+  return view;
+}
+async function monsterViews(known, reads) {
+  const listed = known.monsters ?? [];
+  if (reads.truth === null) return listed.map(knownMonsterView);
+  const real = await reads.truth.perceivedMonsters();
+  if (real === null) return listed.map(knownMonsterView);
+  const byGrid = /* @__PURE__ */ new Map();
+  for (const monster of listed) byGrid.set(`${String(monster.grid.x)},${String(monster.grid.y)}`, monster);
+  const out = [];
+  for (const monster of real) {
+    const named = byGrid.get(`${String(monster.grid.x)},${String(monster.grid.y)}`);
+    if (named === void 0 || named.raceIndex !== monster.raceIndex) continue;
+    const view = {
+      id: named.id,
+      race: monster.race,
+      raceIndex: monster.raceIndex,
+      grid: { x: monster.grid.x, y: monster.grid.y },
+      visible: monster.visible,
+      hp: monster.hp,
+      maxHp: monster.maxHp,
+      speed: monster.speed,
+      asleep: monster.asleep,
+      afraid: monster.afraid,
+      confused: monster.confused,
+      stunned: monster.stunned,
+      level: monster.level,
+      poisoned: monster.poisoned,
+      raceFlags: [...monster.raceFlags],
+      unique: monster.unique,
+      questGuardian: monster.questGuardian,
+      finalGuardian: monster.finalGuardian,
+      spellFlags: [...monster.spellFlags],
+      knownSpellFlags: [...monster.knownSpellFlags]
+    };
+    if (monster.raceId !== void 0) view.raceId = monster.raceId;
+    if (monster.glyph !== void 0) view.glyph = monster.glyph;
+    out.push(view);
+  }
+  return out;
+}
+function simulationView(floors) {
+  const loadout = (view) => ({
+    player: playerView(view.player, floors),
+    equipment: view.equipment.map((item) => item === null ? null : itemView(item)),
+    inventory: view.inventory.map(itemView),
+    stats: writable(view.stats)
+  });
+  return (simulation) => ({
+    before: loadout(simulation.before),
+    after: loadout(simulation.after),
+    delta: writable(simulation.delta),
+    placements: simulation.placements.map((placement) => ({ slot: placement.slot, worn: itemView(placement.worn), displaced: placement.displaced === null ? null : itemView(placement.displaced) })),
+    unresolved: writable(simulation.unresolved)
+  });
+}
+async function readWorld(api, reads) {
+  const known = await valueOf2(api.view.world());
+  if (known === null || known.player === null) return null;
+  const { statics } = reads;
+  const player = playerView(known.player, statics.floors);
+  const inventory = (known.inventory ?? []).map(itemView);
+  const equipment2 = (known.equipment ?? []).map((item) => item === null ? null : itemView(item));
+  const quiver = (known.quiver ?? []).map(itemView);
+  const floorHere = (known.floorHere ?? []).map(itemView);
+  const monsters = await monsterViews(known, reads);
+  if (reads.truth !== null) await reads.races.ensure(reads.truth, monsters.map((monster) => monster.raceIndex));
+  await reads.activations.ensure(api, equipment2);
+  reads.loadouts.begin(gearSignature(known.inventory ?? [], known.equipment ?? [], known.stores ?? [], known.player));
+  const width = known.level?.width ?? 0;
+  const height = known.level?.height ?? 0;
+  const cells = /* @__PURE__ */ new Map();
+  for (const cell2 of known.level?.cells ?? []) cells.set(cell2.y * width + cell2.x, cell2);
+  const occupants = /* @__PURE__ */ new Map();
+  for (const monster of monsters) occupants.set(monster.grid.y * width + monster.grid.x, monster.id);
+  const cell = (x, y) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return null;
+    const occupant = player.grid.x === x && player.grid.y === y ? -1 : occupants.get(y * width + x) ?? 0;
+    const remembered = cells.get(y * width + x);
+    if (remembered === void 0) {
+      return { x, y, feat: 0, passable: false, inView: false, known: false, monster: occupant, objectCount: 0, knownObjectCount: 0, glow: false, trap: false };
+    }
+    const memory = remembered.remembered;
+    const view2 = {
+      x,
+      y,
+      feat: memory.feat,
+      passable: memory.passable,
+      inView: remembered.visible,
+      known: true,
+      monster: occupant,
+      objectCount: memory.objects.length,
+      knownObjectCount: memory.objects.length,
+      glow: remembered.glow,
+      /* The disarm command's own check: a visible trap whose kind is a TRAP and that is not disabled. */
+      trap: memory.traps.some((trap) => !trap.disabled && statics.trapKinds[trap.index] === true)
+    };
+    if (memory.featCode !== void 0) view2.featCode = memory.featCode;
+    return view2;
+  };
+  const kinds = /* @__PURE__ */ new Map();
+  const noteKinds = (items) => {
+    for (const item of items) {
+      const index = /^kind:(\d+)$/.exec(item.kindKey);
+      if (!item.aware || index === null) continue;
+      kinds.set(`${String(item.tval)}:${String(item.sval)}`, { cost: statics.kindCosts[Number(index[1])] ?? 0, aware: true });
+    }
+  };
+  noteKinds(inventory);
+  noteKinds(quiver);
+  noteKinds(floorHere);
+  noteKinds(equipment2.filter((item) => item !== null));
+  const floorOf = (x, y) => (cells.get(y * width + x)?.remembered.items ?? []).map(itemView);
+  for (const remembered of cells.values()) noteKinds((remembered.remembered.items ?? []).map(itemView));
+  const view = {
+    apiVersion: "2.0.0",
+    turn: () => known.turn ?? 0,
+    player: () => writable(player),
+    monsters: () => monsters.map((monster) => writable(monster)),
+    cell,
+    mapBounds: () => ({ width, height }),
+    inventory: () => [...inventory],
+    quiver: () => [...quiver],
+    equipment: () => [...equipment2],
+    floorItems: (x, y) => x === player.grid.x && y === player.grid.y ? [...floorHere] : floorOf(x, y),
+    target: () => known.target === null ? null : { midx: known.target.monster ?? 0, grid: { x: known.target.grid.x, y: known.target.grid.y } },
+    messages: () => reads.messages?.drain() ?? [],
+    stores: () => (known.stores ?? []).map((store2) => ({ ...writable(store2), stock: store2.stock.map(storeItemView) })),
+    spellbooks: () => (known.spellbooks ?? []).map((book) => writable(book)),
+    constants: () => ({ ...statics.constants }),
+    inputToken: () => ({ epoch: known.token.epoch, revision: known.token.revision }),
+    simulateLoadout: (change) => reads.loadouts.answer(change)
+  };
+  return { view, facts: { shopnum: known.player.shopnum, kinds } };
+}
+
+// src/api2/host.ts
+var unit = () => void 0;
+var NO_FACTS = { shopnum: null, kinds: /* @__PURE__ */ new Map() };
+function createBridge(mod2) {
+  const truth = borgTruth(mod2);
+  const races = new RaceBook();
+  const activations = new ActivationBook();
+  const loadouts = new LoadoutBook();
+  let statics = null;
+  let feed = null;
+  let input = null;
+  let facts = NO_FACTS;
+  let blows = [];
+  let spells = [];
+  const objects = {
+    lookupKind: (tval, sval) => {
+      const activation = activations.kind(tval, sval);
+      const price = facts.kinds.get(`${String(tval)}:${String(sval)}`);
+      return activation === null && price === void 0 ? null : { activation, ...price === void 0 ? {} : { cost: price.cost, aware: price.aware } };
+    },
+    findEgo: (name) => ({ activation: activations.ego(name) }),
+    findArtifact: (name) => ({ activation: activations.artifact(name) })
+  };
+  return {
+    hasTruth: truth !== null,
+    async prime() {
+      const engine = mod2.engine;
+      if (engine === void 0) throw new Error("the game gave the Borg no engine, so it cannot bind the engine's constants");
+      bindCore(engine.core);
+      if (!coreIsBound()) throw new Error("the Borg could not take the engine from the engine domain");
+      const [constants, floors, traps, costs, actions, messages] = await Promise.all([gameConstants(mod2), gradeFloors(mod2), trapKinds(mod2), kindCosts(mod2), blowActions(mod2), spellMessages(mod2)]);
+      statics = { constants, floors, trapKinds: traps, kindCosts: costs };
+      blows = actions;
+      spells = messages;
+      feed = await watchMessages(mod2);
+    },
+    async readWorld() {
+      if (statics === null) return null;
+      const world = await readWorld(mod2, { statics, races, activations, loadouts, truth, messages: feed ?? void 0 });
+      if (world !== null) facts = world.facts;
+      return world;
+    },
+    setInput(next) {
+      input = next;
+    },
+    input: () => input,
+    loadoutsPending: () => loadouts.pending,
+    async settleLoadouts() {
+      if (statics === null) return 0;
+      return loadouts.settle(mod2, simulationView(statics.floors));
+    },
+    resolverInput() {
+      return {
+        raceRecord: (ridx) => races.get(ridx),
+        objects,
+        shopnum: () => facts.shopnum,
+        kindCost: (tval, sval) => facts.kinds.get(`${String(tval)}:${String(sval)}`) ?? null,
+        blowMethods: blows.map((message) => ({ messages: [message] })),
+        monsterSpells: spells
+      };
+    },
+    async dispose() {
+      await feed?.stop().catch(unit);
+      feed = null;
+    }
+  };
+}
+
+// src/api2/act.ts
+var REST_COMPLETE2 = -2;
+function createActFacade() {
+  let targets = [];
+  const cmd = (code, args) => args ? { code, args } : { code };
+  const dirCmd = (code, dir) => ({ code, dir });
+  const itemCmd = (code, handle) => cmd(code, { handle });
+  const act = {
+    move: (dir) => dirCmd("walk", dir),
+    melee: (dir) => dirCmd("walk", dir),
+    hold: () => cmd("hold"),
+    rest: (count) => cmd("rest", { count: count ?? REST_COMPLETE2 }),
+    descend: () => cmd("descend"),
+    ascend: () => cmd("ascend"),
+    tunnel: (dir) => dirCmd("tunnel", dir),
+    open: (dir) => dirCmd("open", dir),
+    close: (dir) => dirCmd("close", dir),
+    disarm: (dir) => dirCmd("disarm", dir),
+    quaff: (handle) => itemCmd("quaff", handle),
+    read: (handle) => itemCmd("read", handle),
+    eat: (handle) => itemCmd("eat", handle),
+    wear: (handle) => itemCmd("wield", handle),
+    takeoff: (handle) => itemCmd("takeoff", handle),
+    drop: (handle, number) => cmd("drop", number !== void 0 ? { handle, quantity: number } : { handle }),
+    pickup: () => cmd("pickup"),
+    destroy: (handle) => itemCmd("destroy", handle),
+    aimWand: (handle) => itemCmd("aim-wand", handle),
+    zapRod: (handle) => itemCmd("zap-rod", handle),
+    useStaff: (handle) => itemCmd("use-staff", handle),
+    activate: (handle) => itemCmd("activate", handle),
+    fire: (handle) => itemCmd("fire", handle),
+    throw: (handle) => itemCmd("throw", handle),
+    cast: (spell) => cmd("cast", { spell }),
+    setTargetMonster: (midx) => {
+      targets = [...targets, { kind: "target", midx }];
+      return true;
+    },
+    setTargetLocation: (x, y) => {
+      targets = [...targets, { kind: "target", x, y }];
+    },
+    shopBuy: (index, number) => cmd("shop-buy", number !== void 0 ? { index, quantity: number } : { index }),
+    shopSell: (handle, number) => cmd("shop-sell", number !== void 0 ? { handle, quantity: number } : { handle }),
+    shopExit: () => cmd("shop-exit"),
+    raw: (code, args) => cmd(code, args)
+  };
+  return {
+    act,
+    take() {
+      const taken = targets;
+      targets = [];
+      return taken;
+    }
+  };
+}
+function intentOf(command) {
+  const { code, dir, args } = command;
+  return {
+    kind: "command",
+    command: {
+      code,
+      ...dir !== void 0 ? { dir } : {},
+      ...args !== void 0 ? { args } : {}
+    }
+  };
+}
+
+// src/api2/controller.ts
+var REFUSALS_BEFORE_RELEASE = 25;
+var IDLE_BEFORE_RELEASE = 25;
+var MAX_EXTRA_PASSES = 6;
+var STALLS_BEFORE_FORGET = 6;
+var STALLS_BEFORE_RELEASE = 40;
+var DIR_DX = [0, -1, 0, 1, -1, 0, 1, -1, 0, 1];
+var DIR_DY = [0, 1, 1, 1, 0, 0, 0, -1, -1, -1];
+function promptAnswer(prompt) {
+  switch (prompt.kind) {
+    case "ack":
+      return { action: "acknowledge" };
+    case "confirm":
+      return true;
+    case "quantity":
+      return prompt.defaultValue;
+    case "text":
+      return prompt.defaultValue;
+    default:
+      return { action: "cancel" };
+  }
+}
+function aimedGrid(command, from) {
+  const dir = command.dir;
+  if (dir === void 0 || dir < 1 || dir > 9 || dir === 5) return null;
+  return { x: from.x + DIR_DX[dir], y: from.y + DIR_DY[dir] };
+}
+function sceneOf(world) {
+  const player = world.view.player();
+  const monsters = world.view.monsters().map((monster) => [monster.grid.x, monster.grid.y, monster.hp]);
+  return JSON.stringify([player.grid.x, player.grid.y, player["depth"], player["hp"], player["sp"], player["exp"], player["gold"], monsters]);
+}
+function createTick(bridge2, borg) {
+  let refusals = 0;
+  let idle = 0;
+  let announced = false;
+  let lastScene = "";
+  let lastCommand = "";
+  let stalls = 0;
+  return async (mod2, input) => {
+    bridge2.setInput(input);
+    if (input.prompt !== null) {
+      await mod2.act.answer(input.prompt.promptId, promptAnswer(input.prompt));
+      return;
+    }
+    if (input.phase !== "play" && input.phase !== "store") return;
+    const world = await bridge2.readWorld();
+    if (world === null) return;
+    let facade = createActFacade();
+    let command = borg.controller(world.view, facade.act);
+    for (let pass = 0; pass < MAX_EXTRA_PASSES && bridge2.loadoutsPending(); pass++) {
+      if (await bridge2.settleLoadouts() === 0) break;
+      borg.rewind();
+      facade = createActFacade();
+      command = borg.controller(world.view, facade.act);
+    }
+    const targets = facade.take();
+    if (command === null) {
+      idle += 1;
+      if (idle >= IDLE_BEFORE_RELEASE) {
+        idle = 0;
+        await mod2.act.controller.release("The Borg had no command to give.");
+      }
+      return;
+    }
+    idle = 0;
+    const scene = sceneOf(world);
+    const key = JSON.stringify(command);
+    stalls = scene === lastScene && key === lastCommand ? stalls + 1 : 0;
+    lastScene = scene;
+    lastCommand = key;
+    if (stalls >= STALLS_BEFORE_RELEASE) {
+      stalls = 0;
+      await mod2.act.controller.release(`The Borg's ${command.code} changed nothing ${String(STALLS_BEFORE_RELEASE)} times running.`);
+      return;
+    }
+    if (stalls >= STALLS_BEFORE_FORGET && stalls % STALLS_BEFORE_FORGET === 0) {
+      const aim = aimedGrid(command, world.view.player().grid);
+      if (aim !== null && borg.forget !== void 0) {
+        borg.forget(aim.x, aim.y);
+        mod2.meta.log(`the Borg's ${command.code} at ${String(aim.x)},${String(aim.y)} changed nothing, so it forgot what it believed was there`);
+      }
+    }
+    if (!announced) {
+      announced = true;
+      mod2.meta.log("the Borg is playing");
+    }
+    let token = input.token;
+    for (const target of targets) {
+      const result = await mod2.act.submit(token, target);
+      if (!result.ok) mod2.meta.log(`the Borg's target was refused: ${result.message}`);
+    }
+    if (targets.length > 0) {
+      const fresh = await mod2.view.input();
+      if (fresh.ok) token = fresh.value.token;
+    }
+    const sent = await mod2.act.submit(token, intentOf(command));
+    if (sent.ok) {
+      refusals = 0;
+      return;
+    }
+    refusals += 1;
+    if (refusals === 1 || refusals % 10 === 0) mod2.meta.log(`the Borg's ${command.code} was refused: ${sent.message}`);
+    if (refusals >= REFUSALS_BEFORE_RELEASE) {
+      refusals = 0;
+      await mod2.act.controller.release("The game kept refusing the Borg's commands.");
+    }
+  };
+}
+
 // plugin.ts
-function characterAlreadyAutoplayed(host) {
-  const noscore = host.engine.noscore();
-  return (noscore & NOSCORE_BORG) !== 0;
+function characterAlreadyAutoplayed(context) {
+  const state = context.engine?.state;
+  return ((state?.actor?.player?.noscore ?? 0) & NOSCORE_BORG) !== 0;
 }
 var RULE_CFG = {
   "borg.playsRisky": "playsRisky",
@@ -15967,40 +16693,65 @@ function changedFrom(cfg) {
   const stock = defaultCfg();
   return Object.entries(cfg).filter(([key, value]) => stock[key] !== value).map(([key, value]) => `${key}=${String(value)}`).sort();
 }
-var plugin_default = {
-  api: 1,
-  register(_host, ctx) {
-    registerBorgTitle(ctx, installMemory());
-  },
-  controller(ctx) {
-    const host = createAdapter(ctx);
-    if (!characterAlreadyAutoplayed(host) && host.engine.controllerArmed !== true) return void 0;
-    if (!host.engine.bind()) {
-      throw new Error("the Borg could not take the engine from ctx.core");
-    }
-    const missing = host.engine.missing();
-    if (missing.length > 0) {
-      throw new Error(
-        `the Borg was given no ${missing.join(" and no ")}: a host that calls controller() supplies both, and this one did not`
-      );
-    }
-    const input = host.engine.resolverInput();
-    const cfg = cfgFromFlags(host.meta.flags);
-    setBuffTimerSafetyNet(host.meta.flags["bugfix.borgFixes"] ?? true);
-    const borg = createBorg({
-      resolvers: makeCoreResolvers(input),
-      cfg
+var bridge;
+var running;
+async function begin(mod2) {
+  void bridge?.dispose();
+  const made = createBridge(mod2);
+  bridge = made;
+  await made.prime();
+  const cfg = cfgFromFlags(mod2.meta.flags);
+  setBuffTimerSafetyNet(mod2.meta.flags["bugfix.borgFixes"] ?? true);
+  const borg = createBorg({ resolvers: makeCoreResolvers(made.resolverInput()), cfg });
+  registerBorgTitle(
+    {
+      id: mod2.meta.id,
+      log: (message) => mod2.meta.log(message),
+      ...mod2.presentation?.title ? { title: mod2.presentation.title } : {},
+      ...mod2.manage ? { profiles: mod2.manage.profiles } : {}
+    },
+    installMemory(mod2.store.install)
+  );
+  mod2.meta.log(
+    made.hasTruth ? "the Borg has the keyboard, with danger vision over the monsters the character perceives, activation identity, the in-shop signal and loadout evaluation" : "the Borg has the keyboard, but the game gave it no truth domain: it plays from the known world only, with monster hit points read from health bands"
+  );
+  const changed = changedFrom(cfg);
+  mod2.meta.log(changed.length === 0 ? "the Borg is on upstream's stock settings" : `the Borg's settings differ from stock: ${changed.join(", ")}`);
+  const forget = (x, y) => {
+    if (!borg.world.map.inBounds(x, y)) return;
+    const grid = borg.world.map.at(x, y);
+    grid.feat = 0;
+    grid.info &= ~(BORG_MARK | BORG_VIEW);
+  };
+  return { bridge: made, tick: createTick(made, { controller: borg.controller, rewind: borg.rewind, forget }) };
+}
+var definition = {
+  api: ">=2.0.0 <3.0.0",
+  async start(mod2) {
+    running = begin(mod2).catch((error) => {
+      mod2.meta.log(`the Borg could not start: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
     });
-    host.meta.log(
-      `the Borg has the keyboard, and danger vision over ${input.races.length} races, activation identity, the in-shop signal and loadout evaluation`
-    );
-    const changed = changedFrom(cfg);
-    host.meta.log(
-      changed.length === 0 ? "the Borg is on upstream's stock settings" : `the Borg's settings differ from stock: ${changed.join(", ")}`
-    );
-    return borg.controller;
+    await running;
+  },
+  /* The game tears its mods down before it reloads, and the headless runner registers them again on the same page after a save and reload. The message listener leaves the game here, or the second registration doubles every message. */
+  stop() {
+    running = void 0;
+    const held = bridge;
+    bridge = void 0;
+    void held?.dispose();
+  },
+  /* Offer to play only when this character was handed to an autoplayer before or was armed from the title row. Returning false is the normal case: the mod is installed and enabled, and this character has never been handed over, so the human keeps the keyboard. */
+  armed(context) {
+    return context.armed || characterAlreadyAutoplayed(context);
+  },
+  async controller(mod2, input) {
+    const live = await running;
+    if (live === void 0 || live === null) return;
+    await live.tick(mod2, input);
   }
 };
+var plugin_default = definition;
 export {
   plugin_default as default
 };

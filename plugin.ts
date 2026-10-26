@@ -1,10 +1,11 @@
 /**
  * Borg, as a mod's entry point.
  *
- * This file and title.ts are the mod's own code: everything under src/ is the
- * port, carried over from the game's repository unchanged. This file's job is
- * to satisfy the plugin ABI, hand the port the live engine, and return a
- * controller. title.ts adds the title screen's "New Borg character" row.
+ * This file and title.ts are the mod's own code, and src/api2/ is the bridge
+ * between the game's API and the port: everything else under src/ is the port,
+ * carried over from the game's repository. This file's job is to satisfy the
+ * mod API, read the game's content once, and take a decision at each input wait.
+ * title.ts adds the title screen's "New Borg character" row.
  *
  * ------------------------------------------------------------------
  * WHY BORG IS A MOD AT ALL
@@ -12,11 +13,21 @@
  *
  * Upstream, the borg hooks the game at `inkey_hack`: when Angband asks for a
  * keypress, the borg perceives the world, decides, and returns keystrokes. That
- * is a privileged position inside the C. Here it is not privileged at all - it
- * is `ModPlugin.controller`, the same seam any third-party agent mod uses, over
- * the same frozen perceive/act API. Borg is the most demanding possible
- * consumer of "read the whole game, drive every command", so a faithful Borg
- * that plays correctly IS the acceptance test that the surface is complete.
+ * is a privileged position inside the C. Here it is not privileged at all: it is
+ * the mod API's `controller`, the same seam any agent mod uses. Borg is the most
+ * demanding possible consumer of "read the whole game, drive every command", so
+ * a faithful Borg that plays correctly IS the acceptance test that the surface
+ * is complete.
+ *
+ * ------------------------------------------------------------------
+ * WHAT THE BORG MAY SEE
+ * ------------------------------------------------------------------
+ *
+ * An autoplayer plans from the known world: the remembered map, the monsters the
+ * character perceives, the pack, the stores as the character last saw them
+ * (neostryder/neo-angband#415). Every hidden read is named in
+ * src/api2/truth.ts with its reason, and truth-allowlist.test.ts fails when
+ * this mod calls any other. The real map is not read at all.
  *
  * ------------------------------------------------------------------
  * WHY bindCore RUNS FIRST
@@ -25,13 +36,9 @@
  * A plugin cannot `import` the engine: a bare specifier does not resolve in a
  * module fetched from a folder, and bundling core into plugin.js would give this
  * mod its own registries and singletons while the game ran on another set. The
- * host passes the engine in as `ctx.core` instead, and src/core-api.ts is the one
- * file that holds it - read that file's header for how, and for the single rule
- * it imposes on the rest of the port. That file is also the adapter: this entry
- * reads its context only through `createAdapter(ctx)`.
- *
- * bindCore is called in `controller()`, which the host invokes after register()
- * and after the game is booted, so `ctx.core` is the live namespace by then.
+ * host passes the engine in as `mod.engine.core` instead, and src/core-api.ts is
+ * the one file that holds it - read that file's header for how, and for the
+ * single rule it imposes on the rest of the port.
  *
  * ------------------------------------------------------------------
  * WHY THIS DECLARES NO HOOKS
@@ -39,17 +46,19 @@
  *
  * Borg changes no rule, adds no record, and overrides no system. It plays
  * the game exactly as a player can, through commands the engine already accepts.
- * `register` adds only the title row, and only when the host grants the title,
- * profile and save seams (title.ts).
+ * It adds only the title row, and only when the host grants the title and
+ * profile seams (title.ts).
  */
 
-import type { AgentController } from "@rpgm-tools/neo-angband-core";
-import { installMemory, registerBorgTitle, type TitleCtx } from "./title.js";
+import type { Api2ControllerContext, Api2InputState, Api2ModDefinition, ModApi2 } from "@rpgm-tools/neo-angband-mod-sdk";
+import { installMemory, registerBorgTitle } from "./title.js";
 import { NOSCORE_BORG } from "./src/activate.js";
-import { createAdapter, type BorgAdapter, type ControllerCtx } from "./src/core-api.js";
 import { createBorg } from "./src/controller.js";
 import { makeCoreResolvers } from "./src/resolvers.js";
 import { defaultCfg, setBuffTimerSafetyNet, type BorgCfg } from "./src/trait/config.js";
+import { createBridge, type Bridge } from "./src/api2/host.js";
+import { createTick, type Tick } from "./src/api2/controller.js";
+import { BORG_MARK, BORG_VIEW } from "./src/world/grid.js";
 
 /**
  * Whether this character has already handed the keyboard to an autoplayer.
@@ -57,19 +66,19 @@ import { defaultCfg, setBuffTimerSafetyNet, type BorgCfg } from "./src/trait/con
  * Enabling the mod and giving away the keyboard are different decisions. There
  * is no standing settings toggle for that any more: Ctrl-Z (the host's
  * do_cmd_try_borg) warns, confirms, marks NOSCORE_BORG on the save, and
- * reloads. This plugin then returns a controller only when that permanent mark
- * is already set, so a virgin character stays under human control until Ctrl-Z,
+ * reloads. This plugin then offers to play only when that permanent mark is
+ * already set, so a virgin character stays under human control until Ctrl-Z,
  * and a character that has run the Borg before resumes with it at the wheel.
- * Returning a controller from an unmarked save would reintroduce a boot-time
- * confirm every launch merely because the mod is enabled.
+ * Offering to play from an unmarked save would reintroduce a boot-time confirm
+ * every launch merely because the mod is enabled.
  *
  * The one other way in is the title row: a character started from "New Borg
- * character" arrives with `ctx.controllerArmed`, and choosing the row was the
- * player's consent for that character.
+ * character" arrives armed, and choosing the row was the player's consent for
+ * that character.
  */
-function characterAlreadyAutoplayed(host: BorgAdapter): boolean {
-  const noscore = host.engine.noscore();
-  return (noscore & NOSCORE_BORG) !== 0;
+function characterAlreadyAutoplayed(context: Api2ControllerContext): boolean {
+  const state = context.engine?.state as { readonly actor?: { readonly player?: { readonly noscore?: number } } } | undefined;
+  return ((state?.actor?.player?.noscore ?? 0) & NOSCORE_BORG) !== 0;
 }
 
 /**
@@ -189,114 +198,81 @@ function changedFrom(cfg: Partial<BorgCfg>): string[] {
     .sort();
 }
 
-export default {
-  api: 1,
+/** What one running mod holds: the bridge to the game and the decision tick. */
+interface Running {
+  readonly bridge: Bridge;
+  readonly tick: Tick;
+}
 
-  register(_host: unknown, ctx: TitleCtx): void {
-    registerBorgTitle(ctx, installMemory());
+let bridge: Bridge | undefined;
+let running: Promise<Running | null> | undefined;
+
+async function begin(mod: ModApi2): Promise<Running | null> {
+  /* A start always gets a bridge of its own, so a second start on the same page reads this game and never the one before it. */
+  void bridge?.dispose();
+  const made = createBridge(mod);
+  bridge = made;
+  await made.prime();
+  const cfg = cfgFromFlags(mod.meta.flags);
+  /* Cross-mod, deliberately outside RULE_CFG and cfg itself: see
+   * config.ts's setBuffTimerSafetyNet for why. */
+  setBuffTimerSafetyNet(mod.meta.flags["bugfix.borgFixes"] ?? true);
+  const borg = createBorg({ resolvers: makeCoreResolvers(made.resolverInput()), cfg });
+  /* The title row needs ui:title and profiles:manage; without both there is no row. */
+  registerBorgTitle(
+    {
+      id: mod.meta.id,
+      log: (message) => mod.meta.log(message),
+      ...(mod.presentation?.title ? { title: mod.presentation.title } : {}),
+      ...(mod.manage ? { profiles: mod.manage.profiles } : {}),
+    },
+    installMemory(mod.store.install),
+  );
+  mod.meta.log(
+    made.hasTruth
+      ? "the Borg has the keyboard, with danger vision over the monsters the character perceives, activation identity, the in-shop signal and loadout evaluation"
+      : "the Borg has the keyboard, but the game gave it no truth domain: it plays from the known world only, with monster hit points read from health bands",
+  );
+  const changed = changedFrom(cfg);
+  mod.meta.log(changed.length === 0 ? "the Borg is on upstream's stock settings" : `the Borg's settings differ from stock: ${changed.join(", ")}`);
+  const forget = (x: number, y: number): void => {
+    if (!borg.world.map.inBounds(x, y)) return;
+    const grid = borg.world.map.at(x, y);
+    grid.feat = 0;
+    grid.info &= ~(BORG_MARK | BORG_VIEW);
+  };
+  return { bridge: made, tick: createTick(made, { controller: borg.controller, rewind: borg.rewind, forget }) };
+}
+
+const definition: Api2ModDefinition = {
+  api: ">=2.0.0 <3.0.0",
+
+  async start(mod) {
+    running = begin(mod).catch((error: unknown) => {
+      mod.meta.log(`the Borg could not start: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    });
+    await running;
   },
 
-  controller(ctx: ControllerCtx): AgentController | undefined {
-    /* Returning undefined is a decline, and the host leaves the human at the
-     * keyboard. This is the normal case: the mod is installed and enabled, and
-     * this character has never been handed to an autoplayer (Ctrl-Z) nor
-     * started from the title row. */
-    const host = createAdapter(ctx);
-    if (!characterAlreadyAutoplayed(host) && host.engine.controllerArmed !== true) return undefined;
+  /* The game tears its mods down before it reloads, and the headless runner registers them again on the same page after a save and reload. The message listener leaves the game here, or the second registration doubles every message. */
+  stop() {
+    running = undefined;
+    const held = bridge;
+    bridge = undefined;
+    void held?.dispose();
+  },
 
-    if (!host.engine.bind()) {
-      /* Unreachable unless bindCore itself changes shape. Checked anyway,
-       * because the failure it guards against is not an exception - it is FEAT
-       * and TV reading undefined inside a decision ladder, which looks like the
-       * Borg making bad choices rather than like a broken mod. */
-      throw new Error("the Borg could not take the engine from ctx.core");
-    }
+  /* Offer to play only when this character was handed to an autoplayer before or was armed from the title row. Returning false is the normal case: the mod is installed and enabled, and this character has never been handed over, so the human keeps the keyboard. */
+  armed(context) {
+    return context.armed || characterAlreadyAutoplayed(context);
+  },
 
-    /*
-     * DANGER VISION. Without this the Borg plays blind: every seam in
-     * BorgResolvers falls back to a deliberately inert default, and the one that
-     * matters is resolveMonsterFacts - zero blows and zero spell frequency, so
-     * borg_danger returns no threat, so nothing is ever worth fleeing. The ported
-     * math was correct the whole time and was being fed zeroes.
-     *
-     * `makeCoreResolvers` has existed in src/resolvers.ts since the port landed
-     * and had NO CALLER, because the facts resolver is asked about a monster the
-     * Borg is TRACKING rather than one on screen, which needs the race registry
-     * by ridx, and no path from a plugin to that registry existed. `ctx.registries`
-     * is that path.
-     *
-     * MODDED CREATURES COME FREE, which is the point of reading the registry
-     * rather than shipping a table. Binding runs after mods compose, so a mod's
-     * monster is a MonsterRace at a real ridx in this list and the Borg fears it
-     * on exactly the same arithmetic as one of core's. A vanilla-only table would
-     * have made every modded monster invisible to the danger math - the same
-     * defect as the inert default, restricted to modded content, and much harder
-     * to notice.
-     *
-     * ACTIVATION IDENTITY AND THE IN-SHOP SIGNAL are wired the same way, from
-     * `ctx.registries.objects` and `ctx.state`. Both are passed unconditionally.
-     * They used to be spread in only when present, back when this mod loaded
-     * into games that predated them; the engine floor now covers that, and a
-     * half-wired Borg is not a state worth being able to reach.
-     *
-     * LOADOUT EVALUATION is the fourth, and it is the odd one out: the wear /
-     * buy / sell decisions score a loadout the character is not in, which only
-     * the engine's own calc_bonuses can derive. It arrives through the frozen
-     * view's own `simulateLoadout` accessor rather than through anything read
-     * here, so the ItemViews it produces are the same ones the live view
-     * produces - see src/resolvers.ts. Nothing about it is conditional any more:
-     * manifest.json requires an engine that has it.
-     *
-     * THE ATTACK-MESSAGE TABLE is the fifth, and it decides whether the Borg
-     * notices being hit by something it cannot see. Upstream builds it from
-     * blow_methods at start-up; this reads the same records from
-     * `ctx.registries.monsters.blowMethods`, so a mod's own blow method is
-     * recognised on the same terms. Without it an unexplained blow raises no
-     * regional fear and the Borg will rest through a beating.
-     *
-     * The force-descend option is still on its default and is NOT covered by
-     * this call; see PLANNED.md.
-     */
-    const missing = host.engine.missing();
-    if (missing.length > 0) {
-      /* Unreachable through the game's own loader. manifest.json declares
-       * `engine: ">=0.25.0"`, and for a mod that ships CODE an out-of-range
-       * engine is a hard refusal in the host: the plugin is never imported, so
-       * this function never runs on a game that predates either field. Checked
-       * anyway, because the loader is not the only thing that can call a plugin
-       * ABI, and because the failure it guards against is invisible in play - a
-       * Borg built without these resolvers still returns a legal command every
-       * turn and merely plays badly, which is the exact failure mode PLANNED.md
-       * exists to describe. Naming the missing half is the difference between a
-       * five-minute fix and a week of watching it lose. */
-      throw new Error(
-        `the Borg was given no ${missing.join(" and no ")}: a host that calls ` +
-          `controller() supplies both, and this one did not`,
-      );
-    }
-
-    const input = host.engine.resolverInput();
-    const cfg = cfgFromFlags(host.meta.flags);
-    /* Cross-mod, deliberately outside RULE_CFG and cfg itself: see
-     * config.ts's setBuffTimerSafetyNet for why. */
-    setBuffTimerSafetyNet(host.meta.flags["bugfix.borgFixes"] ?? true);
-    const borg = createBorg({
-      resolvers: makeCoreResolvers(input),
-      cfg,
-    });
-    /* The race count is in the message because an empty registry is the one
-     * remaining way to get a Borg that cannot see danger, and it looks from the
-     * outside exactly like a Borg that plays badly. */
-    host.meta.log(
-      `the Borg has the keyboard, and danger vision over ${input.races.length} races, ` +
-        `activation identity, the in-shop signal and loadout evaluation`,
-    );
-    const changed = changedFrom(cfg);
-    host.meta.log(
-      changed.length === 0
-        ? "the Borg is on upstream's stock settings"
-        : `the Borg's settings differ from stock: ${changed.join(", ")}`,
-    );
-    return borg.controller;
+  async controller(mod: ModApi2, input: Api2InputState) {
+    const live = await running;
+    if (live === undefined || live === null) return;
+    await live.tick(mod, input);
   },
 };
+
+export default definition;

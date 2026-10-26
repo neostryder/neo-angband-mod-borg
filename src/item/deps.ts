@@ -8,10 +8,10 @@
  * as OPTIONAL hooks with faithful, conservative defaults:
  *  - itemLevel: defaults to 0 (device fail then only depends on skill; devices
  *    are treated as low-level, i.e. easiest to use - a benign optimism).
- *  - aware/ident/needsIdent: default to "the borg knows its carried gear"
- *    (aware=true, ident=true, needsIdent=false). ItemView already gives concrete
- *    tval/sval so treating carried consumables as identified is the faithful
- *    reading when knowledge is unavailable.
+ *  - aware: defaults to ItemView.aware, which the game sets false for an
+ *    unidentified flavour. ident/needsIdent default to "the borg knows its
+ *    carried gear" (ident=true, needsIdent=false); ItemView gives concrete
+ *    tval/sval so that is the faithful reading when knowledge is unavailable.
  *  - value: defaults to ItemView.value ?? 0.
  * The `danger` at the borg's grid (borg_danger, P8.2) is taken as a plain number
  * defaulting to 0 (no danger), per the P8.5 architecture note - never imported.
@@ -33,7 +33,7 @@ export interface ItemDeps {
   avoidance?: number;
   /** Object kind level for an item (device fail math); default 0. */
   itemLevel?: (item: ItemView) => number;
-  /** object_flavor_is_aware; default true (carried gear is known). */
+  /** object_flavor_is_aware; default the view's own `aware` (an unidentified flavour shows `aware: false`). */
   isAware?: (item: ItemView) => boolean;
   /** item is fully identified; default true. */
   isIdent?: (item: ItemView) => boolean;
@@ -86,7 +86,7 @@ export function itemLevel(item: ItemView, d?: ItemDeps): number {
   return d?.itemLevel ? d.itemLevel(item) : 0;
 }
 export function isAware(item: ItemView, d?: ItemDeps): boolean {
-  return d?.isAware ? d.isAware(item) : true;
+  return d?.isAware ? d.isAware(item) : item.aware;
 }
 export function isIdent(item: ItemView, d?: ItemDeps): boolean {
   return d?.isIdent ? d.isIdent(item) : true;
