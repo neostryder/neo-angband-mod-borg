@@ -24,7 +24,7 @@ The keyboard goes back to the player after 25 refused commands in a row, after 2
 
 ## The view the decision code reads
 
-`src/api2/world.ts` reads `view.world()` once per decision and builds the view the port was written against. The known world carries less than the API 1 view did, and the gaps are filled with what the player can know. The map is the remembered map: a grid never seen is impassable, with no feature or trap, and a secret door shows as the granite the player sees. A grid glows only if the known level says so. A timed effect reads as the shortest duration in the grade the status line names, and food is the status line's percentage times 100. An item's timeout is its count of charging items, and a light's fuel comes from the known item.
+`src/api2/world.ts` reads `view.world()` once per decision and builds the view the port was written against. The known world carries less than the API 1 view did, and the gaps are filled with what the player can know. The map is the remembered map: a grid never seen is impassable, with no feature or trap, and a secret door shows as the granite the player sees. A grid glows only if the known level says so. A timed effect reads as the shortest duration in the grade the status line names, and food is the status line's percentage times 100. The game turn is part of the world only when the mod holds `state:turn.read`, so the manifest lists it. An item's timeout is its count of charging items, and a light's fuel comes from the known item.
 
 Some questions come up partway through a decision, so `src/api2/caches.ts` keeps three caches to answer them. Race records are read once per race index and kept for the session. The activation of each worn item is read once per artifact name, ego name, or kind. Loadout simulations answer what the character would be with an item worn, removed, or bought.
 
@@ -32,7 +32,7 @@ A loadout simulation is never ready the first time the decision code asks for it
 
 ## The truth domain
 
-The game gives the Borg its truth domain through one capability, `state:map-actual.read`. The consent screen tags it as powerful and keeps it off unless the player turns it on with "Choose one by one". The grant is broad. Its consent text reads "See what the map really holds, including traps, items, terrain and creatures your character has not found", and no narrower capability covers monsters and races alone.
+The game gives the Borg its truth domain through one capability, `state:monsters-actual.read`. The consent screen tags it as powerful and keeps it off unless the player turns it on with "Choose one by one". The grant covers the exact monsters and the race records and nothing about the real map or a store's stock, which stay behind `state:map-actual.read`, a capability the Borg does not ask for.
 
 `src/api2/truth.ts` lists the two reads the Borg makes with it and the reason for each. `truth.monsters()` is filtered to the monsters the character perceives and supplies their exact hit points, speed, and status, which the danger math and the flee thresholds are written in. A perceived monster the known world does not list has no id a target can use, so it is dropped. `truth.race(index)` supplies each perceived monster's race record (flags, spells, spell frequency, blows, and level), since monster recall fills in only through fighting and a first meeting would otherwise score as harmless.
 
@@ -46,7 +46,7 @@ Messages come in through the `message` event. The bridge holds them between deci
 
 Each manifest toggle reaches the decision code as the setting it names, unchanged, and a toggle the game did not resolve stays at upstream's default. The buff-timer safety net reads `bugfix.borgFixes` from the mod's flags and stays on when that flag is missing.
 
-The manifest lists 16 capabilities and no wildcard: `command:add`, `state:player.read`, `state:monsters.read`, `state:map.read`, `state:inventory.read`, `state:floor.read`, `state:stores.read`, `state:spells.read`, `state:map-actual.read`, `state:interaction.read`, `input:intent`, `input:prompt.reply`, `event:message`, `ui:title`, `profiles:manage`, and `saves:manage`. Without `state:interaction.read` the game never calls the controller, and without the two input grants every intent and prompt answer is refused.
+The manifest lists 17 capabilities and no wildcard: `command:add`, `state:player.read`, `state:monsters.read`, `state:map.read`, `state:inventory.read`, `state:floor.read`, `state:stores.read`, `state:spells.read`, `state:turn.read`, `state:monsters-actual.read`, `state:interaction.read`, `input:intent`, `input:prompt.reply`, `event:message`, `ui:title`, `profiles:manage`, and `saves:manage`. Without `state:interaction.read` the game never calls the controller, and without the two input grants every intent and prompt answer is refused.
 
 ## Tests
 

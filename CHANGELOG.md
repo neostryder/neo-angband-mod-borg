@@ -28,7 +28,7 @@ were not retagged.
 ### Changed
 
 - [Visible] [Compatibility] **The Borg now needs Neo Angband 1.22.0 or later.** It is a mod API 2 mod and does not load on a game that offers only API 1.
-- [Visible] [Security] **The Borg's permission list changed.** New: `state:map-actual.read`, `state:interaction.read`, `input:intent`, `input:prompt.reply` and `event:message`. Gone: `state:messages.read` and `state:constants.read`. The real-map permission is off until you turn it on, and the Borg uses it only for the exact hit points and race records of the monsters the character perceives; it never reads the real map or a store's full stock. Without it, monster health comes from the health bands the look command shows.
+- [Visible] [Security] **The Borg's permission list changed.** New: `state:monsters-actual.read`, `state:turn.read`, `state:interaction.read`, `input:intent`, `input:prompt.reply` and `event:message`. Gone: `state:messages.read` and `state:constants.read`. The monsters permission is off until you turn it on, and the Borg uses it only for the exact hit points and race records of the monsters the character perceives; it never asks to see the real map or a store's full stock. Without it, monster health comes from the health bands the look command shows.
 - [Internal] [Modding-API] **The Borg runs on mod API 2.** Each decision starts from one read of the known world, which the ported code sees as a synchronous view. Loadout questions are read in rounds and the decision is made again with the answers. Target choices go in first, then the command, both as intents under the input token. The mod declares no hooks.
 
 ### Fixed

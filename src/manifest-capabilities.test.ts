@@ -34,9 +34,11 @@ describe("manifest capabilities", () => {
     for (const grant of ["state:interaction.read", "input:intent", "input:prompt.reply"]) expect(capabilities()).toContain(grant);
   });
 
-  it("declares the two hidden reads the Borg makes, and the message event it reads", () => {
-    /* truth.monsters and truth.race are the allowlist in src/api2/truth.ts; the real map is never read, so no other hidden grant is asked for. */
-    expect(capabilities()).toContain("state:map-actual.read");
+  it("declares the two hidden reads the Borg makes, the turn it reads, and the message event it reads", () => {
+    /* truth.monsters and truth.race are the allowlist in src/api2/truth.ts, and the game opens exactly those two with state:monsters-actual.read. The real map is never read, so state:map-actual.read stays out of the list. world().turn is filled only with state:turn.read. */
+    expect(capabilities()).toContain("state:monsters-actual.read");
+    expect(capabilities()).toContain("state:turn.read");
+    expect(capabilities()).not.toContain("state:map-actual.read");
     expect(capabilities()).toContain("event:message");
   });
 
