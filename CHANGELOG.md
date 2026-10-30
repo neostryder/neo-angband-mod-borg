@@ -20,6 +20,8 @@ were not retagged.
 
 ## [Unreleased]
 
+## 1.4.0-beta.1 - 2026-10-30
+
 ### Added
 
 - [Internal] [Security] **A CI step reads manifest.json and fails the build if it lists a wildcard state grant such as `state:*.read`.** The Borg names each state domain it reads one by one, and a test fails the build if any source file reads the real map or a store's real stock.
