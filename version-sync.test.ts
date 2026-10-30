@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { validateManifest } from "@rpgm-tools/neo-angband-mod-sdk";
 
 /**
  * `package.json` and `manifest.json` must carry the same version.
@@ -16,11 +17,25 @@ import { readFileSync } from "node:fs";
  * version that reaches the site as nothing at all.
  */
 describe("the two version sites", () => {
-  const read = (f: string): string =>
-    (JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8")) as { version: string }).version;
+  const read = (f: string): string => {
+    const value = JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8"));
+    return f === "./manifest.json" ? validateManifest(value).version : (value as { version: string }).version;
+  };
 
   it("agree", () => {
     expect(read("./package.json")).toBe(read("./manifest.json"));
+  });
+
+  it("normalizes schema 2 fields for manifest consumers", () => {
+    const document = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8"));
+    expect(document.schemaVersion).toBe(2);
+    const normalized = validateManifest(document);
+    expect(normalized.version).toBe(document.data.version);
+    expect(normalized.version).toBe("1.3.0");
+    expect(normalized.capabilities).toEqual(document.data.capabilities);
+    expect(normalized.capabilities).toHaveLength(17);
+    expect(normalized.rules).toEqual(document.data.rules);
+    expect(normalized.rules!.length).toBeGreaterThan(0);
   });
 
   it("are the version the changelog's newest released section names", () => {

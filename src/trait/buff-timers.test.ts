@@ -244,6 +244,7 @@ function blessingScroll(): ItemView {
   return {
     handle: 1,
     kindKey: "",
+    aware: true,
     nameColor: "",
     label: "a Scroll of Blessing",
     tval: TV.SCROLL,

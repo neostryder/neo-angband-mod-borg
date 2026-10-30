@@ -1,8 +1,6 @@
 # Borg: quick reference
 
-Angband's automatic player, ported from the borg in Angband 4.2.6. It plays the way you do -
-through the same commands, over the frozen agent API - so it is a mod like any
-other rather than privileged code inside the engine.
+Angband's automatic player, ported from the borg in Angband 4.2.6. It plays the way you do, through the same commands, over mod API 2, with no privileged code inside the engine.
 
 This page is the short version: every setting, what the mod asks the game for,
 and where the longer material is. The account of why each of these exists is in
@@ -28,13 +26,13 @@ switch has no flag of its own, the game knows it by its section id instead.
 
 ## What it needs
 
-- **Engine:** `>=1.21.1`
+- **Engine:** `>=1.22.0`
+- **Mod API:** `>=2.0.0 <3.0.0`
 - **Shape:** `plugin`
 - **Facets:** `plugin`
-- **Capabilities:** `command:add`, `state:player.read`, `state:monsters.read`,
-  `state:map.read`, `state:inventory.read`, `state:floor.read`,
-  `state:messages.read`, `state:stores.read`, `state:spells.read`,
-  `state:constants.read`, `ui:title`, `profiles:manage`, `saves:manage`
+- **Capabilities:** `command:add`, `state:player.read`, `state:monsters.read`, `state:map.read`, `state:inventory.read`, `state:floor.read`, `state:stores.read`, `state:spells.read`, `state:turn.read`, `state:monsters-actual.read`, `state:interaction.read`, `input:intent`, `input:prompt.reply`, `event:message`, `ui:title`, `profiles:manage`, `saves:manage`
+
+Only `state:monsters-actual.read` lets the Borg see past what the character has found. It uses that for two things: the exact hit points of monsters the character can perceive, and those monsters' race records. The game leaves it off unless you switch it on, and without it the Borg plays from what the character knows. See [How the Borg runs on mod API 2](API2-MIGRATION.md).
 
 What a capability string permits, and what a mod that asks for one cannot do
 without it, is in [the mod lifecycle
@@ -45,6 +43,7 @@ document](https://github.com/neostryder/neo-angband/blob/master/docs/modding/MOD
 - [README](../README.md), the full account
 - [Changelog](../CHANGELOG.md), what changed in each version
 - [Planned](../PLANNED.md), what is not built yet
+- [How the Borg runs on mod API 2](API2-MIGRATION.md), what it reads and submits
 - [How the Borg reaches the
   game](https://github.com/neostryder/neo-angband/blob/master/docs/modding/BORG.md),
   in the game's own repository

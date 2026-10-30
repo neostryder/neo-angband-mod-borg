@@ -65,6 +65,7 @@ function item(over: Partial<ItemView> = {}): ItemView {
   return {
     handle: 1,
     kindKey: "",
+    aware: true,
     nameColor: "",
     label: "x",
     tval: 0,

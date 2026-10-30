@@ -11,259 +11,188 @@
  * vitest. Whether it still works after esbuild has hoisted every module into one
  * scope is a separate question, and the failure mode if it does not is not an
  * exception - it is FEAT reading `undefined` inside a decision ladder, which
- * looks like the Borg playing badly. So this test drives the bundle.
+ * looks like the Borg playing badly. So this test drives the bundle, through a
+ * fake game (src/harness-api2.ts) that answers every API 2 call.
  *
- * It also pins the two things the host relies on and the type system cannot
- * check across the bundle boundary: that the default export really is a plugin,
- * and that declining is `undefined` rather than a controller that does nothing.
+ * It also pins what the host relies on and the type system cannot check across
+ * the bundle boundary: that the default export really is an API 2 mod, and that
+ * the Borg is offered the keyboard only for a character handed to it.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import * as Core from "@rpgm-tools/neo-angband-core";
-import type { AgentController } from "@rpgm-tools/neo-angband-core";
-import { makeScenarioView, makeFakeActions } from "./src/harness.js";
-
-interface BuiltPlugin {
-  readonly api: number;
-  readonly hooks?: unknown;
-  register(host: unknown, ctx: Record<string, unknown>): void;
-  controller(ctx: {
-    flags: Record<string, boolean>;
-    core: typeof Core;
-    log: (m: string) => void;
-    registries: unknown;
-    state: unknown;
-    controllerArmed?: boolean;
-  }): AgentController | undefined;
-}
+import type { Api2ControllerContext, Api2ModDefinition, Api2Prompt } from "@rpgm-tools/neo-angband-mod-sdk";
+import { fakeGame, type FakeGame, type FakeGameOptions } from "./src/harness-api2.js";
+import type { Scenario } from "./src/harness.js";
 
 /* The BUILT file, on purpose. If plugin.js is stale or missing this fails, which
  * is correct: `pnpm check` proves it is a current build of the source, and
  * this proves the thing that check blessed actually runs. */
-const built = ((await import("./plugin.js")) as { default: BuiltPlugin }).default;
+const built = ((await import("./plugin.js")) as unknown as { default: Api2ModDefinition }).default;
 
-/**
- * A `ctx.registries`-shaped host fact carrying one core race and one a mod added,
- * plus one blow method with an action message.
- *
- * Only the fields the plugin reads are real. That is deliberate: the claim under
- * test is "the shipped bundle reaches for the registry and reports what it
- * found", and a fuller fixture would only make the test slower at asserting the
- * same thing. Whether the facts it derives are CORRECT is src/resolvers.test.ts.
- */
-function hostRegistries(): unknown {
-  return {
-    monsters: {
-      blowMethods: new Map([
-        ["HIT", { name: "HIT", messages: ["hits {target}"] }],
-      ]),
-      races: [
-        { ridx: 0, name: "soldier ant", blows: [], flags: [], spellFlags: [], friends: [] },
-        {
-          ridx: 1,
-          name: "joiner ant",
-          from: { owner: "tutorial-03" },
-          blows: [],
-          flags: [],
-          spellFlags: [],
-          friends: [],
-        },
-      ],
-    },
-    objects: {
-      lookupKind: () => null,
-      findEgo: () => null,
-      findArtifact: () => null,
-    },
-  };
+const NOSCORE_BORG = 0x0020;
+
+const FIGHT: Scenario = {
+  player: { grid: { x: 5, y: 5 }, depth: 3 },
+  monsters: [{ grid: { x: 6, y: 5 }, raceIndex: 42, hp: 10, maxHp: 10 }],
+};
+
+const started: FakeGame[] = [];
+
+function engine(noscore = 0): unknown {
+  return { api: "1", core: Core, state: { actor: { player: { noscore } } }, registries: undefined };
 }
 
-/** A `ctx.state`-shaped host fact: the player standing on the general store. */
-function hostState(): unknown {
-  return {
-    actor: { grid: { x: 5, y: 5 } },
-    chunk: { feature: () => ({ shopnum: 1 }) },
-  };
+/** Start the built mod against a fake game, as the game does when the mod loads. */
+async function begin(options: FakeGameOptions = {}): Promise<FakeGame> {
+  const game = fakeGame({ engine: engine(options.noscore ?? NOSCORE_BORG), scenario: FIGHT, ...options });
+  started.push(game);
+  await built.start!(game.mod);
+  return game;
 }
 
-/**
- * Install the built plugin against a COMPLETE host context: every field the
- * host's own `controller()` call site is guaranteed to carry. Since manifest.json
- * declares an engine floor that is all of them, so there is no longer a
- * half-supplied context to parameterise over.
- *
- * `omit` builds a defective context on purpose, for the one test that pins what
- * the plugin does with one. `noscore` is the permanent autoplay mark Ctrl-Z
- * writes before reload; the default here is the marked value so the existing
- * "takes the keyboard" cases stay concise.
- */
-function install(
-  flags: Record<string, boolean> = {},
-  omit: readonly ("registries" | "state")[] = [],
-  noscore = 0x0020,
-  armed?: boolean,
-): {
-  controller: AgentController | undefined;
-  logs: string[];
-} {
-  const logs: string[] = [];
-  const baseState = hostState() as {
-    actor: { grid: { x: number; y: number }; player?: { noscore: number } };
-    chunk: unknown;
-  };
-  const ctx: Record<string, unknown> = {
-    flags,
-    core: Core,
-    log: (m: string) => logs.push(m),
-    registries: hostRegistries(),
-    state: {
-      ...baseState,
-      actor: { ...baseState.actor, player: { noscore } },
-    },
-    ...(armed === undefined ? {} : { controllerArmed: armed }),
-  };
-  for (const key of omit) delete ctx[key];
-  const controller = built.controller(
-    ctx as unknown as Parameters<BuiltPlugin["controller"]>[0],
-  );
-  return { controller, logs };
+async function tick(game: FakeGame, over: Parameters<FakeGame["input"]>[0] = {}): Promise<void> {
+  await built.controller!(game.mod, game.input(over));
 }
+
+const said = (game: FakeGame): string => game.logs.join(" ");
+
+afterEach(async () => {
+  started.length = 0;
+  await built.stop?.();
+});
 
 describe("the built plugin.js", () => {
-  it("is a plugin with a controller and a register for the title row, and no hooks", () => {
-    expect(built.api).toBe(1);
+  it("is an API 2 mod with a controller, a start and a stop, and no hooks", () => {
+    expect(built.api).toBe(">=2.0.0 <3.0.0");
     expect(built.hooks).toBeUndefined();
-    expect(typeof built.register).toBe("function");
+    expect(typeof built.start).toBe("function");
+    expect(typeof built.stop).toBe("function");
     expect(typeof built.controller).toBe("function");
+    expect(typeof built.armed).toBe("function");
   });
 
-  it("registers nothing on a host without the title, profile and save seams", () => {
-    /* title.test.ts covers the row itself; this pins that the bundle wires it
-     * and stays quiet when the capabilities were not granted. */
-    expect(() => built.register({}, { id: "borg" })).not.toThrow();
-    const rows: unknown[] = [];
-    built.register({}, { id: "borg", title: { registerRow: (row: unknown) => rows.push(row), choose: () => Promise.resolve(null) } });
-    expect(rows).toEqual([]);
+  it("offers the keyboard only to a character handed to it", () => {
+    /* Installing and enabling the Borg must not hand it your character. An
+     * autoplayer that starts because the mod is present eats a save the first
+     * time someone browses the mod list. Ctrl-Z marks the save, and the title
+     * row arms the controller; without either, the human keeps the keyboard. */
+    const context = (armed: boolean, noscore: number): Api2ControllerContext => ({ armed, engine: engine(noscore) }) as unknown as Api2ControllerContext;
+    expect(built.armed?.(context(false, 0))).toBe(false);
+    expect(built.armed?.(context(true, 0))).toBe(true);
+    expect(built.armed?.(context(false, NOSCORE_BORG))).toBe(true);
+    expect(built.armed?.({ armed: false } as unknown as Api2ControllerContext)).toBe(false);
   });
 
-  it("takes the keyboard on an unmarked character the title row armed", () => {
-    expect(typeof install({}, [], 0, true).controller).toBe("function");
-    expect(install({}, [], 0, false).controller).toBeUndefined();
+  it("starts, binds the engine, and says what it can see", async () => {
+    const without = await begin();
+    expect(said(without)).toContain("keyboard");
+    expect(said(without)).toContain("known world only");
+    const withTruth = await begin({ truth: true });
+    expect(said(withTruth)).toContain("danger vision");
   });
 
-  it("declines the keyboard until the character has been autoplayed", () => {
-    // Installing and enabling the Borg must not hand it your character. An
-    // autoplayer that starts because the mod is present is a mod that eats a
-    // save the first time someone browses the mod list. Ctrl-Z is what marks
-    // the save; without that mark this declines.
-    expect(install({}, [], 0).controller).toBeUndefined();
+  it("says why it could not start when the game gave it no engine", async () => {
+    const game = fakeGame({ engine: null as never });
+    (game.mod as { engine?: unknown }).engine = undefined;
+    started.push(game);
+    await built.start!(game.mod);
+    expect(said(game)).toMatch(/could not start: .*no engine/u);
+    await tick(game);
+    expect(game.submitted).toEqual([]);
   });
 
-  it("takes the keyboard when NOSCORE_BORG is set, and says so", () => {
-    const { controller, logs } = install();
-    expect(typeof controller).toBe("function");
-    expect(logs.join(" ")).toContain("keyboard");
-  });
-
-  it("decides a real move through the bundle, with the engine passed in", () => {
+  it("decides a real move through the bundle, with the engine passed in", async () => {
     /* The whole point. If the live bindings did not survive bundling, FEAT and
-     * TV would be undefined here and the ladder would still return SOMETHING -
-     * so asserting "not null" alone would pass against the bug. The commands
-     * below are what a Borg standing next to a monster actually issues, and
-     * every one of them requires a real FEAT/TV read on the way. */
-    const controller = install().controller!;
-    const view = makeScenarioView({
-      player: { grid: { x: 5, y: 5 }, depth: 3 },
-      monsters: [{ grid: { x: 6, y: 5 }, raceIndex: 42, hp: 10, maxHp: 10 }],
-    });
-    const cmd = controller(view, makeFakeActions());
-    expect(cmd).not.toBeNull();
-    expect(typeof cmd?.code).toBe("string");
+     * TV would be undefined here and the ladder would still return SOMETHING, so
+     * asserting "something was submitted" alone would pass against the bug. The
+     * monster beside the player is what makes the ladder read the engine. */
+    const game = await begin({ truth: true });
+    await tick(game);
+    expect(game.submitted).toHaveLength(1);
+    const sent = game.submitted[0]!.intent as { kind: string };
+    expect(typeof sent.kind).toBe("string");
+    expect(said(game)).toContain("the Borg is playing");
   });
 
-  it("keeps deciding, turn after turn", () => {
-    // One decision can succeed on stale state; a stuck Borg shows up over turns.
-    const controller = install().controller!;
-    const view = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 2 } });
-    const codes = Array.from(
-      { length: 8 },
-      () => controller(view, makeFakeActions())?.code ?? null,
-    );
-    expect(codes.every((c) => c !== null)).toBe(true);
+  it("keeps deciding, turn after turn", async () => {
+    /* One decision can succeed on stale state; a stuck Borg shows up over turns. */
+    const game = await begin({ scenario: { player: { grid: { x: 5, y: 5 }, depth: 2 } } });
+    for (let turn = 0; turn < 8; turn++) await tick(game);
+    expect(game.submitted.length).toBeGreaterThanOrEqual(8);
+    expect(game.released).toEqual([]);
   });
 
-  it("wires all four seams from the host context, and says what it got", () => {
-    /* THE ANTI-INERT TEST. Every other test in this file passed for months while
-     * the plugin built its Borg with no resolvers at all, because a Borg with no
-     * danger vision still returns a command every turn. What that proves is that
-     * "it decided a move" cannot detect this class of bug, so the wiring needs an
-     * assertion of its own. The race count is in the message so a player's log
-     * says whether the Borg could see, not just that it started - an empty
-     * registry is the one remaining way to get a blind Borg. */
-    const { controller, logs } = install();
-    expect(typeof controller).toBe("function");
-    const said = logs.join(" ");
-    expect(said).toMatch(/danger vision over 2 races/u);
-    expect(said).toMatch(/activation identity/u);
-    expect(said).toMatch(/in-shop signal/u);
-    expect(said).toMatch(/loadout evaluation/u);
+  it("answers a prompt and submits nothing else", async () => {
+    const game = await begin();
+    const prompt = { promptId: 7, kind: "confirm", message: "Really?" } as unknown as Api2Prompt;
+    await tick(game, { prompt });
+    expect(game.answered).toEqual([{ promptId: 7, answer: true }]);
+    expect(game.submitted).toEqual([]);
   });
 
-  it("refuses a marked character on a host missing registries, and names it", () => {
-    /* The engine floor is what makes this unreachable through the game's own
-     * loader: a game without `ctx.registries` never imports this bundle. It is
-     * asserted anyway because the loader is not the only caller a plugin ABI can
-     * have, and because the alternative failure is silent - a Borg with no
-     * resolvers plays on, badly. Missing `ctx.state` cannot reach this refusal:
-     * without state there is no NOSCORE mark to read, so the plugin declines
-     * first (same as an unmarked character). */
-    expect(() => install({}, ["registries"])).toThrow(/ctx\.registries/u);
-    expect(install({}, ["state"]).controller).toBeUndefined();
-    expect(install({}, ["registries", "state"]).controller).toBeUndefined();
+  it("does nothing at a wait that is not play or a store", async () => {
+    const game = await begin();
+    await tick(game, { phase: "death" as never });
+    expect(game.submitted).toEqual([]);
+    expect(game.answered).toEqual([]);
   });
 
-  it("declines before it can refuse anything, when the character is unmarked", () => {
-    /* Order matters: the NOSCORE check runs first, so a host that never handed
-     * this character over is never told its context is short. Otherwise browsing
-     * the mod list on a defective host would raise from a mod nobody activated. */
-    expect(install({}, ["registries", "state"], 0).controller).toBeUndefined();
+  it("hands the keyboard back after a run of refusals", async () => {
+    const game = await begin({ submit: () => false });
+    for (let turn = 0; turn < 25; turn++) await tick(game);
+    expect(game.released).toHaveLength(1);
+    expect(said(game)).toContain("was refused");
   });
 
-  it("runs on upstream's stock settings when the player moved nothing, and says so", () => {
+  it("hands the keyboard back when it has nothing to do, rather than looping", async () => {
+    const game = await begin({ scenario: { player: { dead: true } } });
+    for (let turn = 0; turn < 25; turn++) await tick(game);
+    expect(game.submitted).toEqual([]);
+    expect(game.released).toHaveLength(1);
+  });
+
+  it("listens for messages while it runs, and stops listening when the game stops it", async () => {
+    const game = await begin();
+    expect([...game.listeners.keys()]).toEqual(["message"]);
+    await built.stop?.();
+    expect(game.unsubscribed).toEqual(["message"]);
+  });
+
+  it("makes only the two hidden reads it declares, and never the real map or the stock", async () => {
+    const game = await begin({ truth: true });
+    for (let turn = 0; turn < 3; turn++) await tick(game);
+    expect(game.truthCalls.length).toBeGreaterThan(0);
+    expect(game.truthCalls.filter((call) => call !== "monsters" && !call.startsWith("race "))).toEqual([]);
+  });
+
+  it("plays the known world when the game gives it no truth domain", async () => {
+    const game = await begin({ truth: false });
+    await tick(game);
+    expect(game.truthCalls).toEqual([]);
+    expect(game.submitted).toHaveLength(1);
+  });
+
+  it("runs on upstream's stock settings when the player moved nothing, and says so", async () => {
     /* A stock Borg is the Borg Angband ships. The log line is how an unattended
-       run's record says which one was playing, and this is the case where the
-       answer is "the one the C would have been". */
-    const { logs } = install();
-    expect(logs.join(" ")).toContain("stock settings");
+       run's record says which one was playing. */
+    expect(said(await begin())).toContain("stock settings");
   });
 
-  it("carries the player's settings through the bundle, and names the changed ones", () => {
-    /* THE SECOND ANTI-INERT TEST. src/settings.test.ts proves each setting moves
-       a decision; that runs against TypeScript. This proves the flags survive the
-       trip from the mod manager, through esbuild's single scope, into the Borg -
+  it("carries the player's settings through the bundle, and names the changed ones", async () => {
+    /* THE ANTI-INERT TEST. src/settings.test.ts proves each setting moves a
+       decision; that runs against TypeScript. This proves the flags survive the
+       trip from the mod manager, through esbuild's single scope, into the Borg,
        and it asserts the NAMES, because a table that mapped two flags onto one
        setting would still produce a Borg that starts and plays. */
-    const { logs } = install({
-      "borg.playsRisky": true,
-      "borg.worshipsSpeed": true,
-      "borg.selfScum": false,
-    });
-    const said = logs.join(" ");
-    expect(said).toContain("playsRisky=true");
-    expect(said).toContain("worshipsSpeed=true");
-    expect(said).toContain("selfScum=false");
-    expect(said).not.toContain("worshipsGold");
+    const game = await begin({ flags: { "borg.playsRisky": true, "borg.worshipsSpeed": true, "borg.selfScum": false } });
+    expect(said(game)).toContain("playsRisky=true");
+    expect(said(game)).toContain("worshipsSpeed=true");
+    expect(said(game)).toContain("selfScum=false");
+    expect(said(game)).not.toContain("worshipsGold");
   });
 
-  it("does not report a setting the player left on its stock value", () => {
-    /* Switching a rule ON that is already on by default is not a change, and a
-       log that called it one would make every run look configured. */
-    const { logs } = install({ "borg.selfScum": true });
-    expect(logs.join(" ")).toContain("stock settings");
-  });
-
-  it("yields when the player is dead", () => {
-    const controller = install().controller!;
-    expect(controller(makeScenarioView({ player: { dead: true } }), makeFakeActions())).toBeNull();
+  it("does not report a setting the player left on its stock value", async () => {
+    expect(said(await begin({ flags: { "borg.selfScum": true } }))).toContain("stock settings");
   });
 });

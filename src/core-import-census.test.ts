@@ -25,6 +25,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,32 +62,28 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/**
- * Import/export statements naming the engine that are NOT `import type` /
- * `export type`. Matched across lines, because a multi-specifier list is
- * routinely wrapped.
- */
+/** Type-only imports erase; dynamic imports and re-exports can still load another engine. */
 function valueImportsOfEngine(text: string): string[] {
+  const source = ts.createSourceFile("source.ts", text, ts.ScriptTarget.Latest, true);
   const found: string[] = [];
-  const statement = /(?:^|\n)\s*(import|export)\b([\s\S]*?)from\s+["']([^"']+)["']/gu;
-  for (const m of text.matchAll(statement)) {
-    if (m[3] !== ENGINE) continue;
-    const body = m[2] ?? "";
-    /* `import type {...}` and `export type {...}` erase entirely. A list whose
-     * every specifier is individually `type X` erases too, but one bare
-     * specifier alongside them does not - so check for a non-type specifier
-     * rather than for the absence of the word "type". */
-    if (/^\s*type\s/u.test(body)) continue;
-    const inner = /\{([\s\S]*)\}/u.exec(body)?.[1];
-    if (inner !== undefined) {
-      const specifiers = inner
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      if (specifiers.every((s) => s.startsWith("type "))) continue;
+  const engineModule = (node: ts.Node): boolean => ts.isStringLiteralLike(node) && (node.text === ENGINE || node.text.startsWith(`${ENGINE}/`));
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && engineModule(node.moduleSpecifier)) {
+      const clause = node.importClause;
+      const names = clause?.namedBindings;
+      const erased = clause?.isTypeOnly || (!clause?.name && names && ts.isNamedImports(names) && names.elements.every((name) => name.isTypeOnly));
+      if (!erased) found.push(node.getText(source));
     }
-    found.push(`${m[1]} ... from "${ENGINE}"`);
-  }
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier && engineModule(node.moduleSpecifier)) {
+      const names = node.exportClause;
+      const erased = node.isTypeOnly || (names && ts.isNamedExports(names) && names.elements.every((name) => name.isTypeOnly));
+      if (!erased) found.push(node.getText(source));
+    }
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require")) && node.arguments.some(engineModule)) found.push(node.getText(source));
+    if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference) && node.moduleReference.expression && engineModule(node.moduleReference.expression)) found.push(node.getText(source));
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
   return found;
 }
 
@@ -114,10 +111,11 @@ describe("nothing in the plugin bundle reaches the engine for a runtime value", 
   });
 
   it("still counts a value import when it sees one", () => {
-    /* The regex is the whole guard, so prove it fires on each shape it must
-     * catch and stays quiet on each shape it must not. */
     expect(valueImportsOfEngine(`import { FEAT } from "${ENGINE}";`)).toHaveLength(1);
     expect(valueImportsOfEngine(`export { TV } from "${ENGINE}";`)).toHaveLength(1);
+    expect(valueImportsOfEngine(`import("${ENGINE}");`)).toHaveLength(1);
+    expect(valueImportsOfEngine(`import "${ENGINE}";`)).toHaveLength(1);
+    expect(valueImportsOfEngine(`export * from "${ENGINE}";`)).toHaveLength(1);
     expect(
       valueImportsOfEngine(`import {\n  A,\n  type B,\n} from "${ENGINE}";`),
     ).toHaveLength(1);
@@ -127,5 +125,16 @@ describe("nothing in the plugin bundle reaches the engine for a runtime value", 
       valueImportsOfEngine(`import {\n  type A,\n  type B,\n} from "${ENGINE}";`),
     ).toHaveLength(0);
     expect(valueImportsOfEngine(`import { FEAT } from "./core-api.js";`)).toHaveLength(0);
+  });
+
+  it.each([
+    `require("${ENGINE}");`, `import core = require("${ENGINE}");`,
+    `require("${ENGINE}/engine.js");`, `import core = require("${ENGINE}/engine.js");`,
+  ])("counts the restored CommonJS import: %s", (text) => {
+    expect(valueImportsOfEngine(text)).toHaveLength(1);
+  });
+
+  it("allows an erased CommonJS import", () => {
+    expect(valueImportsOfEngine(`import type core = require("${ENGINE}");`)).toHaveLength(0);
   });
 });

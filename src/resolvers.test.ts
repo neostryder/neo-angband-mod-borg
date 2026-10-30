@@ -122,6 +122,7 @@ function fakeItem(over: Partial<ItemView> = {}): ItemView {
   return {
     handle: 1,
     kindKey: "",
+    aware: true,
     nameColor: "",
     label: "test item",
     tval: 30,

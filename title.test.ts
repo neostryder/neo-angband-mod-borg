@@ -1,77 +1,96 @@
 import { describe, expect, it } from "vitest";
 import {
-  COPY_PROMPT, FALLBACK_HERE, freshName, GIVE_UP, installMemory, MEMORY_KEY, registerBorgTitle, TITLE_KEY, TITLE_LABEL,
+  COPY_PROMPT, FALLBACK_HERE, freshName, GIVE_UP, installMemory, registerBorgTitle, TITLE_KEY, TITLE_LABEL,
   WHERE_HERE, WHERE_PROMPT, WHERE_SEPARATE, WHICH_COPY, WHICH_FRESH, WHICH_PROMPT, type ProfileMemory,
 } from "./title.js";
-import type { ModProfile, ModProfiles, ModSaves, ModTitle, ModTitleRow, ProfileResult } from "@rpgm-tools/neo-angband-core";
+import type { Api2Manage, Api2Profile, Api2Slot, Api2Title, Api2TitleAction, JsonValue } from "@rpgm-tools/neo-angband-mod-sdk";
+
+type ModProfiles = Api2Manage["profiles"];
 
 interface Fake {
-  readonly title: ModTitle;
+  readonly title: Api2Title;
   readonly profiles: ModProfiles;
-  readonly saves: ModSaves;
-  readonly rows: ModTitleRow[];
+  readonly rows: Api2TitleAction[];
   readonly asked: { title: string; choices: readonly string[] }[];
   readonly calls: string[];
 }
 
-/** A memory with no page storage behind it. */
-function memory(ids: string[] = []): ProfileMemory {
-  const held = installMemory({ getItem: () => null, setItem: () => undefined });
-  if (ids.length > 0) held.write(ids);
+/** A slot that holds its value in memory. */
+function slot(initial: JsonValue | null = null): Api2Slot & { held(): JsonValue | null } {
+  let value: JsonValue | null = initial;
+  return {
+    get: () => Promise.resolve({ ok: true as const, value }),
+    set: (next) => {
+      value = next;
+      return Promise.resolve({ ok: true as const, value: null });
+    },
+    held: () => value,
+  };
+}
+
+/** A memory with no game storage behind it. */
+async function memory(ids: string[] = []): Promise<ProfileMemory> {
+  const held = installMemory(slot());
+  if (ids.length > 0) await held.write(ids);
   return held;
 }
 
 /** A host whose prompts answer from `answers` in order, and whose profile calls can be refused by name. */
-function host(answers: (number | null)[], options: { refuse?: Partial<Record<keyof ModProfiles, string>>; profiles?: ModProfile[] } = {}): Fake {
-  const rows: ModTitleRow[] = [];
+function host(answers: (number | null)[], options: { refuse?: Partial<Record<keyof ModProfiles, string>>; profiles?: Api2Profile[] } = {}): Fake {
+  const rows: Api2TitleAction[] = [];
   const asked: Fake["asked"] = [];
   const calls: string[] = [];
-  const profileList: ModProfile[] = options.profiles ?? [{ id: null, name: "Default", active: true }];
-  const refusal = (name: keyof ModProfiles): { ok: false; reason: string } | null => {
-    const reason = options.refuse?.[name];
-    return reason === undefined ? null : { ok: false, reason };
+  const profileList: Api2Profile[] = options.profiles ?? [{ id: null, name: "Default", active: true }];
+  const refusal = (name: keyof ModProfiles): { ok: false; reason: "refused"; code: string; message: string } | null => {
+    const message = options.refuse?.[name];
+    return message === undefined ? null : { ok: false, reason: "refused", code: "refused", message };
   };
-  const ok = <T,>(value: T): ProfileResult<T> => ({ ok: true, value });
+  const ok = <T,>(value: T) => ({ ok: true as const, value });
   return {
     rows,
     asked,
     calls,
-    saves: {} as ModSaves,
     title: {
-      registerRow(row) { rows.push(row); return () => undefined; },
-      choose(title, choices) { asked.push({ title, choices }); return Promise.resolve(answers.shift() ?? null); },
+      registerRow(row) { rows.push(row); return Promise.resolve(ok({ id: row.id })); },
+      removeRow: () => Promise.resolve(ok(null)),
+      choose(title, choices) { asked.push({ title, choices }); return Promise.resolve(ok(answers.shift() ?? null)); },
     },
     profiles: {
-      list: () => refusal("list") ?? ok(profileList),
-      create(name, opts) {
-        calls.push(`create ${name} ${opts !== undefined && "copyFrom" in opts ? `from ${String(opts.copyFrom)}` : "fresh"}`);
+      list: () => Promise.resolve(refusal("list") ?? ok(profileList)),
+      create(name, copyFrom) {
+        calls.push(`create ${name} ${copyFrom === undefined ? "fresh" : `from ${String(copyFrom)}`}`);
         const no = refusal("create");
-        if (no !== null) return no;
+        if (no !== null) return Promise.resolve(no);
         const made = { id: `p${String(profileList.length)}`, name, active: false };
         profileList.push(made);
-        return ok(made);
+        return Promise.resolve(ok(made));
       },
-      setEnabledMods(id, mods) { calls.push(`enable ${id} ${mods.join(",")}`); return refusal("setEnabledMods") ?? ok(undefined); },
-      switchTo(id, action) { calls.push(`switch ${String(id)} ${action?.kind ?? "none"} ${String(action?.armController)}`); return refusal("switchTo") ?? ok(undefined); },
+      setEnabledMods(id, mods) { calls.push(`enable ${id} ${mods.join(",")}`); return Promise.resolve(refusal("setEnabledMods") ?? ok(null)); },
+      switchTo(id, action) { calls.push(`switch ${String(id)} ${action?.kind ?? "none"} ${String(action?.armController)}`); return Promise.resolve(refusal("switchTo") ?? ok(null)); },
     },
   };
 }
 
-async function pick(fake: Fake, held: ProfileMemory = memory()): Promise<void> {
-  expect(registerBorgTitle({ id: "borg", title: fake.title, profiles: fake.profiles, saves: fake.saves }, held)).toBe(true);
+async function pick(fake: Fake, held?: ProfileMemory): Promise<void> {
+  expect(registerBorgTitle({ id: "borg", title: fake.title, profiles: fake.profiles }, held ?? (await memory()))).toBe(true);
   const row = fake.rows[0];
   if (row === undefined) throw new Error("no row");
   await row.run();
 }
 
 describe("the Borg title row", () => {
-  it("registers nothing without the title, profile and save seams", () => {
+  it("registers its row under an id the game accepts", async () => {
+    /* The game refuses any id outside a lowercase letter then lowercase letters, digits and hyphens, and says so only in its log. */
     const fake = host([]);
-    expect(registerBorgTitle({}, memory())).toBe(false);
-    expect(registerBorgTitle({ title: fake.title }, memory())).toBe(false);
-    expect(registerBorgTitle({ profiles: fake.profiles, saves: fake.saves }, memory())).toBe(false);
-    expect(registerBorgTitle({ title: fake.title, saves: fake.saves }, memory())).toBe(false);
-    expect(registerBorgTitle({ title: fake.title, profiles: fake.profiles }, memory())).toBe(false);
+    registerBorgTitle({ id: "borg", title: fake.title, profiles: fake.profiles }, await memory());
+    expect(fake.rows[0]?.id).toMatch(/^[a-z][a-z0-9-]{0,63}$/);
+  });
+
+  it("registers nothing without the title and profile seams", async () => {
+    const fake = host([]);
+    expect(registerBorgTitle({}, await memory())).toBe(false);
+    expect(registerBorgTitle({ title: fake.title }, await memory())).toBe(false);
+    expect(registerBorgTitle({ profiles: fake.profiles }, await memory())).toBe(false);
     expect(fake.rows).toHaveLength(0);
   });
 
@@ -86,20 +105,20 @@ describe("the Borg title row", () => {
 
   it("starts a fresh profile with only the Borg enabled, remembers it, and arms the controller there", async () => {
     const fake = host([0, 0]);
-    const held = memory();
+    const held = await memory();
     await pick(fake, held);
     expect(fake.asked[1]).toEqual({ title: WHICH_PROMPT, choices: [WHICH_FRESH, WHICH_COPY] });
     expect(fake.calls).toEqual(["create Borg fresh", "enable p1 borg", "switch p1 create-character true"]);
-    expect(held.read()).toEqual(["p1"]);
+    expect(await held.read()).toEqual(["p1"]);
   });
 
   it("copies a chosen profile and keeps its loadout", async () => {
     const fake = host([0, 1, 1], { profiles: [{ id: null, name: "Default", active: true }, { id: "p1", name: "Ironman", active: false }] });
-    const held = memory();
+    const held = await memory();
     await pick(fake, held);
     expect(fake.asked[2]).toEqual({ title: COPY_PROMPT, choices: ["Default", "Ironman"] });
     expect(fake.calls).toEqual(["create Borg from p1", "switch p2 create-character true"]);
-    expect(held.read()).toEqual(["p2"]);
+    expect(await held.read()).toEqual(["p2"]);
   });
 
   it("copies the default profile by its null id", async () => {
@@ -109,7 +128,7 @@ describe("the Borg title row", () => {
   });
 
   it("offers the profiles the Borg made before, forgets the ones that are gone, and names the next one plainly", async () => {
-    const held = memory(["p1", "gone"]);
+    const held = await memory(["p1", "gone"]);
     const listed = [{ id: null, name: "Default", active: true }, { id: "p1", name: "Borg", active: false }, { id: "p2", name: "Mine", active: false }];
     const reuse = host([0, 2], { profiles: [...listed] });
     await pick(reuse, held);
@@ -119,7 +138,7 @@ describe("the Borg title row", () => {
     const another = host([0, 0], { profiles: [...listed] });
     await pick(another, held);
     expect(another.calls[0]).toBe("create Borg 2 fresh");
-    expect(held.read()).toEqual(["p1", "p3"]);
+    expect(await held.read()).toEqual(["p1", "p3"]);
     expect(freshName(["Default", "Borg", "Borg 2"])).toBe("Borg 3");
     expect(freshName(["borg"])).toBe("Borg 2");
   });
@@ -164,20 +183,21 @@ describe("the Borg title row", () => {
 });
 
 describe("the Borg's profile memory", () => {
-  it("keeps the ids in page storage in the house envelope", () => {
-    const page = new Map<string, string>();
-    const storage = { getItem: (key: string) => page.get(key) ?? null, setItem: (key: string, value: string) => { page.set(key, value); } };
-    installMemory(storage).write(["p1", "p2"]);
-    expect(JSON.parse(page.get(MEMORY_KEY) ?? "null")).toEqual({ format: "neo-angband/borg/profiles", schemaVersion: 1, data: { profileIds: ["p1", "p2"] } });
-    expect(installMemory(storage).read()).toEqual(["p1", "p2"]);
+  it("keeps the ids in the install slot", async () => {
+    const stored = slot();
+    await installMemory(stored).write(["p1", "p2"]);
+    expect(stored.held()).toEqual({ profileIds: ["p1", "p2"] });
+    expect(await installMemory(stored).read()).toEqual(["p1", "p2"]);
   });
 
-  it("ignores anything else under its key, and remembers for the session when storage fails", () => {
-    const foreign = { getItem: () => "[\"p1\"]", setItem: () => undefined };
-    expect(installMemory(foreign).read()).toEqual([]);
-    const broken = { getItem: (): string | null => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+  it("ignores anything else in the slot, and remembers for the session when the slot fails", async () => {
+    expect(await installMemory(slot(["p1"])).read()).toEqual([]);
+    const broken: Api2Slot = {
+      get: () => Promise.reject(new Error("blocked")),
+      set: () => Promise.reject(new Error("blocked")),
+    };
     const held = installMemory(broken);
-    held.write(["p9"]);
-    expect(held.read()).toEqual(["p9"]);
+    await held.write(["p9"]);
+    expect(await held.read()).toEqual(["p9"]);
   });
 });

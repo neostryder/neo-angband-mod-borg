@@ -35,6 +35,8 @@ import {
   borgCheckLight,
   borgRecover,
   borgCrushJunk,
+  borgQuaffUnknown,
+  borgReadUnknown,
   deviceFail,
 } from "./index.js";
 
@@ -43,6 +45,7 @@ function item(p: Partial<ItemView>): ItemView {
   return {
     handle: p.handle ?? 1,
     kindKey: p.kindKey ?? "",
+    aware: p.aware ?? true,
     nameColor: p.nameColor ?? "",
     label: p.label ?? "item",
     tval: p.tval ?? 0,
@@ -454,10 +457,38 @@ describe("junk", () => {
     expect(cmd.args.handle).toBe(4);
   });
 
+  it("keeps an unidentified scroll, whose value is its flavour's base price", () => {
+    /* From core 1.22 an unidentified item shows `aware: false` and a value that is always present, so a missing value no longer marks it. */
+    const ctx = makeCtx({ player: { depth: 10 } }, {
+      inventory: [item({ handle: 4, tval: TV.SCROLL, sval: -3, aware: false, value: 0 })],
+    }, { CDEPTH: 10, CURHP: 40, MAXCLEVEL: 30 });
+    expect(borgCrushJunk(ctx)).toBeNull();
+  });
+
   it("keeps an item of unknown value", () => {
     const ctx = makeCtx({ player: { depth: 10 } }, {
       inventory: [item({ handle: 4, tval: TV.SWORD, sval: 1 })], // no value field
     }, { CDEPTH: 10, CURHP: 40, MAXCLEVEL: 30 });
     expect(borgCrushJunk(ctx)).toBeNull();
+  });
+});
+
+describe("unidentified flavours", () => {
+  /* neostryder/neo-angband-mod-borg#377: awareness comes from the view when no seam supplies it, so the Borg tests an unknown potion or scroll and leaves a known one alone. */
+  const ctx = (tval: number, aware: boolean): BorgContext =>
+    makeCtx({ player: { depth: 3 } }, { inventory: [item({ handle: 7, tval, sval: aware ? 4 : -2, aware })] }, { CDEPTH: 3, LIGHT: 1 });
+
+  it("quaffs an unaware potion and not an aware one", () => {
+    expect((borgQuaffUnknown(ctx(TV.POTION, false)) as { code: string; args: { handle: number } }).args.handle).toBe(7);
+    expect(borgQuaffUnknown(ctx(TV.POTION, true))).toBeNull();
+  });
+
+  it("reads an unaware scroll and not an aware one", () => {
+    expect(borgReadUnknown(ctx(TV.SCROLL, false))).not.toBeNull();
+    expect(borgReadUnknown(ctx(TV.SCROLL, true))).toBeNull();
+  });
+
+  it("still takes a seam over the view", () => {
+    expect(borgQuaffUnknown(ctx(TV.POTION, true), { isAware: () => false })).not.toBeNull();
   });
 });

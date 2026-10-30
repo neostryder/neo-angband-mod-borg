@@ -78,7 +78,7 @@ export function borgCrushJunk(
   for (const item of ctx.view.inventory()) {
     if (item.number <= 0) continue;
     if (isBook(item.tval)) continue; /* never crush books */
-    if (item.tval === TV.SCROLL && item.value === undefined) continue; /* unaware scroll */
+    if (item.tval === TV.SCROLL && !item.aware) continue; /* unaware scroll */
 
     if (!valueKnown(item, d)) continue; /* safe: never crush unknown-value gear */
     let value = valueOf(item, d);

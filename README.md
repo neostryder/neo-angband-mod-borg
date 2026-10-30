@@ -3,7 +3,7 @@
 Borg (Angband's automatic player) for
 [Neo Angband](https://github.com/neostryder/neo-angband), as a mod.
 
-**Needs Neo Angband 1.21.1 or newer.** An older game refuses to load it and says so; [How well it plays today](#how-well-it-plays-today) explains why it refuses instead of running a reduced Borg.
+**Needs Neo Angband 1.22.0 or newer.** An older game refuses to load it and says so; [How well it plays today](#how-well-it-plays-today) explains why it refuses instead of running a reduced Borg.
 
 Install it from the game's **Install a mod...** row. Enabling the mod does **not**
 hand it your character: press **Ctrl-Z** in play to warn, confirm, and hand over
@@ -39,20 +39,20 @@ sequenceDiagram
     TitleScreen->>Game: switchTo with controller armed
     Game-->>Player: Create character as usual
   end
-  Game->>Plugin: controller with live context
-  alt NOSCORE_BORG is set or controllerArmed is true
-    Plugin-->>Game: Borg controller
+  Game->>Plugin: armed(context)
+  alt NOSCORE_BORG is set or context.armed is true
+    Plugin-->>Game: true
     alt Another autoplayer holds keyboard
       Game-->>Player: Refuse handoff and name holder
     else Keyboard is available
-      Game->>Borg: Request in-game command
-      Borg-->>Game: Command or null
+      Game->>Borg: controller(mod, input) at each input wait
+      Borg-->>Game: Targets, then one command, as intents under the input token
       opt Character dies while Borg holds keyboard
         Game->>Game: Roll new character in same session and slot
       end
     end
   else Neither condition holds
-    Plugin-->>Game: undefined
+    Plugin-->>Game: false
   end
 ```
 
@@ -60,23 +60,25 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  PLUGIN["plugin.ts<br/>after mods compose"] --> EDGE["core-api.ts<br/>resolverInput"]
-  EDGE --> REG["Live registries<br/>and game state"]
-  REG --> FACTS["resolveMonsterFacts<br/>ridx lookup"]
-  FACTS --> DANGER["Danger facts<br/>blows, spells and race flags"]
-  REG --> ACT["resolveActivation and activateHandle<br/>artifact name, ego name, tval and sval"]
-  ACT --> WORN["Worn activation identity<br/>and charge check"]
-  REG --> SHOP["inShop<br/>shopnumHere minus one"]
-  VIEW["Frozen view<br/>simulateLoadout"] --> POWER["loadoutPower<br/>borgSimulatePower"]
+  PLUGIN["plugin.ts<br/>start"] --> BRIDGE["src/api2/host.ts<br/>resolverInput"]
+  BRIDGE --> TRUTH["truth.race<br/>perceived monsters only"]
+  TRUTH --> RACES["RaceBook<br/>race records by ridx"]
+  RACES --> DANGER["Danger facts<br/>blows, spells and race flags"]
+  BRIDGE --> CONTENT["content.activation<br/>artifact name, ego name, tval and sval"]
+  CONTENT --> WORN["ActivationBook<br/>worn activation identity and charge check"]
+  BRIDGE --> KNOWN["view.world<br/>KnownPlayer.shopnum"]
+  KNOWN --> SHOP["inShop"]
+  VIEW["view.simulateLoadout"] --> LOADOUT["LoadoutBook<br/>answers settled in rounds"]
+  LOADOUT --> POWER["loadoutPower<br/>borgSimulatePower"]
   DANGER --> RES["makeCoreResolvers"]
   WORN --> RES
   SHOP --> RES
   POWER --> RES
   RES --> BORG["createBorg"]
-  FLOOR["manifest.json<br/>engine at least 1.21.1"] --> PLUGIN
+  FLOOR["manifest.json<br/>engine at least 1.22.0"] --> PLUGIN
 ```
 
-*Source of truth: `plugin.ts`, `src/core-api.ts`, and `src/resolvers.ts`. The factory also supplies kind cost and attack-message data.*
+*Source of truth: `plugin.ts`, `src/api2/host.ts`, `src/api2/caches.ts`, and `src/resolvers.ts`. The bridge also supplies kind cost and attack-message data from content records it reads once at start.*
 
 A faithful port of Angband 4.2.6's `borg/`: the same priority ladder, the same danger model and the same power scoring, following the original's rules instead of a new set of heuristics that only look similar.
 
@@ -112,11 +114,11 @@ flowchart TD
 
 The port in `src/` and the mod you install are not quite the same thing. The installed mod depends on `plugin.ts`, which builds the Borg from resolvers the game supplies, and for a long time most of those did not exist.
 
-All four resolvers are now wired: danger vision, activation identity, the in-shop signal, and the power of a hypothetical loadout. The plugin reads the game's bound registries from `ctx.registries` and the live state from `ctx.state`, and builds real resolvers from them. `borg_danger` runs on actual blows, spell frequencies and race flags instead of zeroes. The Borg can tell whether a worn item grants the activation it wants and whether that item is charged, it knows which shop it is standing in, and it can score gear it is not wearing, so it wears what it finds, buys what it needs and sells what it no longer needs instead of hoarding. Monsters and items added by other mods are handled exactly like core's: every registry is bound after mods compose their content, and each resolver looks things up by index (`ridx`, `tval`/`sval`, ego and artifact name) without checking where they came from.
+All four resolvers are wired: danger vision, activation identity, the in-shop signal, and the power of a hypothetical loadout. Race records come from the truth domain, activations from the game's content records, the shop under the character from the known world, and loadout scores from the game's own simulation. So `borg_danger` works from real blows, spell frequencies and race flags. The Borg knows whether a worn item has the activation it wants and is charged, knows which shop it stands in, and can score gear it is not wearing; it wears what it finds, buys what it needs and sells what it is done with. A monster or item from another mod is treated like one of core's, because every lookup goes by index (`ridx`, `tval`/`sval`, ego or artifact name) and never asks where the record came from. Without the truth domain, danger falls back to the flags and spells the character has learned.
 
 When it dies it starts a new character, and the game does that, not this mod. A controller can only return an in-game command, and there is no command for "roll me a new character", so the game's death handler does it whenever a mod holds the keyboard. It is an in-session reincarnation, not a new save: same session, same slot, a rolled race and class each time, as upstream's borg respawns.
 
-The loadout scoring and the death handler both arrived in Neo Angband 0.25.0, and this version requires Neo Angband 1.21.1 or newer instead of running in a reduced form on an older game. Earlier versions declared `>=0.12.0` and fell back. On a game without the loadout support, the Borg wore nothing it found, bought nothing it needed and sold nothing it was done with, and on a game without the death handler, a death simply ended the run. That left a Borg unable to do the two things a Borg is for. No earlier version of this mod ran a working autoplayer on any game, so the stricter requirement takes nothing away from anyone.
+The loadout scoring and the death handler both arrived in Neo Angband 0.25.0, and this version requires Neo Angband 1.22.0 or newer instead of running in a reduced form on an older game. Earlier versions declared `>=0.12.0` and fell back. On a game without the loadout support, the Borg wore nothing it found, bought nothing it needed and sold nothing it was done with, and on a game without the death handler, a death simply ended the run. That left a Borg unable to do the two things a Borg is for. No earlier version of this mod ran a working autoplayer on any game, so the stricter requirement takes nothing away from anyone.
 
 Watched in the released 0.25.0 desktop build on 2026-08-21, over two characters, the Borg took the keyboard, shopped, wore what it bought, found the town's down staircase and descended, and then stalled on the first dungeon level both times without dying. Five separate causes turned up, four of them one-line fixes:
 
@@ -141,7 +143,7 @@ Install it to watch it try, not to watch it win. Most of the other test files co
 It is a mod, not part of the engine, for two reasons:
 
 - It is not core because an automatic player inside the parity target would put an automated control surface inside the thing being kept faithful to Angband 4.2.6. Upstream's borg is a compile-time option precisely because it is not the game.
-- It reaches the game through the same published API any third-party automation would use: it perceives through a read-only view of the game state and acts through the command queue, with no private path and no test hook. If the Borg could only be written against internals, the modding API would not be finished, and that is worth finding out.
+- It uses the published mod API and nothing private. It reads the known world, sends the same commands your keys do, and has no test hook. Two of the parts it reads are restricted: only first-party mods get the truth domain, and the engine domain, where the port finds the game's numeric code tables, takes first-party status or your consent. If the Borg could only be written against internals, the modding API would not be finished, and that is worth finding out.
 
 The second point is what makes it worth having. It is the most demanding mod anyone could write against this API, so it is the best available test of whether the API does what it claims. Two of the problems found while wiring it up were engine bugs, not Borg bugs.
 
@@ -206,15 +208,12 @@ yet. See PLANNED.md for what each of these still needs.
 Since Neo Angband 0.27.2 the mod manager also shows an **Autoplayer speed**
 row while an autoplayer holds the keyboard, with Turbo/Fast/Normal/Slow tiers
 (10/40/120/400 milliseconds a turn) as of 0.28.0. That control is the host's,
-not this mod's: any mod that returns a controller gets the row for free, with
+not this mod's: any mod that declares a controller gets the row for free, with
 no manifest change here.
 
 ## Two things it does not do
 
-- It cannot cheat. Upstream's borg reads the game's own structures directly
-  (its comments call these "cheats") and scrapes the terminal for the rest. This
-  one sees exactly what the perceive facade grants it, and acts only through
-  commands a player could issue.
+- It does not read the real map. Upstream's borg reads the game's own structures directly (its comments call these "cheats") and scrapes the terminal for the rest. This one plans from the known world: the remembered map, the pack, and the stores as the character last saw them. With the real-map permission turned on, it also reads the exact hit points and race records of the monsters the character can perceive, and nothing else. It acts only through commands a player could issue.
 - It does not cost you reproducibility. Borg is deterministic: it draws
   only its own seeded generator and never the game's, so a Borg game stays
   replayable and the save's determinism ratchet stays untripped. An autoplayer that
@@ -230,11 +229,14 @@ has it, this one is refused by name rather than silently taking over.
 
 ```mermaid
 flowchart TD
-  HOST["Neo Angband<br/>live ctx.core, view and actions"] --> EDGE["src/core-api.ts<br/>single runtime engine edge"]
-  EDGE --> PLUGIN["plugin.ts<br/>controller entry"]
-  PLUGIN --> CONT["src/controller.ts"]
-  EDGE --> VIEW["src/perceive.ts<br/>read-only view"]
+  HOST["Neo Angband<br/>mod API 2"] --> PLUGIN["plugin.ts<br/>start, stop, armed and controller"]
+  PLUGIN --> BRIDGE["src/api2/host.ts and world.ts<br/>one read of the known world per decision"]
+  PLUGIN --> TICK["src/api2/controller.ts<br/>one tick per input wait"]
+  HOST --> EDGE["src/core-api.ts<br/>engine code tables"]
+  TICK --> CONT["src/controller.ts"]
+  BRIDGE --> VIEW["src/perceive.ts<br/>reads the synchronous view"]
   CONT --> VIEW
+  EDGE --> THINK
   VIEW --> WORLD["world<br/>grid, panel and kills"]
   CONT --> THINK["src/think.ts<br/>store or dungeon dispatch"]
   RNG["src/rng.ts<br/>private seeded generator"] --> CONT
@@ -246,20 +248,20 @@ flowchart TD
   DANGER["danger"] --> FIGHT
   TRAIT["trait<br/>notice and power"] --> CONT
   THINK --> CMD["First winning in-game command"]
-  CMD --> EDGE
-  EDGE --> QUEUE["Engine command queue"]
+  CMD --> ACT["src/api2/act.ts<br/>command as an intent"]
+  ACT --> TICK
+  TICK --> SUBMIT["act.submit<br/>under the input token"]
 ```
 
-*Source of truth: `src/core-api.ts`, `src/controller.ts`, and `src/think.ts`. The Borg draws from its own seeded generator, not the game's random stream.*
+*Source of truth: `plugin.ts`, `src/api2/controller.ts`, `src/controller.ts`, and `src/think.ts`. The Borg draws from its own seeded generator, not the game's random stream.*
 
     manifest.json    what the game reads: id, engine range, capabilities, toggles
     plugin.js        the built artefact the game fetches and hashes; committed
-    plugin.ts        the entry point: takes ctx.core, returns a controller
+    plugin.ts        the entry point: the API 2 definition (start, stop, armed, controller)
+    src/api2/        the bridge between mod API 2 and the port
     src/             the port itself
 
-`src/core-api.ts` is worth reading before anything else under `src/`: it is the
-one place the Borg touches the engine at runtime, and its header explains the
-single rule that arrangement imposes on every other file.
+`src/api2/host.ts` and `src/api2/controller.ts` are the place to start under `src/`: they read the game, build the view the port decides from, and submit its commands. `src/core-api.ts` holds the engine's code tables, and its header explains the single rule that arrangement imposes on every other file. [docs/API2-MIGRATION.md](docs/API2-MIGRATION.md) describes the whole arrangement.
 
 ## Building and testing
 

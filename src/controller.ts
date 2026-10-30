@@ -22,9 +22,9 @@
  * continuously across thinks, exactly as borg_rand_local does (see rng.ts).
  */
 
-import type { AgentController, Rng } from "@rpgm-tools/neo-angband-core";
+import type { AgentController } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "./world/model.js";
-import { makeBorgRng } from "./rng.js";
+import { makeBorgRng, type Rng } from "./rng.js";
 import { perceive, makePerceiveMemo } from "./perceive.js";
 import { buildHitByTable, buildSpellTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";
@@ -77,6 +77,14 @@ export interface Borg {
   rng: Rng;
   /** The controller to hand to installController. */
   controller: AgentController;
+  /**
+   * Undo what the last decision did to the Borg's own counters (the clocks and
+   * the arrival latch), so the same view can be decided again as if it were the
+   * first look. A host whose reads arrive after the decision that wanted them
+   * (API 2 loadout simulations) decides again with the answers in hand; without
+   * this each extra pass would age the Borg's clock by one more turn.
+   */
+  rewind(): void;
 }
 
 /**
@@ -110,10 +118,12 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
 
   let lastDepth = -1;
+  let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
     const ctx: BorgContext = { world, view, act, rng };
+    before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
 
     /* 1. Advance the clocks exactly once (borg-think.c:447). */
     world.clock += 1;
@@ -211,5 +221,15 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     return cmd;
   });
 
-  return { world, rng, controller };
+  const rewind = (): void => {
+    /* Each decision adds one to both clocks, even on the pass that restarts the
+     * level clock, so taking one back leaves them where the pass began. A level
+     * change is not undone: the second pass sees the new depth already counted. */
+    world.clock -= 1;
+    world.self.timeThisPanel -= 1;
+    session.lastGrid = before.lastGrid;
+    session.arrivalPickup = before.arrival;
+  };
+
+  return { world, rng, controller, rewind };
 }

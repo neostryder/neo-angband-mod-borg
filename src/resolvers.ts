@@ -35,6 +35,7 @@ import {
   shopnumHere,
 } from "./core-api.js";
 import type { ItemView, MonsterRace } from "@rpgm-tools/neo-angband-core";
+import type { RaceRecord } from "./core-api.js";
 import type { BorgContext } from "./context.js";
 import type { BorgResolvers } from "./think-session.js";
 import type { BlowFacts, FactsResolver, MonsterFacts } from "./danger/facts.js";
@@ -56,7 +57,7 @@ export interface CoreObjectLookup {
   lookupKind(
     tval: number,
     sval: number,
-  ): { activation: ActivationLike | null; cost?: number } | null;
+  ): { activation: ActivationLike | null; cost?: number; aware?: boolean } | null;
   findEgo(name: string): { activation: ActivationLike | null } | null;
   findArtifact(name: string): { activation: ActivationLike | null } | null;
 }
@@ -75,8 +76,24 @@ export interface CoreShopLookup {
 
 /** What the host supplies to build real resolvers. */
 export interface CoreResolverInput {
-  /** The bound monster-race registry (booted.registries...); indexed by ridx. */
-  races: readonly MonsterRace[];
+  /** The bound monster-race registry (booted.registries...); indexed by ridx. Absent when `raceRecord` answers instead. */
+  races?: readonly MonsterRace[];
+  /**
+   * A race's combat record by ridx, for a host that reads races one at a time
+   * (API 2: truth.race) instead of holding the registry. Asked first; the
+   * registry is the fallback.
+   */
+  raceRecord?: (ridx: number) => RaceRecord | undefined;
+  /**
+   * The index of the shop entrance the character stands on, or null. Answers the
+   * in-shop signal ahead of `state` (API 2: KnownPlayer.shopnum).
+   */
+  shopnum?: () => number | null;
+  /**
+   * The price and flavour awareness of a kind, or null for a kind the character
+   * has no record of. Answers the floor-object price ahead of `objects` and `state`.
+   */
+  kindCost?: (tval: number, sval: number) => { cost: number; aware: boolean } | null;
   /**
    * The bound object registry (`ctx.registries.objects`), for activation
    * identity. The plugin always passes it; omitting it leaves
@@ -165,16 +182,16 @@ function findActivatedItem(
  * their two seams on the conservative defaults documented in BorgResolvers.
  */
 export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
-  const byRidx = racesByIndex(input.races);
+  const byRidx = racesByIndex(input.races ?? []);
 
   const resolveMonsterFacts: FactsResolver = (ctx, killIndex): MonsterFacts => {
     const kill = ctx.world.kills.at(killIndex);
     const race = byRidx.get(kill.rIdx);
+    const record = input.raceRecord?.(kill.rIdx) ?? (race ? raceRecord(race) : undefined);
     // Unknown race (e.g. a mod race the registry lacks): fall back to the
     // MonsterView-derived defaults rather than throwing.
-    if (!race) return defaultResolveMonsterFacts(ctx, killIndex);
+    if (!record) return defaultResolveMonsterFacts(ctx, killIndex);
 
-    const record = raceRecord(race);
     return {
       rIdx: record.ridx,
       flags: record.flags,
@@ -211,6 +228,7 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
 
   const state = input.state;
   const inShop: BorgResolvers["inShop"] = (_ctx): number | null => {
+    if (input.shopnum) return input.shopnum();
     if (!state) return null;
     // square_shopnum (cave-square.c:1512): f_info[feat].shopnum - 1, or -1
     // (here null) when the grid is not a shop entrance.
@@ -233,6 +251,7 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
    * come from data the host already passes for other seams, so this adds no new
    * plumbing - it just asks the questions nothing had asked. */
   const kindCost: BorgResolvers["kindCost"] = (tval, sval) => {
+    if (input.kindCost) return input.kindCost(tval, sval);
     if (!objects) return null;
     return kindPrice(objects, state, tval, sval);
   };
