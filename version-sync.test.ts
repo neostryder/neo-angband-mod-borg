@@ -31,7 +31,7 @@ describe("the two version sites", () => {
     expect(document.schemaVersion).toBe(2);
     const normalized = validateManifest(document);
     expect(normalized.version).toBe(document.data.version);
-    expect(normalized.version).toBe("1.3.0");
+    expect(normalized.version).toBe("1.4.0-beta.1");
     expect(normalized.capabilities).toEqual(document.data.capabilities);
     expect(normalized.capabilities).toHaveLength(17);
     expect(normalized.rules).toEqual(document.data.rules);
@@ -40,7 +40,7 @@ describe("the two version sites", () => {
 
   it("are the version the changelog's newest released section names", () => {
     const changelog = readFileSync(new URL("./CHANGELOG.md", import.meta.url), "utf8");
-    const newest = /^## (\d+\.\d+\.\d+) - /mu.exec(changelog);
+    const newest = /^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?) - /mu.exec(changelog);
     expect(newest?.[1]).toBe(read("./manifest.json"));
   });
 });
