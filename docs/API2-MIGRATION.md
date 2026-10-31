@@ -1,6 +1,6 @@
 # How the Borg runs on mod API 2
 
-The Borg is a mod API 2 mod. Its manifest declares schema version 2, the API range `>=2.0.0 <3.0.0`, and Neo Angband `>=1.22.0`, and `plugin.ts` exports an API 2 definition with `start`, `stop`, `armed`, and `controller`. There are no hooks, because the Borg changes no rule and adds no record.
+The Borg is a mod API 2 mod. Its manifest declares schema version 2, the API range `>=2.0.0 <3.0.0`, and Neo Angband `>=1.23.0-beta.1`, and `plugin.ts` exports an API 2 definition with `start`, `stop`, `armed`, and `controller`. There are no hooks, because the Borg changes no rule and adds no record.
 
 Upstream's borg, and the port of it under `src/`, decides synchronously: it asks for the player, a grid, or the pack partway through a decision and uses the answer at once. API 2 answers every call with a promise. The code in `src/api2/` sits between the two. It reads the game before each decision, hands the decision code a synchronous view of that reading, and turns the chosen command into intents.
 
