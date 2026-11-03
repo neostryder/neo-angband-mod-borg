@@ -29,6 +29,7 @@ import { perceive, makePerceiveMemo, borgForgetGoalWhileImpaired } from "./perce
 import { buildHitByTable, buildSpellTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";
 import { borgFollowMissingKills } from "./flow/index.js";
+import { borgTrackStep } from "./flow/flow.js";
 import { think } from "./think.js";
 import { borgNotice, borgPower, borgCfg, setBorgCfg, BI, type BorgCfg } from "./trait/index.js";
 import { getFightState } from "./fight/index.js";
@@ -184,6 +185,10 @@ export function createBorg(opts: BorgOptions = {}): Borg {
       kindCost: session.resolvers.kindCost,
       junked: session.junked,
     });
+
+    /* Mark this grid as having been stepped on (borg-update.c:2466-2475,
+     * immediately after borg_update_map - perceive here). */
+    borgTrackStep(session.flow.state.step, world.self.c.y, world.self.c.x);
 
     /* 3b. The tail of borg_update, in its own order. The wiring session is
      * primed first because both steps need the host's monster-race resolver;

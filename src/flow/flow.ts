@@ -67,8 +67,7 @@ export function dataIdx(x: number, y: number): number {
  * struct borg_track: a growable list of tracked grid coordinates (borg-flow.h).
  * Faithful num/size semantics; add() is a no-op once full, as upstream.
  */
-export class BorgTrack {
-  readonly x: number[];
+export class BorgTrack {  readonly x: number[];
   readonly y: number[];
   num = 0;
   readonly size: number;
@@ -88,6 +87,26 @@ export class BorgTrack {
 
   wipe(): void {
     this.num = 0;
+  }
+}
+
+/**
+ * Mark this grid as having been stepped on (borg-update.c:2466-2475): the C
+ * appends the current position to track_step right after borg_update_map and
+ * compacts the ring at 75 so it never fills and keeps sliding. The port
+ * declared the track and wipes it on level change but never wrote it, so both
+ * readers - the back-away bounce gate (caution.c:1723-1734) and the
+ * Grids-visited scan (flow-misc.c's track_step loop) - were measuring a track
+ * that stayed empty.
+ */
+export function borgTrackStep(track: BorgTrack, y: number, x: number): void {
+  track.add(y, x);
+  if (track.num >= 75) {
+    for (let i = 0; i <= 75; i++) {
+      track.x[i] = track.x[i + 1]!;
+      track.y[i] = track.y[i + 1]!;
+    }
+    track.num = 75;
   }
 }
 

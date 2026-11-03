@@ -327,6 +327,25 @@ describe("borgBackAway (caution.c:1664)", () => {
     expect(ctx.world.self.goal.g).toEqual({ x: 9, y: 3 });
   });
 
+  it("refuses the safe grid when the position history shows a bounce", () => {
+    /* caution.c:1723-1734: standing here two steps ago and on the back-away
+     * grid three steps ago is an oscillation, so the grid is refused while
+     * healthy. Nothing ever wrote track_step (borg-update.c:2466-2475 was not
+     * ported), so this gate has been reading an empty ring - the recorded
+     * pattern here is what the write restores. */
+    const ctx = corridor();
+    const flow = makeFlowState();
+    /* [0] = the current grid (10,3) three steps ago, [1] = the west grid
+     * (9,3) two steps ago: the Borg stepped west and straight back. */
+    flow.step.y[0] = 3; flow.step.x[0] = 10;
+    flow.step.y[1] = 3; flow.step.x[1] = 9;
+    flow.step.y[2] = 3; flow.step.x[2] = 10;
+    flow.step.num = 3;
+    /* The only back-away grid was the bounced one, so caution has nothing to
+     * offer - not west, and east is the monster. */
+    expect(borgCaution(ctx, flow)).toBeNull();
+  });
+
   it("stands its ground when the danger is not worth a step", () => {
     const ctx = corridor();
     /* caution.c:1670 - a nasty situation is no time to give up a square. */
