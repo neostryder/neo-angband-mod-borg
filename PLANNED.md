@@ -517,9 +517,9 @@ implemented" but "who writes it".
 
 ### What is still not ported, named rather than left to be rediscovered
 
-- **`PF_COMBAT_REGEN`.** One arm of `borg_check_rest` asks a player-class flag
-  that `PlayerView` does not carry, so this needs an engine seam rather than
-  wiring. Tracked as neo-angband#34.
+- Nothing listed. (`PF_COMBAT_REGEN` was here: the engine seam,
+  `PlayerView.classFlags`, landed for neo-angband#34 in 1.3.0, and both of
+  its gates - `borg_check_rest` and the rest-for-mana rung - are now ported.)
 
 ## Progress
 

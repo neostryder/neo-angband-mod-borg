@@ -54,6 +54,7 @@ import {
 } from "./flow.js";
 import { borgFlowCostStair, syncStairsFromMap } from "./flow-stairs.js";
 import { getFearCaches } from "../danger/state.js";
+import { playerHas } from "../trait/player-flags.js";
 
 /** borg_get_leash (borg-flow-misc.c): how far to roam from the stairs. */
 export function borgGetLeash(ctx: BorgContext, flow: FlowState, pickUp: boolean): number {
@@ -197,13 +198,16 @@ export function borgHappyGridBold(ctx: BorgContext, flow: FlowState, y: number, 
  * raises regional fear (perceive-messages.ts), and a level-one character's
  * CURHP/20 is zero, so any fear at all is enough to keep it on its feet.
  *
- * One upstream arm is left out. PF_COMBAT_REGEN needs a player-flag lookup the
- * frozen view does not carry, recorded in PLANNED.md rather than approximated.
- * The vault arm is skipped for the reason danger/fear.ts documents: the
+ * The PF_COMBAT_REGEN arm (misc.c:1218-1221) reads the class's player flags
+ * from the view (classFlags). The vault arm is skipped for the reason danger/fear.ts documents: the
  * remembered map has no vault flag.
  */
 export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: number): boolean {
   const w = ctx.world;
+
+  /* Never rest to recover SP at full HP if SP only returns in combat
+   * (misc.c:1218-1221): a Blackguard's SP drains at rest. */
+  if (trait(w, BI.CURHP) === trait(w, BI.MAXHP) && playerHas(ctx, "COMBAT_REGEN")) return false;
 
   /* Do not rest recently after killing a multiplier (misc.c:1223-1228): avoids
    * resting into an unexplored area that turns out to be full of breeders.

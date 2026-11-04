@@ -419,3 +419,33 @@ describe("the breeder-rest guard (when_last_kill_mult)", () => {
     expect(world.self.whenLastKillMult).toBe(0);
   });
 });
+
+/* borg_check_rest's PF_COMBAT_REGEN arm (borg-flow-misc.c:1218-1221). */
+describe("resting when SP only returns in combat", () => {
+  const blackguard = { grid: AWAY, hp: 20, maxHp: 20, sp: 0, maxSp: 2, classFlags: ["CHOOSE_SPELLS", "SHIELD_BASH", "COMBAT_REGEN"] };
+  /* Clear of the unrelated food/light arm (misc.c:1288) and past the
+   * multiplier-kill window (misc.c:1223), which a fresh world's clock 0 and
+   * whenLastKillMult 0 would otherwise sit inside, so these cases isolate the
+   * one guard. */
+  const fed = (scenario: Scenario): { ctx: BorgContext; world: BorgWorld } => {
+    const made = ctxFor(scenario);
+    made.world.self.trait[BI.FOOD] = 10;
+    made.world.clock = 10;
+    return made;
+  };
+
+  it("never rests at full HP for a class that regains SP only in combat", () => {
+    const { ctx, world } = fed({ player: blackguard });
+    expect(borgCheckRest(ctx, createFlowState(), world.self.c.y, world.self.c.x)).toBe(false);
+  });
+
+  it("still lets the same character rest when it is hurt", () => {
+    const { ctx, world } = fed({ player: { ...blackguard, hp: 10 } });
+    expect(borgCheckRest(ctx, createFlowState(), world.self.c.y, world.self.c.x)).toBe(true);
+  });
+
+  it("still lets a class without the flag rest for SP at full HP", () => {
+    const { ctx, world } = fed({ player: { ...blackguard, classFlags: [] } });
+    expect(borgCheckRest(ctx, createFlowState(), world.self.c.y, world.self.c.x)).toBe(true);
+  });
+});

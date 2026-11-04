@@ -95,6 +95,7 @@ import {
 } from "./think-session.js";
 import { borgNearMonsterType } from "./perceive-facts.js";
 import { junkKey, takeValue } from "./perceive.js";
+import { playerHas } from "./trait/player-flags.js";
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -737,7 +738,8 @@ export function borgThinkDungeon(
     !self.temp.bless &&
     !self.temp.hero &&
     !self.temp.berserk &&
-    !self.temp.fastcast
+    !self.temp.fastcast &&
+    !playerHas(ctx, "COMBAT_REGEN") /* dungeon.c:1655 */
   ) {
     const track = T(ctx, BI.CDEPTH) ? st.less : st.more;
     for (let i = 0; i < track.num; i++) {
