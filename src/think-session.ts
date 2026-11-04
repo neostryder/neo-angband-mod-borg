@@ -43,7 +43,7 @@ import {
   getDangerState,
 } from "./danger/index.js";
 import type { Flow, FlowHooks } from "./flow/index.js";
-import type { WearDeps } from "./item/index.js";
+import type { WearDeps, SpaceDeps, RechargeDeps } from "./item/index.js";
 import { borgCheckRest, createFlow } from "./flow/index.js";
 import { BI } from "./trait/index.js";
 import { borgCfg, borgPrepared } from "./trait/index.js";
@@ -152,6 +152,8 @@ export interface ThinkSession {
   readonly resolvers: BorgResolvers;
   /** The live decision context for this think (refreshed by the controller). */
   ctx: BorgContext | null;
+  /** FORK (#50): continuation of the C's queued wear + R75 input sequence. */
+  rechargeRest?: boolean;
   /**
    * Is the Borg still in the arrival moment on this grid? True from the think
    * after it steps somewhere new, until it issues any command other than a
@@ -325,7 +327,7 @@ function simulationBaseline(
  * invisible to every call site, which is the shape of the bug this whole file is
  * closing rather than one to add.
  */
-export function buildItemDeps(session: ThinkSession): WearDeps {
+export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & RechargeDeps {
   const c = session.ctx;
   if (!c) throw new Error("buildItemDeps outside a think");
   const w = c.world;
@@ -344,6 +346,7 @@ export function buildItemDeps(session: ThinkSession): WearDeps {
     clock: w.clock,
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
+    restAfterWear: () => { session.rechargeRest = true; },
     fearRegion: fear.region(py, px),
     ...(res.resolveActivation
       ? {
@@ -363,6 +366,14 @@ export function buildItemDeps(session: ThinkSession): WearDeps {
             powerOf(session, c, {
               wield: [{ from: "gear", handle: item.handle }],
             }),
+          /* FORK (#50), DEFECT: the C reruns notice/power after releasing
+           * a stack (hole) or one item (slow). A missing derive declines. */
+          dropEval: (item: ItemView, quantity: number) => {
+            const score = res.loadoutPower!(c, { release: [{ handle: item.handle, number: quantity }] });
+            if (score === null) return null;
+            const base = simulationBaseline(session, c, res.loadoutPower!);
+            return base === null ? null : w.self.power + (score - base);
+          },
         }
       : {}),
   };
@@ -446,6 +457,7 @@ export function buildThinkSession(resolvers: BorgResolvers = {}): ThinkSession {
     storeMem: createStoreMemory(),
     resolvers,
     ctx: null,
+    rechargeRest: false,
     arrivalPickup: false,
     lastGrid: "",
     junked: new Set<string>(),

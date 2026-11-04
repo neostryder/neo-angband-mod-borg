@@ -361,7 +361,14 @@ export function canBrowse(item: ItemView, d?: StoreDeps): boolean {
 
 /** PACK_SLOTS = z_info->pack_size - BI_QUIVER_SLOTS (borg-item.h:153). */
 export function packSlots(ctx: BorgContext, d?: StoreDeps): number {
-  return packSize(d) - st(ctx, BI.QUIVER_SLOTS);
+  /* FORK (Mandos #50), DEFECT: the inventory master list includes quivered
+   * handles. Derive their occupied pack slots from the separate known view;
+   * BI_QUIVER_SLOTS was never populated by this port. 40/5 are the stock
+   * quiver-slot size / thrown-item multiplier at our content pin. */
+  const quiver = ctx.view.quiver?.();
+  const slots = quiver === undefined ? st(ctx, BI.QUIVER_SLOTS) : Math.ceil(quiver.reduce((count, item) =>
+    count + item.number * (([TV.SHOT, TV.ARROW, TV.BOLT] as readonly number[]).includes(item.tval) ? 1 : 5), 0) / 40);
+  return packSize(d) - slots;
 }
 
 /**
@@ -373,7 +380,8 @@ export function borgFirstEmptyInventorySlot(
   ctx: BorgContext,
   d?: StoreDeps,
 ): number {
-  const used = ctx.view.inventory().filter((i) => i.number > 0).length;
+  const quiver = new Set(ctx.view.quiver?.().map((item) => item.handle) ?? []);
+  const used = ctx.view.inventory().filter((i) => i.number > 0 && !quiver.has(i.handle)).length;
   return used < packSlots(ctx, d) ? used : -1;
 }
 

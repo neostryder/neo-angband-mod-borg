@@ -807,6 +807,9 @@ function borgView(host) {
     mapBounds: () => host.mapBounds(),
     // view: the pack, each item from its known twin. API 2: view.world().inventory.
     inventory: () => host.inventory(),
+    // FORK (Mandos #50), DEFECT: dump_quiver needs membership, while the
+    // inventory master list already includes these handles for ammo notice.
+    quiver: () => host.quiver?.() ?? [],
     // view: worn gear by slot, each item from its known twin. API 2: view.world().equipment.
     equipment: () => host.equipment(),
     // view: objects remembered exactly on a grid, from their known twins. API 2: KnownLevel cell objects.
@@ -4745,10 +4748,13 @@ function canBrowse(item, d) {
   return isBookTval(item.tval);
 }
 function packSlots(ctx, d) {
-  return packSize(d) - st(ctx, 158 /* QUIVER_SLOTS */);
+  const quiver = ctx.view.quiver?.();
+  const slots = quiver === void 0 ? st(ctx, 158 /* QUIVER_SLOTS */) : Math.ceil(quiver.reduce((count, item) => count + item.number * ([TV.SHOT, TV.ARROW, TV.BOLT].includes(item.tval) ? 1 : 5), 0) / 40);
+  return packSize(d) - slots;
 }
 function borgFirstEmptyInventorySlot(ctx, d) {
-  const used = ctx.view.inventory().filter((i) => i.number > 0).length;
+  const quiver = new Set(ctx.view.quiver?.().map((item) => item.handle) ?? []);
+  const used = ctx.view.inventory().filter((i) => i.number > 0 && !quiver.has(i.handle)).length;
   return used < packSlots(ctx, d) ? used : -1;
 }
 function borgInventoryFull(ctx, d) {
@@ -8745,12 +8751,12 @@ function homeSellBest(ctx, d) {
   const invMax = storeInvenMax(d);
   let firstEmpty = W2;
   if (firstEmpty < invMax) firstEmpty++;
-  const pack = ctx.view.inventory();
+  const pack2 = ctx.view.inventory();
   let best = null;
   for (let n = 0; n < firstEmpty; n++) {
     const item2 = n < W2 ? home[n] : null;
-    for (let i = 0; i < pack.length; i++) {
-      const item = pack[i];
+    for (let i = 0; i < pack2.length; i++) {
+      const item = pack2[i];
       if (homeSellBad(ctx, item, emptyHomePower, d)) continue;
       const trial = [...home];
       if (item2 && borgObjectSimilar(item2, item, d)) {
@@ -8793,8 +8799,8 @@ function borgThinkHomeSellUseful(ctx, d) {
   const bestHomePower = move ? move.power : borgPowerHomeFrom(ctx, noticeHomeFull(ctx, d));
   if (!move) return { chosen: false, bestHomePower };
   const wares = homeWares(ctx);
-  const pack = ctx.view.inventory();
-  const item = pack[move.packIndex];
+  const pack2 = ctx.view.inventory();
+  const item = pack2[move.packIndex];
   const item2 = move.slot < wares.length ? wares[move.slot] : null;
   const packFull = borgFirstEmptyInventorySlot(ctx, d) === -1;
   if (item2 && borgObjectSimilar(item2, item, d) && iqty(item2) <= 90) {
@@ -8823,7 +8829,7 @@ function borgThinkHomeSellUseful(ctx, d) {
 }
 function borgThinkShopSellUseless(ctx, d) {
   const stores = ctx.view.stores();
-  const pack = ctx.view.inventory();
+  const pack2 = ctx.view.inventory();
   const invMax = storeInvenMax(d);
   let bK = -1;
   let bI = -1;
@@ -8833,8 +8839,8 @@ function borgThinkShopSellUseless(ctx, d) {
     const shop = stores[k];
     if (shop.isHome) continue;
     if (shop.stock.length >= invMax) continue;
-    for (let i = 0; i < pack.length; i++) {
-      const item = pack[i];
+    for (let i = 0; i < pack2.length; i++) {
+      const item = pack2[i];
       if (iqty(item) === 0) continue;
       if (item.tval === st(ctx, 152 /* AMMO_TVAL */) && st(ctx, 155 /* AMISSILES */) < 45)
         continue;
@@ -8873,8 +8879,8 @@ function countHas(ctx, tval, sval) {
 function borgThinkShopSell(ctx, shopNum, d) {
   const goal = ctx.world.self.goal;
   if (goal.shop !== shopNum || goal.item < 0) return null;
-  const pack = ctx.view.inventory();
-  const item = pack[goal.item];
+  const pack2 = ctx.view.inventory();
+  const item = pack2[goal.item];
   if (!item) return null;
   const qty = borgMinItemQuantity(ctx, item, d);
   const cmd = ctx.act.shopSell(item.handle, qty);
@@ -10222,7 +10228,318 @@ function borgRemoveStuff(ctx, d) {
   return null;
 }
 
+// src/item/junk-space.ts
+function isBook3(tval) {
+  return [TV.MAGIC_BOOK, TV.PRAYER_BOOK, TV.NATURE_BOOK, TV.SHADOW_BOOK, TV.OTHER_BOOK].includes(tval);
+}
+function valuableGear(tval) {
+  return [
+    TV.AMULET,
+    TV.BOW,
+    TV.HAFTED,
+    TV.POLEARM,
+    TV.SWORD,
+    TV.BOOTS,
+    TV.GLOVES,
+    TV.HELM,
+    TV.CROWN,
+    TV.SHIELD,
+    TV.SOFT_ARMOR,
+    TV.HARD_ARMOR,
+    TV.DRAG_ARMOR
+  ].includes(tval);
+}
+function onFloor(ctx) {
+  const { x, y } = ctx.world.self.c;
+  return ctx.world.map.at(x, y).feat === FEAT.FLOOR;
+}
+function pack(ctx) {
+  const quiver = new Set(ctx.view.quiver?.().map((item) => item.handle) ?? []);
+  return ctx.view.inventory().filter((item) => item.number > 0 && !quiver.has(item.handle));
+}
+function borgConsume(ctx, item, d) {
+  if (!isAware(item, d)) return null;
+  const cls = trait3(ctx, 25 /* CLASS */);
+  if (item.tval === TV.POTION) {
+    const p = SVAL.potion;
+    const safe = [
+      p.slime_mold,
+      p.cure_light,
+      p.cure_serious,
+      p.cure_critical,
+      p.healing,
+      p.star_healing,
+      p.life,
+      p.restore_life,
+      p.restore_mana,
+      p.heroism,
+      p.berserk,
+      p.resist_heat,
+      p.resist_cold,
+      p.infravision,
+      p.detect_invis,
+      p.cure_poison,
+      p.speed,
+      p.inc_exp
+    ];
+    if (safe.includes(item.sval)) return borgQuaffPotion(ctx, item.sval, d);
+    const trades = [
+      [p.inc_str2, 10 /* CSTR */, ![CLASS_MAGE, CLASS_DRUID, CLASS_NECROMANCER].includes(cls)],
+      [p.inc_int2, 11 /* CINT */, cls === CLASS_MAGE || cls === CLASS_NECROMANCER],
+      [p.inc_wis2, 12 /* CWIS */, cls === CLASS_PRIEST || cls === CLASS_DRUID],
+      [p.inc_dex2, 13 /* CDEX */, ![CLASS_MAGE, CLASS_PRIEST, CLASS_DRUID, CLASS_NECROMANCER].includes(cls)],
+      [p.inc_con2, 14 /* CCON */, true]
+    ];
+    for (const [sval, stat, allowed] of trades) {
+      if (item.sval === sval && trait3(ctx, stat) < 118 && allowed) return borgQuaffPotion(ctx, item.sval, d);
+    }
+  }
+  if (item.tval === TV.SCROLL) {
+    const s = SVAL.scroll;
+    if ([
+      s.light,
+      s.monster_confusion,
+      s.trap_door_destruction,
+      s.satisfy_hunger,
+      s.dispel_undead,
+      s.blessing,
+      s.holy_chant,
+      s.holy_prayer
+    ].includes(item.sval)) {
+      return borgReadScroll(ctx, item.sval, d);
+    }
+  }
+  if (!trait3(ctx, 110 /* ISFULL */)) {
+    if (item.tval === TV.FOOD && [SVAL.food.ration, SVAL.food.slime_mold, SVAL.food.waybread].includes(item.sval)) {
+      return borgEat(ctx, item.tval, item.sval, d);
+    }
+    const m = SVAL.mush;
+    if (item.tval === TV.MUSHROOM && [
+      m.second_sight,
+      m.fast_recovery,
+      m.cure_mind,
+      m.restoring,
+      m.emergency,
+      m.terror,
+      m.stoneskin,
+      m.debility,
+      m.sprinting,
+      m.purging
+    ].includes(item.sval)) {
+      return borgEat(ctx, item.tval, item.sval, d);
+    }
+  }
+  return null;
+}
+function protectedForHole(ctx, item) {
+  if (!item.aware) return false;
+  if (item.tval === TV.POTION) {
+    const p = SVAL.potion;
+    return item.sval === p.restore_mana && trait3(ctx, 31 /* MAXSP */) >= 1 || [p.healing, p.star_healing, p.life, p.speed].includes(item.sval);
+  }
+  if (item.tval === TV.SCROLL) {
+    const s = SVAL.scroll;
+    return [s.protection_from_evil, s.rune_of_protection].includes(item.sval) || item.sval === s.teleport_level && trait3(ctx, 247 /* ATELEPORTLVL */) < 1e3;
+  }
+  if (item.tval === TV.ROD) {
+    return (item.sval === SVAL.rod.healing || item.sval === SVAL.rod.mapping && trait3(ctx, 25 /* CLASS */) === CLASS_WARRIOR) && item.number <= 5 || item.sval === SVAL.rod.light && trait3(ctx, 26 /* LIGHT */) <= 0;
+  }
+  return item.tval === TV.WAND && item.sval === SVAL.wand.teleport_away && trait3(ctx, 25 /* CLASS */) === CLASS_WARRIOR && trait3(ctx, 221 /* ATPORTOTHER */) <= 8;
+}
+function holeValue(ctx, item, boost, d) {
+  let value = itemValue(item, d) + boost;
+  if (["STR", "INT", "WIS", "DEX", "CON"].some((stat) => mod(item, stat) > 0)) value += 2e4;
+  if (item.tval === trait3(ctx, 152 /* AMMO_TVAL */) && value > 0 && trait3(ctx, 155 /* AMISSILES */) <= 35 && trait3(ctx, 105 /* CDEPTH */) >= 1) value += 5e3;
+  if (trait3(ctx, 35 /* CLEVEL */) > 35 && isAware(item, d)) {
+    if (item.tval === TV.RING) value *= item.number * 10;
+    else if (valuableGear(item.tval)) value *= item.number * 5;
+    else if (item.tval === TV.CLOAK) value = item.number * (item.ego && (d?.randomPower?.(item) ?? true) ? 3e5 : value);
+    else if (item.tval === TV.ROD || item.tval === TV.WAND) {
+      value = item.number * 3e5;
+    } else if (item.tval === TV.STAFF) {
+      const s = SVAL.staff;
+      value = item.number * (item.sval !== s.dispel_evil || (item.sval !== s.power || item.sval !== s.holiness) && trait3(ctx, 256 /* GOOD_S_CHG */) < 2 || item.sval !== s.destruction && trait3(ctx, 220 /* ASTFDEST */) < 2 ? 3e5 : Math.trunc(value / 2));
+    } else if (item.tval === TV.SCROLL) value = item.number * 3e4;
+    else if (item.tval === TV.POTION) value = item.number * 3e5;
+    else value = item.number * Math.trunc(value / 3);
+  } else value *= item.number;
+  if (!isAware(item, d) && value > 0) {
+    const depth = trait3(ctx, 106 /* MAXDEPTH */);
+    switch (item.tval) {
+      case TV.RING:
+      case TV.AMULET:
+        value = depth * 5e3;
+        break;
+      case TV.ROD:
+        value = depth * 3e3;
+        break;
+      case TV.STAFF:
+      case TV.WAND:
+        value = depth * 2e3;
+        break;
+      case TV.SCROLL:
+      case TV.POTION:
+        value = depth * 500;
+        break;
+      case TV.FOOD:
+        value = depth * 10;
+        break;
+    }
+  }
+  if (!isIdent(item, d) && value > 0 && (d?.worthId?.(item) ?? false)) {
+    switch (item.tval) {
+      case TV.SHOT:
+      case TV.ARROW:
+      case TV.BOLT:
+        value += 100;
+        break;
+      case TV.BOW:
+        value += 2e4;
+        break;
+      case TV.DIGGING:
+        value += 10;
+        break;
+      case TV.HAFTED:
+      case TV.POLEARM:
+      case TV.SWORD:
+        value += 1e4;
+        break;
+      case TV.BOOTS:
+      case TV.GLOVES:
+      case TV.HELM:
+      case TV.CROWN:
+      case TV.SHIELD:
+      case TV.SOFT_ARMOR:
+      case TV.HARD_ARMOR:
+      case TV.DRAG_ARMOR:
+      case TV.CLOAK:
+        value += 15e3;
+        break;
+      case TV.RING:
+      case TV.AMULET:
+        value += 5e3;
+        break;
+      case TV.STAFF:
+      case TV.WAND:
+        value += 1e3;
+        break;
+    }
+  }
+  value = Math.trunc(value / 100);
+  if (trait3(ctx, 105 /* CDEPTH */) === 0 && trait3(ctx, 39 /* FOOD */) === 0) value = Math.trunc(value / 500);
+  return value;
+}
+function borgDropHole(ctx, desperate = false, d) {
+  if (!(d?.packFull ?? borgInventoryFull(ctx)) || !onFloor(ctx) || !d?.dropEval) return null;
+  const hp = trait3(ctx, 27 /* CURHP */);
+  if (trait3(ctx, 105 /* CDEPTH */) && danger(d) > Math.trunc(hp / 10) && (hp !== trait3(ctx, 28 /* MAXHP */) || danger(d) > Math.trunc(hp * 2 / 3))) return null;
+  let best = null;
+  let bestPower = 0;
+  let bestWeight = 0;
+  const digger = ctx.view.equipment()[0]?.tval === TV.DIGGING;
+  for (const item of pack(ctx)) {
+    if (item.artifact || item.tval === TV.FOOD && trait3(ctx, 39 /* FOOD */) < 5) continue;
+    if (d.protectedHandles?.includes(item.handle)) continue;
+    if (d.canBrowse?.(item) ?? isBook3(item.tval)) continue;
+    let boost = 0;
+    if (item.tval === TV.BOOTS && !isIdent(item, d) || item.tval >= TV.DIGGING && item.tval <= TV.SWORD && digger) {
+      if (!desperate) continue;
+      boost = 1e4;
+    }
+    if (needsIdent(item, d)) {
+      if (!desperate) continue;
+      boost = 5e3;
+    }
+    if (!desperate) {
+      if (protectedForHole(ctx, item)) continue;
+    } else boost = 7e3;
+    if (item.ego && !isIdent(item, d) && (d.randomPower?.(item) ?? true)) {
+      if (!desperate) continue;
+      boost = 1e4;
+    }
+    const simulated = d.dropEval(item, item.number);
+    if (simulated === null) continue;
+    const power = simulated - holeValue(ctx, item, boost, d);
+    const weight = item.weight * item.number;
+    if (best && power < bestPower) continue;
+    if (power === bestPower && weight < bestWeight) continue;
+    best = item;
+    bestPower = power;
+    bestWeight = weight;
+  }
+  if (best) return borgConsume(ctx, best, d) ?? ctx.act.drop(best.handle, best.number);
+  return desperate ? null : borgDropHole(ctx, true, d);
+}
+function borgDropSlow(ctx, d) {
+  if (danger(d) > Math.trunc(trait3(ctx, 27 /* CURHP */) / 20) || !trait3(ctx, 105 /* CDEPTH */) || trait3(ctx, 44 /* SPEED */) >= 110 || ctx.world.self.munchkinMode || !d?.dropEval) return null;
+  let greed = Math.trunc(trait3(ctx, 45 /* GOLD */) / 100) + 100;
+  if (greed < 500 && trait3(ctx, 35 /* CLEVEL */) > 35) greed = 500;
+  greed = Math.min(25e3, greed);
+  greed = Math.max(0, greed - (110 - trait3(ctx, 44 /* SPEED */)) * 500);
+  let best = null;
+  let bestPower = 0;
+  const digger = ctx.view.equipment()[0]?.tval === TV.DIGGING;
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0 || d.protectedHandles?.includes(item.handle)) continue;
+    if (!isIdent(item, d) && ((d.worthId?.(item) ?? false) || item.tval === TV.BOOTS)) continue;
+    if (d.randarts && item.artifact && !isIdent(item, d)) continue;
+    if (needsIdent(item, d)) continue;
+    if (item.tval >= TV.DIGGING && item.tval <= TV.SWORD && digger) continue;
+    if (item.tval === TV.ROD && isAware(item, d) && (item.sval === SVAL.rod.healing || item.sval === SVAL.rod.light && trait3(ctx, 26 /* LIGHT */) <= 0)) continue;
+    const simulated = d.dropEval(item, 1);
+    if (simulated === null) continue;
+    let price = Math.min(itemValue(item, d), 3e4);
+    if (price < greed) price = 0;
+    const power = simulated - price + item.weight * 100;
+    if (power < bestPower) continue;
+    best = item;
+    bestPower = power;
+  }
+  if (!best || bestPower < ctx.world.self.power) return null;
+  return borgConsume(ctx, best, d) ?? ctx.act.drop(best.handle, 1);
+}
+function borgDumpQuiver(ctx, d) {
+  if (trait3(ctx, 109 /* ISHUNGRY */) || trait3(ctx, 108 /* ISWEAK */) || !onFloor(ctx)) return null;
+  if ((d?.clock ?? ctx.world.clock) - (d?.began ?? 0) > 2e3 || ctx.world.self.timeThisPanel > 150) return null;
+  const cls = trait3(ctx, 25 /* CLASS */);
+  const capacity = ((d?.maxAmmoStack ?? 40) - 1) * (cls === CLASS_WARRIOR || cls === CLASS_RANGER ? 2 : 1) * (d?.quiverSize ?? 10);
+  const quiver = ctx.view.quiver?.() ?? [];
+  let best = null;
+  for (let i = quiver.length - 1; i >= 0; i--) {
+    const item = quiver[i];
+    if (item.number <= 0) continue;
+    if (item.curses.length === 0 && item.tval === trait3(ctx, 152 /* AMMO_TVAL */)) {
+      if (item.toD > 0 && item.toH > 0) continue;
+      if (needsIdent(item, d)) continue;
+      if (trait3(ctx, 155 /* AMISSILES */) <= capacity && item.toD >= 0 && item.toH >= 0) continue;
+    }
+    best = item;
+  }
+  if (!best) return null;
+  ctx.world.self.timeThisPanel++;
+  return ctx.act.drop(best.handle, best.number);
+}
+
 // src/item/item-wear.ts
+function borgWearRecharge(ctx, d) {
+  if (!canRest(d) || trait3(ctx, 108 /* ISWEAK */)) return null;
+  let best = null;
+  let worn = false;
+  for (const [items, equipped] of [[ctx.view.inventory(), false], [ctx.view.equipment(), true]]) {
+    for (const item of items) {
+      if (!item || item.number <= 0 || !item.timeout) continue;
+      if (item.tval === TV.ROD && item.sval !== SVAL.rod.recall && trait3(ctx, 105 /* CDEPTH */) === 0) continue;
+      if (item.tval === TV.LIGHT && [SVAL.light.torch, SVAL.light.lantern].includes(item.sval)) continue;
+      best = item;
+      worn = equipped;
+    }
+  }
+  if (!best) return null;
+  if (worn || best.tval === TV.ROD) return ctx.act.rest(75);
+  if (!wieldSlot2(best)) return null;
+  d?.restAfterWear?.();
+  return ctx.act.wear(best.handle);
+}
 function wieldSlot2(item) {
   switch (item.tval) {
     case TV.DIGGING:
@@ -14184,6 +14501,9 @@ function buildItemDeps(session) {
     clock: w.clock,
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
+    restAfterWear: () => {
+      session.rechargeRest = true;
+    },
     fearRegion: fear.region(py, px),
     ...res.resolveActivation ? {
       equipsItem: (act, checkCharge) => res.resolveActivation(c, act, checkCharge)
@@ -14195,7 +14515,15 @@ function buildItemDeps(session) {
        * would put it in rather than to a hand this code guessed at. */
       wearEval: (item) => powerOf(session, c, {
         wield: [{ from: "gear", handle: item.handle }]
-      })
+      }),
+      /* FORK (#50), DEFECT: the C reruns notice/power after releasing
+       * a stack (hole) or one item (slow). A missing derive declines. */
+      dropEval: (item, quantity) => {
+        const score = res.loadoutPower(c, { release: [{ handle: item.handle, number: quantity }] });
+        if (score === null) return null;
+        const base = simulationBaseline(session, c, res.loadoutPower);
+        return base === null ? null : w.self.power + (score - base);
+      }
     } : {}
   };
 }
@@ -14260,6 +14588,7 @@ function buildThinkSession(resolvers = {}) {
     storeMem: createStoreMemory(),
     resolvers,
     ctx: null,
+    rechargeRest: false,
     arrivalPickup: false,
     lastGrid: "",
     junked: /* @__PURE__ */ new Set(),
@@ -14507,6 +14836,13 @@ function findByHandle(ctx, handle) {
   for (const item of ctx.view.inventory()) if (item.handle === handle) return item;
   return null;
 }
+function rememberJunkDrop(ctx, session, cmd) {
+  if (cmd?.code === "drop") {
+    const dropped = findByHandle(ctx, handleOf(cmd));
+    if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
+  }
+  return cmd;
+}
 function T(ctx, i) {
   return ctx.world.self.trait[i] ?? 0;
 }
@@ -14658,6 +14994,10 @@ function borgThinkDungeon(ctx, session) {
   const g = self.goal;
   const flow = session.flow;
   const st2 = flow.state;
+  if (session.rechargeRest) {
+    session.rechargeRest = false;
+    return ctx.act.rest(75);
+  }
   getFightState(w);
   const dg = getDangerGlobals(w);
   const itemDeps = buildItemDeps(session);
@@ -14751,6 +15091,10 @@ function borgThinkDungeon(ctx, session) {
     }
     const rec = borgRecover(ctx, itemDeps);
     if (rec) return rec;
+    {
+      const cmd = rememberJunkDrop(ctx, session, borgDropHole(ctx, false, itemDeps));
+      if (cmd) return cmd;
+    }
     if (borgChooseShop(ctx, buildStoreDeps(session))) {
       const shop = flow.toShop(ctx, g.shop);
       if (shop) return shop;
@@ -14790,6 +15134,10 @@ function borgThinkDungeon(ctx, session) {
   }
   {
     const cmd = borgRemoveStuff(ctx, itemDeps);
+    if (cmd) return cmd;
+  }
+  {
+    const cmd = rememberJunkDrop(ctx, session, borgDumpQuiver(ctx, itemDeps));
     if (cmd) return cmd;
   }
   {
@@ -14933,6 +15281,14 @@ function borgThinkDungeon(ctx, session) {
     }
   }
   {
+    const cmd = rememberJunkDrop(ctx, session, borgDropHole(ctx, false, itemDeps));
+    if (cmd) return cmd;
+  }
+  {
+    const cmd = rememberJunkDrop(ctx, session, borgDropSlow(ctx, itemDeps));
+    if (cmd) return cmd;
+  }
+  {
     const cmd = borgFlowOld(ctx, st2, GOAL_TAKE);
     if (cmd) return cmd;
   }
@@ -15031,6 +15387,10 @@ function borgThinkDungeon(ctx, session) {
   }
   {
     const cmd = flow.toKillDirect(ctx, false);
+    if (cmd) return cmd;
+  }
+  {
+    const cmd = borgWearRecharge(ctx, itemDeps);
     if (cmd) return cmd;
   }
   {

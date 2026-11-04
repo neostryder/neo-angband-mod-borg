@@ -369,7 +369,7 @@ export function shopnumHere(state: CoreShopLookup): number {
  */
 export type BorgKnownReads = Pick<
   AgentView,
-  "player" | "mapBounds" | "inventory" | "equipment" | "floorItems" | "messages" | "stores" | "spellbooks" | "constants"
+  "player" | "mapBounds" | "inventory" | "quiver" | "equipment" | "floorItems" | "messages" | "stores" | "spellbooks" | "constants"
 >;
 
 /**
@@ -414,6 +414,9 @@ export function borgView(host: AgentView): BorgView {
     mapBounds: () => host.mapBounds(),
     // view: the pack, each item from its known twin. API 2: view.world().inventory.
     inventory: () => host.inventory(),
+    // FORK (Mandos #50), DEFECT: dump_quiver needs membership, while the
+    // inventory master list already includes these handles for ammo notice.
+    quiver: () => host.quiver?.() ?? [],
     // view: worn gear by slot, each item from its known twin. API 2: view.world().equipment.
     equipment: () => host.equipment(),
     // view: objects remembered exactly on a grid, from their known twins. API 2: KnownLevel cell objects.

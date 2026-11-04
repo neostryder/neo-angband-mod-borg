@@ -15,7 +15,8 @@ import type { BorgContext, ItemView, AgentCommand } from "./types.js";
 import { BI } from "../trait/trait-index.js";
 import { TV } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
-import { trait, isAware, isIdent, itemValue } from "./deps.js";
+import { trait, isAware, isIdent, itemValue, canRest } from "./deps.js";
+import { SVAL } from "./svals.js";
 import { mod as modOf } from "../trait/item-util.js";
 
 /** Wear-specific seams. */
@@ -32,6 +33,34 @@ export interface WearDeps extends ItemDeps {
    * clock of 0 reads as "just arrived" and lets the scan run.
    */
   began?: number;
+}
+
+export interface RechargeDeps extends WearDeps {
+  /** Continue the C's queued wear + R75 sequence on the next command. */
+  restAfterWear?: () => void;
+}
+
+/** FORK (Mandos #50), DEFECT: borg_wear_recharge (wear.c:1449), omitted rung. */
+export function borgWearRecharge(ctx: BorgContext, d?: RechargeDeps): AgentCommand | null {
+  if (!canRest(d) || trait(ctx, BI.ISWEAK)) return null;
+  let best: ItemView | null = null;
+  let worn = false;
+  // C scans the pack before equipment and keeps the LAST uncharged item.
+  for (const [items, equipped] of [[ctx.view.inventory(), false], [ctx.view.equipment(), true]] as const) {
+    for (const item of items) {
+      if (!item || item.number <= 0 || !item.timeout) continue;
+      // Preserve the C condition, even though its comment describes a narrower rod rule.
+      if (item.tval === TV.ROD && item.sval !== SVAL.rod.recall && trait(ctx, BI.CDEPTH) === 0) continue;
+      if (item.tval === TV.LIGHT && [SVAL.light.torch, SVAL.light.lantern].includes(item.sval)) continue;
+      best = item;
+      worn = equipped;
+    }
+  }
+  if (!best) return null;
+  if (worn || best.tval === TV.ROD) return ctx.act.rest(75);
+  if (!wieldSlot(best)) return null;
+  d?.restAfterWear?.();
+  return ctx.act.wear(best.handle);
 }
 
 /** borg_is_ammo(tval) (wear.c:1541). */

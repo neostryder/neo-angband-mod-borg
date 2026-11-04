@@ -13,10 +13,10 @@
  * stubs (see NOT-YET-PORTED below) so the ladder shape stays faithful.
  *
  * NOT-YET-PORTED subsystem calls (represented as ladder stages that yield):
- *   borg_swap_rings / borg_wear_rings / borg_wear_recharge / borg_dump_quiver
- *     (borg-item-wear.c), borg_drop_hole / borg_drop_slow / borg_destroy_floor
- *     (borg-junk.c). borg_play_magic (borg-magic-play.c) is ported in
- *     src/item/magic-play.ts. borg_drop_junk is
+ *   borg_swap_rings / borg_wear_rings and borg_destroy_floor.
+ *   borg_play_magic (borg-magic-play.c) is ported in src/item/magic-play.ts.
+ *   The drop_hole / drop_slow / dump_quiver / wear_recharge rungs
+ *   are restored here; borg_drop_junk is
  *     mapped to the ported borgCrushJunk (borg-junk.c's junk-dropping routine).
  *   borg_must_return_to_town (borg-prepared.c:828) is ported with both of its
  *   guards (mustReturnToTown below).
@@ -74,6 +74,10 @@ import {
   borgWearStuff,
   borgRemoveStuff,
   borgCrushJunk,
+  borgDropHole,
+  borgDropSlow,
+  borgDumpQuiver,
+  borgWearRecharge,
   borgRecover,
   borgTestStuff,
   borgEnchanting,
@@ -183,6 +187,15 @@ function findByHandle(ctx: BorgContext, handle: number | undefined): ItemView | 
   if (handle === undefined) return null;
   for (const item of ctx.view.inventory()) if (item.handle === handle) return item;
   return null;
+}
+
+/** The C inscribes "borg ignore" before a drop, never before consuming it. */
+function rememberJunkDrop(ctx: BorgContext, session: ThinkSession, cmd: AgentCommand | null): AgentCommand | null {
+  if (cmd?.code === "drop") {
+    const dropped = findByHandle(ctx, handleOf(cmd));
+    if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
+  }
+  return cmd;
 }
 
 /** trait[BI_X] with a 0 default (borg.trait[BI_X]). */
@@ -482,6 +495,12 @@ export function borgThinkDungeon(
   const g = self.goal;
   const flow = session.flow;
   const st = flow.state;
+  /* FORK (#50), DEFECT: finish wear_recharge's queued R75 before asking
+   * the decision ladder again (the C queues both key sequences together). */
+  if (session.rechargeRest) {
+    session.rechargeRest = false;
+    return ctx.act.rest(75);
+  }
   /* Primes the per-world fight state before the ladder runs; the fight rungs read
    * it back through the same memo rather than from here. */
   getFightState(w);
@@ -647,7 +666,11 @@ export function borgThinkDungeon(
     }
     const rec = borgRecover(ctx, itemDeps);
     if (rec) return rec;
-    /* borg_drop_hole to make space: not ported. */
+    /* FORK (#50), DEFECT: restore borg_drop_hole(false), C :1562. */
+    {
+      const cmd = rememberJunkDrop(ctx, session, borgDropHole(ctx, false, itemDeps));
+      if (cmd) return cmd;
+    }
     if (borgChooseShop(ctx, buildStoreDeps(session))) {
       const shop = flow.toShop(ctx, g.shop);
       if (shop) return shop;
@@ -701,9 +724,15 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
-  /* Remove useless / detrimental gear (:1625). borg_dump_quiver not ported. */
+  /* Remove useless / detrimental gear (:1625). */
   {
     const cmd = borgRemoveStuff(ctx, itemDeps);
+    if (cmd) return cmd;
+  }
+
+  /* FORK (#50), DEFECT: restore borg_dump_quiver, C :1627. */
+  {
+    const cmd = rememberJunkDrop(ctx, session, borgDumpQuiver(ctx, itemDeps));
     if (cmd) return cmd;
   }
 
@@ -907,7 +936,15 @@ export function borgThinkDungeon(
       return cmd;
     }
   }
-  /* Drop items to make space / if slow (:1862, :1866): not ported. */
+  /* FORK (#50), DEFECT: restore pack-space and weight rungs (:1862, :1866). */
+  {
+    const cmd = rememberJunkDrop(ctx, session, borgDropHole(ctx, false, itemDeps));
+    if (cmd) return cmd;
+  }
+  {
+    const cmd = rememberJunkDrop(ctx, session, borgDropSlow(ctx, itemDeps));
+    if (cmd) return cmd;
+  }
 
   /*** Flow towards objects (:1871) ***/
   {
@@ -1057,7 +1094,11 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
-  /* Recharge before leaving: borg_wear_recharge not ported. */
+  /* FORK (#50), DEFECT: restore borg_wear_recharge (C :2056). */
+  {
+    const cmd = borgWearRecharge(ctx, itemDeps);
+    if (cmd) return cmd;
+  }
 
   /* Leave the level (:2059). */
   {

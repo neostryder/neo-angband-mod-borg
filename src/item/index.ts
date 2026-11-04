@@ -36,4 +36,5 @@ export * from "./item-enchant.js";
 export * from "./light.js";
 export * from "./recover.js";
 export * from "./junk.js";
+export * from "./junk-space.js";
 export * from "./item-wear.js";
