@@ -4368,6 +4368,424 @@ function borgPrepLeaveLevelSpells(ctx) {
   return null;
 }
 
+// src/item/svals.ts
+var SVAL = {
+  /* food (borg-item-val.c:263-273) */
+  food: {
+    apple: 2,
+    ration: 5,
+    slime_mold: 4,
+    draught: 14,
+    pint: 11,
+    sip: 12,
+    waybread: 9,
+    honey_cake: 8,
+    slice: 7,
+    handful: 3
+  },
+  /* mushroom (borg-item-val.c:275-287) */
+  mush: {
+    second_sight: 1,
+    fast_recovery: 2,
+    restoring: 3,
+    /* "Vigor" */
+    mana: 4,
+    /* "Clear Mind" */
+    emergency: 5,
+    terror: 6,
+    stoneskin: 7,
+    debility: 9,
+    sprinting: 10,
+    cure_mind: 4,
+    /* C maps cure_mind -> "Clear Mind" too */
+    purging: 11
+  },
+  /* light (borg-item-val.c:289-291) */
+  light: { lantern: 2, torch: 1 },
+  /* flask (borg-item-val.c:293-295) */
+  flask: { oil: 1 },
+  /* potion (borg-item-val.c:297-338) */
+  potion: {
+    cure_critical: 10,
+    cure_serious: 9,
+    cure_light: 8,
+    healing: 11,
+    star_healing: 12,
+    /* "*Healing*" */
+    life: 13,
+    restore_mana: 15,
+    cure_poison: 14,
+    /* "Neutralize Poison" */
+    resist_heat: 28,
+    resist_cold: 29,
+    resist_pois: 30,
+    inc_str: 1,
+    inc_int: 2,
+    inc_wis: 3,
+    inc_dex: 4,
+    inc_con: 5,
+    inc_all: 6,
+    /* "Augmentation" */
+    inc_str2: 17,
+    /* "Brawn" */
+    inc_int2: 18,
+    /* "Intellect" */
+    inc_wis2: 19,
+    /* "Contemplation" */
+    inc_dex2: 20,
+    /* "Nimbleness" */
+    inc_con2: 21,
+    /* "Toughness" */
+    restore_life: 16,
+    /* "Restore Life Levels" */
+    speed: 24,
+    berserk: 26,
+    /* "Berserk Strength" */
+    sleep: 34,
+    slowness: 38,
+    poison: 37,
+    blindness: 35,
+    confusion: 36,
+    heroism: 25,
+    boldness: 27,
+    detect_invis: 31,
+    /* "True Seeing" */
+    enlightenment: 22,
+    slime_mold: 33,
+    /* "Slime Mold Juice" */
+    infravision: 32,
+    inc_exp: 7
+    /* "Experience" */
+  },
+  /* scroll (borg-item-val.c:340-383) */
+  scroll: {
+    identify: 7,
+    /* "Identify Rune" */
+    phase_door: 1,
+    teleport: 2,
+    /* "Teleportation" */
+    word_of_recall: 24,
+    enchant_armor: 10,
+    /* "Enchant Armour" */
+    enchant_weapon_to_hit: 8,
+    enchant_weapon_to_dam: 9,
+    star_enchant_weapon: 11,
+    /* "*Enchant Weapon*" */
+    star_enchant_armor: 12,
+    /* "*Enchant Armour*" */
+    protection_from_evil: 31,
+    rune_of_protection: 33,
+    teleport_level: 3,
+    deep_descent: 27,
+    recharging: 25,
+    banishment: 20,
+    mass_banishment: 21,
+    blessing: 28,
+    holy_chant: 29,
+    holy_prayer: 30,
+    detect_invis: 6,
+    /* "Detect Invisible" */
+    satisfy_hunger: 22,
+    /* "Remove Hunger" */
+    light: 23,
+    mapping: 4,
+    /* "Magic Mapping" */
+    acquirement: 17,
+    star_acquirement: 18,
+    /* "*Acquirement*" */
+    remove_curse: 13,
+    star_remove_curse: 14,
+    /* "*Remove Curse*" */
+    monster_confusion: 32,
+    trap_door_destruction: 26,
+    /* "Door Destruction" */
+    dispel_undead: 19
+  },
+  /* ring (borg-item-val.c:385-393) */
+  ring: {
+    flames: 12,
+    ice: 14,
+    acid: 13,
+    lightning: 15,
+    digging: 30,
+    speed: 5,
+    damage: 16,
+    dog: 25
+    /* "the Dog" */
+  },
+  /* amulet (borg-item-val.c:395-396) */
+  amulet: { teleportation: 14 },
+  /* rod (borg-item-val.c:398-420) */
+  rod: {
+    recall: 24,
+    detection: 2,
+    illumination: 23,
+    speed: 25,
+    mapping: 3,
+    /* "Magic Mapping" */
+    healing: 16,
+    light: 22,
+    fire_bolt: 5,
+    /* "Fire Bolts" */
+    elec_bolt: 7,
+    /* "Lightning Bolts" */
+    cold_bolt: 6,
+    /* "Frost Bolts" */
+    acid_bolt: 8,
+    /* "Acid Bolts" */
+    drain_life: 19,
+    fire_ball: 9,
+    /* "Fire Balls" */
+    elec_ball: 11,
+    /* "Lightning Balls" */
+    cold_ball: 10,
+    /* "Cold Balls" */
+    acid_ball: 12,
+    /* "Acid Balls" */
+    teleport_other: 20,
+    slow_monster: 13,
+    sleep_monster: 14,
+    /* "Hold Monster" */
+    curing: 15
+  },
+  /* staff (borg-item-val.c:422-440) */
+  staff: {
+    teleportation: 21,
+    destruction: 5,
+    /* "*Destruction*" */
+    speed: 22,
+    healing: 14,
+    the_magi: 24,
+    /* "the Magi" */
+    power: 17,
+    holiness: 18,
+    curing: 12,
+    sleep_monsters: 8,
+    slow_monsters: 7,
+    detect_invis: 9,
+    /* "Detect Invisible" */
+    detect_evil: 10,
+    dispel_evil: 15,
+    banishment: 16,
+    light: 19,
+    mapping: 11,
+    remove_curse: 23
+  },
+  /* wand (borg-item-val.c:442-467). NOTE: two upstream copy/paste quirks are
+   * reproduced: confuse_monster resolves to "Scare Monster" (==fear_monster),
+   * and elec_ball resolves to "Lightning Bolts" (the bolt, not the ball). */
+  wand: {
+    light: 16,
+    teleport_away: 21,
+    /* "Teleport Other" */
+    stinking_cloud: 6,
+    magic_missile: 1,
+    annihilation: 28,
+    stone_to_mud: 17,
+    wonder: 23,
+    hold_monster: 13,
+    slow_monster: 11,
+    fear_monster: 15,
+    /* "Scare Monster" */
+    confuse_monster: 15,
+    /* upstream quirk: also "Scare Monster" */
+    fire_bolt: 4,
+    /* "Fire Bolts" */
+    cold_bolt: 3,
+    /* "Frost Bolts" */
+    acid_bolt: 5,
+    /* "Acid Bolts" */
+    elec_bolt: 2,
+    /* "Lightning Bolts" */
+    fire_ball: 9,
+    /* "Fire Balls" */
+    cold_ball: 8,
+    /* "Cold Balls" */
+    acid_ball: 10,
+    /* "Acid Balls" */
+    elec_ball: 2,
+    /* upstream quirk: "Lightning Bolts" (bolt sval) */
+    dragon_cold: 25,
+    /* "Dragon's Frost" */
+    dragon_fire: 24,
+    /* "Dragon's Flame" */
+    drain_life: 27
+  },
+  /* dragon armor (borg-item-val.c:500-511) */
+  dragon: {
+    black: 1,
+    blue: 2,
+    white: 3,
+    red: 4,
+    green: 5,
+    multihued: 6,
+    shining: 7,
+    law: 8,
+    gold: 9,
+    chaos: 10,
+    balance: 11,
+    power: 12
+  },
+  /* bow (borg-item-val.c:186-191) */
+  bow: {
+    sling: 1,
+    short_bow: 2,
+    long_bow: 3,
+    light_xbow: 4,
+    heavy_xbow: 5
+  }
+};
+function flatSvals() {
+  const out = {};
+  for (const [group, roles] of Object.entries(SVAL)) {
+    for (const [role, sval] of Object.entries(roles)) {
+      out[group === "bow" ? role : `${group}_${role}`] = sval;
+    }
+  }
+  return out;
+}
+
+// src/store/store.ts
+var BORG_HOME = 7;
+var SHOP_GENERAL = 0;
+var SHOP_TEMPLE = 3;
+var SHOP_BLACK = 6;
+var STORE_INVEN_MAX = 24;
+var PACK_SIZE = 23;
+var DEFAULT_MAX_STACK = 40;
+function createStoreMemory() {
+  return {
+    soldTval: [],
+    soldSval: [],
+    soldPval: [],
+    soldStore: [],
+    soldNum: -1,
+    soldNxt: 0,
+    boughtTval: [],
+    boughtSval: [],
+    boughtPval: [],
+    boughtStore: [],
+    boughtNum: -1,
+    boughtNxt: 0,
+    moneyScumAmount: 0,
+    moneyScumWho: -1,
+    moneyScumWare: -1
+  };
+}
+function recordSold(mem, item, store2) {
+  if (mem.soldNxt >= 9) mem.soldNxt = 0;
+  mem.soldPval[mem.soldNxt] = item.pval;
+  mem.soldTval[mem.soldNxt] = item.tval;
+  mem.soldSval[mem.soldNxt] = item.sval;
+  mem.soldStore[mem.soldNxt] = store2;
+  mem.soldNum = mem.soldNxt;
+  mem.soldNxt++;
+}
+function recordBought(mem, item, store2) {
+  if (mem.boughtNxt >= 9) mem.boughtNxt = 0;
+  mem.boughtPval[mem.boughtNxt] = item.pval;
+  mem.boughtTval[mem.boughtNxt] = item.tval;
+  mem.boughtSval[mem.boughtNxt] = item.sval;
+  mem.boughtStore[mem.boughtNxt] = store2;
+  mem.boughtNum = mem.boughtNxt;
+  mem.boughtNxt++;
+}
+function st(ctx, bi) {
+  return ctx.world.self.trait[bi] ?? 0;
+}
+function storeInvenMax(d) {
+  return d?.storeInvenMax ?? STORE_INVEN_MAX;
+}
+function packSize(d) {
+  return d?.packSize ?? PACK_SIZE;
+}
+function maxStackOf(item, d) {
+  if (d?.maxStack) return d.maxStack(item);
+  return item.tval === TV.CHEST ? 1 : DEFAULT_MAX_STACK;
+}
+function iqty(item) {
+  return item.number;
+}
+function itemValue2(item, d) {
+  if (d?.itemValue) return d.itemValue(item);
+  return item.value ?? 0;
+}
+function isAware2(item, d) {
+  return d?.isAware ? d.isAware(item) : true;
+}
+function isIdent2(item, d) {
+  return d?.isIdent ? d.isIdent(item) : true;
+}
+function needsIdent2(item, d) {
+  return d?.needsIdent ? d.needsIdent(item) : false;
+}
+function noteNeedsId(item, d) {
+  if (d?.noteNeedsId) return d.noteNeedsId(item);
+  return needsIdent2(item, d);
+}
+function worthId(item, d) {
+  return d?.worthId ? d.worthId(item) : false;
+}
+function shopCost(item) {
+  return item.price ?? Infinity;
+}
+function isBookTval(tval) {
+  return tval === TV.MAGIC_BOOK || tval === TV.PRAYER_BOOK || tval === TV.NATURE_BOOK || tval === TV.SHADOW_BOOK || tval === TV.OTHER_BOOK;
+}
+function canBrowse(item, d) {
+  if (d?.canBrowse) return d.canBrowse(item);
+  return isBookTval(item.tval);
+}
+function packSlots(ctx, d) {
+  return packSize(d) - st(ctx, 158 /* QUIVER_SLOTS */);
+}
+function borgFirstEmptyInventorySlot(ctx, d) {
+  const used = ctx.view.inventory().filter((i) => i.number > 0).length;
+  return used < packSlots(ctx, d) ? used : -1;
+}
+function borgInventoryFull(ctx, d) {
+  return borgFirstEmptyInventorySlot(ctx, d) === -1;
+}
+function homeStore(ctx) {
+  const stores = ctx.view.stores();
+  for (const s of stores) if (s.isHome) return s;
+  return stores[BORG_HOME] ?? null;
+}
+function homeWares(ctx) {
+  const home = homeStore(ctx);
+  if (!home) return [];
+  return home.stock.filter((i) => i.number > 0);
+}
+function borgHomeFull(ctx, d) {
+  return homeWares(ctx).length >= storeInvenMax(d);
+}
+function borgMinItemQuantity(ctx, item, d) {
+  if (st(ctx, 45 /* GOLD */) < 250) return 1;
+  if (itemValue2(item, d) > 5) return 1;
+  if (!isAware2(item, d)) return 1;
+  switch (item.tval) {
+    case TV.SHOT:
+    case TV.ARROW:
+    case TV.BOLT:
+      if (iqty(item) < 5) return iqty(item);
+      return 5;
+    case TV.FOOD:
+      if (iqty(item) < 3) return iqty(item);
+      return 3;
+    default:
+      return 1;
+  }
+}
+function borgPrimarilyCaster(ctx, d) {
+  if (d?.primarilyCaster !== void 0) return d.primarilyCaster;
+  const cls = st(ctx, 25 /* CLASS */);
+  return cls === 1 || cls === 2 || cls === 3 || cls === 4;
+}
+function borgUsesSwaps(ctx, d) {
+  const cfg = d?.usesSwaps ?? true;
+  return cfg && st(ctx, 106 /* MAXDEPTH */) < 90;
+}
+
 // src/flow/flow-misc.ts
 function borgGetLeash(ctx, flow, pickUp) {
   const w = ctx.world;
@@ -4475,18 +4893,19 @@ function borgCheckRest(ctx, flow, y, x) {
   }
   return true;
 }
+function borgNeedsRecover(ctx) {
+  const w = ctx.world;
+  const unhurt = trait(w, 27 /* CURHP */) > Math.trunc(trait(w, 28 /* MAXHP */) / 3) && !trait(w, 116 /* ISCUT */) && !trait(w, 117 /* ISSTUN */) && !trait(w, 118 /* ISHEAVYSTUN */) && !trait(w, 113 /* ISAFRAID */);
+  if (borgPrimarilyCaster(ctx)) {
+    return !(unhurt && (trait(w, 30 /* CURSP */) > Math.trunc(trait(w, 31 /* MAXSP */) / 4) || trait(w, 31 /* MAXSP */) === 0));
+  }
+  return !unhurt;
+}
 function borgFlowRecover(ctx, flow, dist4) {
   const w = ctx.world;
   if (w.self.timeThisPanel > 500) return null;
   if (trait(w, 35 /* CLEVEL */) <= 5) return null;
-  const caster = trait(w, 31 /* MAXSP */) > 0;
-  if (caster) {
-    if (trait(w, 27 /* CURHP */) > Math.trunc(trait(w, 28 /* MAXHP */) / 3) && (trait(w, 30 /* CURSP */) > Math.trunc(trait(w, 31 /* MAXSP */) / 4) || trait(w, 31 /* MAXSP */) === 0) && !trait(w, 116 /* ISCUT */) && !trait(w, 117 /* ISSTUN */) && !trait(w, 118 /* ISHEAVYSTUN */) && !trait(w, 113 /* ISAFRAID */))
-      return null;
-  } else {
-    if (trait(w, 27 /* CURHP */) > Math.trunc(trait(w, 28 /* MAXHP */) / 3) && !trait(w, 116 /* ISCUT */) && !trait(w, 117 /* ISSTUN */) && !trait(w, 118 /* ISHEAVYSTUN */) && !trait(w, 113 /* ISAFRAID */))
-      return null;
-  }
+  if (!borgNeedsRecover(ctx)) return null;
   if (w.self.goal.fleeing) return null;
   if (w.self.lunalMode || w.self.munchkinMode) return null;
   if (trait(w, 109 /* ISHUNGRY */)) return null;
@@ -5671,283 +6090,6 @@ function createFlow(hooks = defaultFlowHooks()) {
     spastic: (ctx, bored) => borgFlowSpastic(ctx, state, bored),
     twitchy: (ctx) => borgTwitchy(ctx, state)
   };
-}
-
-// src/item/svals.ts
-var SVAL = {
-  /* food (borg-item-val.c:263-273) */
-  food: {
-    apple: 2,
-    ration: 5,
-    slime_mold: 4,
-    draught: 14,
-    pint: 11,
-    sip: 12,
-    waybread: 9,
-    honey_cake: 8,
-    slice: 7,
-    handful: 3
-  },
-  /* mushroom (borg-item-val.c:275-287) */
-  mush: {
-    second_sight: 1,
-    fast_recovery: 2,
-    restoring: 3,
-    /* "Vigor" */
-    mana: 4,
-    /* "Clear Mind" */
-    emergency: 5,
-    terror: 6,
-    stoneskin: 7,
-    debility: 9,
-    sprinting: 10,
-    cure_mind: 4,
-    /* C maps cure_mind -> "Clear Mind" too */
-    purging: 11
-  },
-  /* light (borg-item-val.c:289-291) */
-  light: { lantern: 2, torch: 1 },
-  /* flask (borg-item-val.c:293-295) */
-  flask: { oil: 1 },
-  /* potion (borg-item-val.c:297-338) */
-  potion: {
-    cure_critical: 10,
-    cure_serious: 9,
-    cure_light: 8,
-    healing: 11,
-    star_healing: 12,
-    /* "*Healing*" */
-    life: 13,
-    restore_mana: 15,
-    cure_poison: 14,
-    /* "Neutralize Poison" */
-    resist_heat: 28,
-    resist_cold: 29,
-    resist_pois: 30,
-    inc_str: 1,
-    inc_int: 2,
-    inc_wis: 3,
-    inc_dex: 4,
-    inc_con: 5,
-    inc_all: 6,
-    /* "Augmentation" */
-    inc_str2: 17,
-    /* "Brawn" */
-    inc_int2: 18,
-    /* "Intellect" */
-    inc_wis2: 19,
-    /* "Contemplation" */
-    inc_dex2: 20,
-    /* "Nimbleness" */
-    inc_con2: 21,
-    /* "Toughness" */
-    restore_life: 16,
-    /* "Restore Life Levels" */
-    speed: 24,
-    berserk: 26,
-    /* "Berserk Strength" */
-    sleep: 34,
-    slowness: 38,
-    poison: 37,
-    blindness: 35,
-    confusion: 36,
-    heroism: 25,
-    boldness: 27,
-    detect_invis: 31,
-    /* "True Seeing" */
-    enlightenment: 22,
-    slime_mold: 33,
-    /* "Slime Mold Juice" */
-    infravision: 32,
-    inc_exp: 7
-    /* "Experience" */
-  },
-  /* scroll (borg-item-val.c:340-383) */
-  scroll: {
-    identify: 7,
-    /* "Identify Rune" */
-    phase_door: 1,
-    teleport: 2,
-    /* "Teleportation" */
-    word_of_recall: 24,
-    enchant_armor: 10,
-    /* "Enchant Armour" */
-    enchant_weapon_to_hit: 8,
-    enchant_weapon_to_dam: 9,
-    star_enchant_weapon: 11,
-    /* "*Enchant Weapon*" */
-    star_enchant_armor: 12,
-    /* "*Enchant Armour*" */
-    protection_from_evil: 31,
-    rune_of_protection: 33,
-    teleport_level: 3,
-    deep_descent: 27,
-    recharging: 25,
-    banishment: 20,
-    mass_banishment: 21,
-    blessing: 28,
-    holy_chant: 29,
-    holy_prayer: 30,
-    detect_invis: 6,
-    /* "Detect Invisible" */
-    satisfy_hunger: 22,
-    /* "Remove Hunger" */
-    light: 23,
-    mapping: 4,
-    /* "Magic Mapping" */
-    acquirement: 17,
-    star_acquirement: 18,
-    /* "*Acquirement*" */
-    remove_curse: 13,
-    star_remove_curse: 14,
-    /* "*Remove Curse*" */
-    monster_confusion: 32,
-    trap_door_destruction: 26,
-    /* "Door Destruction" */
-    dispel_undead: 19
-  },
-  /* ring (borg-item-val.c:385-393) */
-  ring: {
-    flames: 12,
-    ice: 14,
-    acid: 13,
-    lightning: 15,
-    digging: 30,
-    speed: 5,
-    damage: 16,
-    dog: 25
-    /* "the Dog" */
-  },
-  /* amulet (borg-item-val.c:395-396) */
-  amulet: { teleportation: 14 },
-  /* rod (borg-item-val.c:398-420) */
-  rod: {
-    recall: 24,
-    detection: 2,
-    illumination: 23,
-    speed: 25,
-    mapping: 3,
-    /* "Magic Mapping" */
-    healing: 16,
-    light: 22,
-    fire_bolt: 5,
-    /* "Fire Bolts" */
-    elec_bolt: 7,
-    /* "Lightning Bolts" */
-    cold_bolt: 6,
-    /* "Frost Bolts" */
-    acid_bolt: 8,
-    /* "Acid Bolts" */
-    drain_life: 19,
-    fire_ball: 9,
-    /* "Fire Balls" */
-    elec_ball: 11,
-    /* "Lightning Balls" */
-    cold_ball: 10,
-    /* "Cold Balls" */
-    acid_ball: 12,
-    /* "Acid Balls" */
-    teleport_other: 20,
-    slow_monster: 13,
-    sleep_monster: 14,
-    /* "Hold Monster" */
-    curing: 15
-  },
-  /* staff (borg-item-val.c:422-440) */
-  staff: {
-    teleportation: 21,
-    destruction: 5,
-    /* "*Destruction*" */
-    speed: 22,
-    healing: 14,
-    the_magi: 24,
-    /* "the Magi" */
-    power: 17,
-    holiness: 18,
-    curing: 12,
-    sleep_monsters: 8,
-    slow_monsters: 7,
-    detect_invis: 9,
-    /* "Detect Invisible" */
-    detect_evil: 10,
-    dispel_evil: 15,
-    banishment: 16,
-    light: 19,
-    mapping: 11,
-    remove_curse: 23
-  },
-  /* wand (borg-item-val.c:442-467). NOTE: two upstream copy/paste quirks are
-   * reproduced: confuse_monster resolves to "Scare Monster" (==fear_monster),
-   * and elec_ball resolves to "Lightning Bolts" (the bolt, not the ball). */
-  wand: {
-    light: 16,
-    teleport_away: 21,
-    /* "Teleport Other" */
-    stinking_cloud: 6,
-    magic_missile: 1,
-    annihilation: 28,
-    stone_to_mud: 17,
-    wonder: 23,
-    hold_monster: 13,
-    slow_monster: 11,
-    fear_monster: 15,
-    /* "Scare Monster" */
-    confuse_monster: 15,
-    /* upstream quirk: also "Scare Monster" */
-    fire_bolt: 4,
-    /* "Fire Bolts" */
-    cold_bolt: 3,
-    /* "Frost Bolts" */
-    acid_bolt: 5,
-    /* "Acid Bolts" */
-    elec_bolt: 2,
-    /* "Lightning Bolts" */
-    fire_ball: 9,
-    /* "Fire Balls" */
-    cold_ball: 8,
-    /* "Cold Balls" */
-    acid_ball: 10,
-    /* "Acid Balls" */
-    elec_ball: 2,
-    /* upstream quirk: "Lightning Bolts" (bolt sval) */
-    dragon_cold: 25,
-    /* "Dragon's Frost" */
-    dragon_fire: 24,
-    /* "Dragon's Flame" */
-    drain_life: 27
-  },
-  /* dragon armor (borg-item-val.c:500-511) */
-  dragon: {
-    black: 1,
-    blue: 2,
-    white: 3,
-    red: 4,
-    green: 5,
-    multihued: 6,
-    shining: 7,
-    law: 8,
-    gold: 9,
-    chaos: 10,
-    balance: 11,
-    power: 12
-  },
-  /* bow (borg-item-val.c:186-191) */
-  bow: {
-    sling: 1,
-    short_bow: 2,
-    long_bow: 3,
-    light_xbow: 4,
-    heavy_xbow: 5
-  }
-};
-function flatSvals() {
-  const out = {};
-  for (const [group, roles] of Object.entries(SVAL)) {
-    for (const [role, sval] of Object.entries(roles)) {
-      out[group === "bow" ? role : `${group}_${role}`] = sval;
-    }
-  }
-  return out;
 }
 
 // src/trait/config.ts
@@ -7744,147 +7886,6 @@ function borgSimulatePower(ctx, change, opts = {}) {
   };
   borgNotice(simCtx, opts);
   return borgPower(simCtx, opts);
-}
-
-// src/store/store.ts
-var BORG_HOME = 7;
-var SHOP_GENERAL = 0;
-var SHOP_TEMPLE = 3;
-var SHOP_BLACK = 6;
-var STORE_INVEN_MAX = 24;
-var PACK_SIZE = 23;
-var DEFAULT_MAX_STACK = 40;
-function createStoreMemory() {
-  return {
-    soldTval: [],
-    soldSval: [],
-    soldPval: [],
-    soldStore: [],
-    soldNum: -1,
-    soldNxt: 0,
-    boughtTval: [],
-    boughtSval: [],
-    boughtPval: [],
-    boughtStore: [],
-    boughtNum: -1,
-    boughtNxt: 0,
-    moneyScumAmount: 0,
-    moneyScumWho: -1,
-    moneyScumWare: -1
-  };
-}
-function recordSold(mem, item, store2) {
-  if (mem.soldNxt >= 9) mem.soldNxt = 0;
-  mem.soldPval[mem.soldNxt] = item.pval;
-  mem.soldTval[mem.soldNxt] = item.tval;
-  mem.soldSval[mem.soldNxt] = item.sval;
-  mem.soldStore[mem.soldNxt] = store2;
-  mem.soldNum = mem.soldNxt;
-  mem.soldNxt++;
-}
-function recordBought(mem, item, store2) {
-  if (mem.boughtNxt >= 9) mem.boughtNxt = 0;
-  mem.boughtPval[mem.boughtNxt] = item.pval;
-  mem.boughtTval[mem.boughtNxt] = item.tval;
-  mem.boughtSval[mem.boughtNxt] = item.sval;
-  mem.boughtStore[mem.boughtNxt] = store2;
-  mem.boughtNum = mem.boughtNxt;
-  mem.boughtNxt++;
-}
-function st(ctx, bi) {
-  return ctx.world.self.trait[bi] ?? 0;
-}
-function storeInvenMax(d) {
-  return d?.storeInvenMax ?? STORE_INVEN_MAX;
-}
-function packSize(d) {
-  return d?.packSize ?? PACK_SIZE;
-}
-function maxStackOf(item, d) {
-  if (d?.maxStack) return d.maxStack(item);
-  return item.tval === TV.CHEST ? 1 : DEFAULT_MAX_STACK;
-}
-function iqty(item) {
-  return item.number;
-}
-function itemValue2(item, d) {
-  if (d?.itemValue) return d.itemValue(item);
-  return item.value ?? 0;
-}
-function isAware2(item, d) {
-  return d?.isAware ? d.isAware(item) : true;
-}
-function isIdent2(item, d) {
-  return d?.isIdent ? d.isIdent(item) : true;
-}
-function needsIdent2(item, d) {
-  return d?.needsIdent ? d.needsIdent(item) : false;
-}
-function noteNeedsId(item, d) {
-  if (d?.noteNeedsId) return d.noteNeedsId(item);
-  return needsIdent2(item, d);
-}
-function worthId(item, d) {
-  return d?.worthId ? d.worthId(item) : false;
-}
-function shopCost(item) {
-  return item.price ?? Infinity;
-}
-function isBookTval(tval) {
-  return tval === TV.MAGIC_BOOK || tval === TV.PRAYER_BOOK || tval === TV.NATURE_BOOK || tval === TV.SHADOW_BOOK || tval === TV.OTHER_BOOK;
-}
-function canBrowse(item, d) {
-  if (d?.canBrowse) return d.canBrowse(item);
-  return isBookTval(item.tval);
-}
-function packSlots(ctx, d) {
-  return packSize(d) - st(ctx, 158 /* QUIVER_SLOTS */);
-}
-function borgFirstEmptyInventorySlot(ctx, d) {
-  const used = ctx.view.inventory().filter((i) => i.number > 0).length;
-  return used < packSlots(ctx, d) ? used : -1;
-}
-function borgInventoryFull(ctx, d) {
-  return borgFirstEmptyInventorySlot(ctx, d) === -1;
-}
-function homeStore(ctx) {
-  const stores = ctx.view.stores();
-  for (const s of stores) if (s.isHome) return s;
-  return stores[BORG_HOME] ?? null;
-}
-function homeWares(ctx) {
-  const home = homeStore(ctx);
-  if (!home) return [];
-  return home.stock.filter((i) => i.number > 0);
-}
-function borgHomeFull(ctx, d) {
-  return homeWares(ctx).length >= storeInvenMax(d);
-}
-function borgMinItemQuantity(ctx, item, d) {
-  if (st(ctx, 45 /* GOLD */) < 250) return 1;
-  if (itemValue2(item, d) > 5) return 1;
-  if (!isAware2(item, d)) return 1;
-  switch (item.tval) {
-    case TV.SHOT:
-    case TV.ARROW:
-    case TV.BOLT:
-      if (iqty(item) < 5) return iqty(item);
-      return 5;
-    case TV.FOOD:
-      if (iqty(item) < 3) return iqty(item);
-      return 3;
-    default:
-      return 1;
-  }
-}
-function borgPrimarilyCaster(ctx, d) {
-  if (d?.primarilyCaster !== void 0) return d.primarilyCaster;
-  const cls = st(ctx, 25 /* CLASS */);
-  return cls === 1 || cls === 2 || cls === 3 || cls === 4;
-}
-function borgUsesSwaps(ctx, d) {
-  const cfg = d?.usesSwaps ?? true;
-  return cfg && st(ctx, 106 /* MAXDEPTH */) < 90;
 }
 
 // src/store/home.ts
