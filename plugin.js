@@ -3362,6 +3362,8 @@ function defaultFlowHooks() {
     canDigMagic: () => false,
     hasDistanceAttack: () => false,
     layGlyph: () => null,
+    disableTrap: () => null,
+    forceDoor: () => null,
     forceDescend: false,
     preparedToDescend: () => true,
     countSell: () => 0,
@@ -3648,6 +3650,12 @@ function borgPlayStep(ctx, flow, y2, x2) {
   }
   if (ag.glyph) return act.move(dir);
   if (trait(w, 26 /* LIGHT */) && !trait(w, 112 /* ISBLIND */) && !trait(w, 114 /* ISCONFUSED */) && !w.facts.scaryGuyOnLevel && ag.trap) {
+    const magic = flow.hooks.disableTrap(ctx, y, x, trait(w, 30 /* CURSP */) > Math.trunc(trait(w, 31 /* MAXSP */) * 4 / 5));
+    if (magic !== null) {
+      ag.trap = false;
+      w.self.noRestPrep = 3e3;
+      return magic;
+    }
     ag.trap = false;
     return act.disarm(dir);
   }
@@ -3660,6 +3668,13 @@ function borgPlayStep(ctx, flow, y2, x2) {
       const ag2 = w.map.at(ax, ay);
       if (ag2.kill && trait(w, 35 /* CLEVEL */) < 15 && !trait(w, 113 /* ISAFRAID */))
         return null;
+    }
+    if (ctx.rng.randint0(100) === 0 || w.self.timeThisPanel >= 500) {
+      const forced = flow.hooks.forceDoor(ctx, y, x);
+      if (forced !== null) {
+        if (forced.via === "melt" && flow.closed.num) flow.closed.wipe();
+        return forced.cmd;
+      }
     }
     if (flow.closed.num) flow.closed.wipe();
     return act.open(dir);
@@ -10220,188 +10235,6 @@ function borgWearStuff(ctx, d) {
   return null;
 }
 
-// src/think-session.ts
-function buildFlowHooks(session) {
-  const ctx = () => {
-    if (!session.ctx) throw new Error("borg flow hook used outside a think");
-    return session.ctx;
-  };
-  return {
-    danger: (_world, y, x) => borgDanger(ctx(), y, x, 1, true, false),
-    canDigMagic: (_world, checkFail) => {
-      const c = ctx();
-      if (checkFail) {
-        return borgSpellOkayFail(c, 38 /* TURN_STONE_TO_MUD */, 40) || borgSpellOkayFail(c, 121 /* SHATTER_STONE */, 40);
-      }
-      return borgSpellLegal(c, 38 /* TURN_STONE_TO_MUD */) || borgSpellLegal(c, 121 /* SHATTER_STONE */);
-    },
-    hasDistanceAttack: (_world) => {
-      return (ctx().view.player().shots ?? 0) > 0;
-    },
-    layGlyph: (c) => borgSpell(c, 78 /* GLYPH_OF_WARDING */) ?? borgReadScroll(c, SVAL.scroll.rune_of_protection),
-    forceDescend: session.resolvers.forceDescend ?? false,
-    preparedToDescend: (world) => borgPrepared(ctx(), (world.self.trait[105 /* CDEPTH */] ?? 0) + 1) === null,
-    countSell: (_world) => borgCountSell(ctx(), buildStoreDeps(session)),
-    packFull: (_world) => borgFirstEmptyInventorySlot(ctx()) < 0,
-    monsterHasFlag: (_world, killIndex, flag) => {
-      const facts = getDangerState(ctx().world).globals.resolveFacts(
-        ctx(),
-        killIndex
-      );
-      return facts.flags.has(flag);
-    },
-    dangerOneKill: (_world, y, x, killIndex) => borgDangerOneKill(ctx(), y, x, 1, killIndex, true, true),
-    los: (world, y1, x1, y2, x2) => borgLos(world, y1, x1, y2, x2)
-  };
-}
-function wareRef(store2, item) {
-  return { from: "store", store: store2, index: item.index };
-}
-function powerOf(session, ctx, change) {
-  const resolve = session.resolvers.loadoutPower;
-  if (!resolve) return ctx.world.self.power;
-  const answer = resolve(ctx, change);
-  if (answer === null) return ctx.world.self.power;
-  const base = simulationBaseline(session, ctx, resolve);
-  if (base === null) return answer;
-  return ctx.world.self.power + (answer - base);
-}
-var BASELINES = /* @__PURE__ */ new WeakMap();
-function simulationBaseline(session, ctx, resolve) {
-  const cached = BASELINES.get(session);
-  if (cached && cached.clock === ctx.world.clock) return cached.base;
-  const base = resolve(ctx, {}) ?? null;
-  BASELINES.set(session, { clock: ctx.world.clock, base });
-  return base;
-}
-function buildItemDeps(session) {
-  const c = session.ctx;
-  if (!c) throw new Error("buildItemDeps outside a think");
-  const w = c.world;
-  const py = w.self.c.y;
-  const px = w.self.c.x;
-  const dangerHere = borgDanger(c, py, px, 1, true, false);
-  const fear = getFearCaches(w);
-  const res = session.resolvers;
-  return {
-    danger: dangerHere,
-    avoidance: w.self.trait[27 /* CURHP */] ?? 0,
-    /* borg_check_rest(borg.c.y, borg.c.x): the real gate, not a constant. Every
-     * rest in borg-recover.c is behind it, so a hardcoded `true` is the Borg
-     * resting with a monster next to it. */
-    canRest: borgCheckRest(c, session.flow.state, py, px),
-    clock: w.clock,
-    /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
-    began: session.flow.state.borgBegan,
-    fearRegion: fear.region(py, px),
-    ...res.resolveActivation ? {
-      equipsItem: (act, checkCharge) => res.resolveActivation(c, act, checkCharge)
-    } : {},
-    ...res.activateHandle ? { activateItem: (act) => res.activateHandle(c, act) } : {},
-    ...res.loadoutPower ? {
-      /* borg_wear_stuff (wear.c:858): the power if this pack item were worn.
-       * The engine picks the slot, so a ring goes to the hand wield_slot
-       * would put it in rather than to a hand this code guessed at. */
-      wearEval: (item) => powerOf(session, c, {
-        wield: [{ from: "gear", handle: item.handle }]
-      })
-    } : {}
-  };
-}
-function storeCfg() {
-  const cfg = borgCfg();
-  return {
-    worshipsGold: cfg.worshipsGold,
-    selfScum: cfg.selfScum,
-    usesSwaps: cfg.usesSwaps
-  };
-}
-function buildStoreDeps(session) {
-  const res = session.resolvers;
-  if (!res.loadoutPower) return { mem: session.storeMem, ...storeCfg() };
-  return {
-    mem: session.storeMem,
-    ...storeCfg(),
-    /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
-     * would WIELD is worn; anything else joins the pack. Both cost their weight,
-     * which is what makes plate armour read as the speed loss it is. */
-    buyShopEval: (ctx, sim) => {
-      const ref = wareRef(sim.store, sim.item);
-      if (!sim.wields) {
-        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
-      }
-      return powerOf(session, ctx, {
-        wield: [ref],
-        ...sim.qty > 1 ? { carry: [{ item: ref, number: sim.qty - 1 }] } : {}
-      });
-    },
-    /* borg_think_home_buy_useful: the same question about the home's shelves,
-     * which are a store like any other (index BORG_HOME in view.stores()). */
-    buyHomeEval: (ctx, sim) => {
-      const ref = wareRef(sim.store, sim.item);
-      if (!sim.wields) {
-        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
-      }
-      return powerOf(session, ctx, { wield: [ref] });
-    },
-    /* borg_think_shop_sell_useless: the power once `qty` of this stack is gone.
-     * `release` empties a body slot when the handle names worn gear, so selling
-     * the amulet the borg has on is one change rather than a remove and a sale. */
-    sellEval: (ctx, item, qty) => powerOf(session, ctx, {
-      release: [{ handle: item.handle, number: qty }]
-    }),
-    /* borg_think_home_sell_bad (borg-store-sell.c:376) asks about ONE of a
-     * stack, not the whole stack. */
-    sellHomeBadEval: (ctx, item) => powerOf(session, ctx, {
-      release: [{ handle: item.handle, number: 1 }]
-    })
-    /* weaponSwapEval / armourSwapEval are deliberately NOT wired. They value a
-     * home ware as the borg's SWAP weapon or armour, and this port has no swap
-     * subsystem: weapon_swap_value and armour_swap_value contribute 0 to
-     * borgPower (trait/power.ts), so an evaluator here would compare two numbers
-     * that are equal by construction and buy on the tiebreak. Unreachable until
-     * the swap subsystem is ported, not merely unwired. */
-  };
-}
-function buildThinkSession(resolvers = {}) {
-  const session = {
-    flow: void 0,
-    storeMem: createStoreMemory(),
-    resolvers,
-    ctx: null,
-    arrivalPickup: false,
-    lastGrid: "",
-    junked: /* @__PURE__ */ new Set(),
-    pickupTried: ""
-  };
-  session.flow = createFlow(buildFlowHooks(session));
-  return session;
-}
-var SESSIONS = /* @__PURE__ */ new WeakMap();
-function getThinkSession(world) {
-  let s = SESSIONS.get(world);
-  if (!s) {
-    s = buildThinkSession();
-    SESSIONS.set(world, s);
-  }
-  return s;
-}
-function installThinkSession(world, session) {
-  SESSIONS.set(world, session);
-}
-function primeSession(session, ctx) {
-  session.ctx = ctx;
-  const w = ctx.world;
-  const g = getDangerGlobals(w);
-  const curhp = w.self.trait[27 /* CURHP */] ?? 0;
-  g.avoidance = curhp;
-  if (session.resolvers.resolveMonsterFacts) {
-    g.resolveFacts = session.resolvers.resolveMonsterFacts;
-  }
-  session.flow.state.avoidance = curhp;
-  session.flow.state.hooks.forceDescend = session.resolvers.forceDescend ?? false;
-}
-
 // src/fight/state.ts
 var STATES2 = /* @__PURE__ */ new WeakMap();
 function getFightState(world) {
@@ -14198,6 +14031,207 @@ function borgBackAway(ctx, flow, posDanger, nasty, surrounded) {
   self.goal.g.y = self.c.y + ddy_ddd[bI];
   self.goal.type = 0;
   return ctx.act.move(ddd[bI]);
+}
+
+// src/think-session.ts
+function buildFlowHooks(session) {
+  const ctx = () => {
+    if (!session.ctx) throw new Error("borg flow hook used outside a think");
+    return session.ctx;
+  };
+  return {
+    danger: (_world, y, x) => borgDanger(ctx(), y, x, 1, true, false),
+    canDigMagic: (_world, checkFail) => {
+      const c = ctx();
+      if (checkFail) {
+        return borgSpellOkayFail(c, 38 /* TURN_STONE_TO_MUD */, 40) || borgSpellOkayFail(c, 121 /* SHATTER_STONE */, 40);
+      }
+      return borgSpellLegal(c, 38 /* TURN_STONE_TO_MUD */) || borgSpellLegal(c, 121 /* SHATTER_STONE */);
+    },
+    hasDistanceAttack: (_world) => {
+      return (ctx().view.player().shots ?? 0) > 0;
+    },
+    layGlyph: (c) => borgSpell(c, 78 /* GLYPH_OF_WARDING */) ?? borgReadScroll(c, SVAL.scroll.rune_of_protection),
+    /* borg_play_step's trap and door magic (borg-flow.c:901-924, 963-987),
+     * each aimed at the step grid the way the C's borg_target(goal.g) /
+     * direction keypress aims it. */
+    disableTrap: (c, y, x, spellOk) => {
+      const activation = borgActivateItem(c, "act_disable_traps");
+      if (activation !== null) {
+        borgTarget(c, y, x);
+        return activation;
+      }
+      return spellOk ? borgSpell(c, 13 /* DISABLE_TRAPS_DESTROY_DOORS */) : null;
+    },
+    forceDoor: (c, y, x) => {
+      const destroy = borgSpell(c, 13 /* DISABLE_TRAPS_DESTROY_DOORS */) ?? borgActivateItem(c, "act_destroy_doors");
+      if (destroy !== null) return { cmd: destroy, via: "destroy" };
+      const melt = borgSpell(c, 38 /* TURN_STONE_TO_MUD */) ?? borgSpell(c, 121 /* SHATTER_STONE */) ?? borgActivateRing(c, SVAL.ring.digging) ?? borgActivateItem(c, "act_stone_to_mud");
+      if (melt === null) return null;
+      borgTarget(c, y, x);
+      return { cmd: melt, via: "melt" };
+    },
+    forceDescend: session.resolvers.forceDescend ?? false,
+    preparedToDescend: (world) => borgPrepared(ctx(), (world.self.trait[105 /* CDEPTH */] ?? 0) + 1) === null,
+    countSell: (_world) => borgCountSell(ctx(), buildStoreDeps(session)),
+    packFull: (_world) => borgFirstEmptyInventorySlot(ctx()) < 0,
+    monsterHasFlag: (_world, killIndex, flag) => {
+      const facts = getDangerState(ctx().world).globals.resolveFacts(
+        ctx(),
+        killIndex
+      );
+      return facts.flags.has(flag);
+    },
+    dangerOneKill: (_world, y, x, killIndex) => borgDangerOneKill(ctx(), y, x, 1, killIndex, true, true),
+    los: (world, y1, x1, y2, x2) => borgLos(world, y1, x1, y2, x2)
+  };
+}
+function wareRef(store2, item) {
+  return { from: "store", store: store2, index: item.index };
+}
+function powerOf(session, ctx, change) {
+  const resolve = session.resolvers.loadoutPower;
+  if (!resolve) return ctx.world.self.power;
+  const answer = resolve(ctx, change);
+  if (answer === null) return ctx.world.self.power;
+  const base = simulationBaseline(session, ctx, resolve);
+  if (base === null) return answer;
+  return ctx.world.self.power + (answer - base);
+}
+var BASELINES = /* @__PURE__ */ new WeakMap();
+function simulationBaseline(session, ctx, resolve) {
+  const cached = BASELINES.get(session);
+  if (cached && cached.clock === ctx.world.clock) return cached.base;
+  const base = resolve(ctx, {}) ?? null;
+  BASELINES.set(session, { clock: ctx.world.clock, base });
+  return base;
+}
+function buildItemDeps(session) {
+  const c = session.ctx;
+  if (!c) throw new Error("buildItemDeps outside a think");
+  const w = c.world;
+  const py = w.self.c.y;
+  const px = w.self.c.x;
+  const dangerHere = borgDanger(c, py, px, 1, true, false);
+  const fear = getFearCaches(w);
+  const res = session.resolvers;
+  return {
+    danger: dangerHere,
+    avoidance: w.self.trait[27 /* CURHP */] ?? 0,
+    /* borg_check_rest(borg.c.y, borg.c.x): the real gate, not a constant. Every
+     * rest in borg-recover.c is behind it, so a hardcoded `true` is the Borg
+     * resting with a monster next to it. */
+    canRest: borgCheckRest(c, session.flow.state, py, px),
+    clock: w.clock,
+    /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
+    began: session.flow.state.borgBegan,
+    fearRegion: fear.region(py, px),
+    ...res.resolveActivation ? {
+      equipsItem: (act, checkCharge) => res.resolveActivation(c, act, checkCharge)
+    } : {},
+    ...res.activateHandle ? { activateItem: (act) => res.activateHandle(c, act) } : {},
+    ...res.loadoutPower ? {
+      /* borg_wear_stuff (wear.c:858): the power if this pack item were worn.
+       * The engine picks the slot, so a ring goes to the hand wield_slot
+       * would put it in rather than to a hand this code guessed at. */
+      wearEval: (item) => powerOf(session, c, {
+        wield: [{ from: "gear", handle: item.handle }]
+      })
+    } : {}
+  };
+}
+function storeCfg() {
+  const cfg = borgCfg();
+  return {
+    worshipsGold: cfg.worshipsGold,
+    selfScum: cfg.selfScum,
+    usesSwaps: cfg.usesSwaps
+  };
+}
+function buildStoreDeps(session) {
+  const res = session.resolvers;
+  if (!res.loadoutPower) return { mem: session.storeMem, ...storeCfg() };
+  return {
+    mem: session.storeMem,
+    ...storeCfg(),
+    /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
+     * would WIELD is worn; anything else joins the pack. Both cost their weight,
+     * which is what makes plate armour read as the speed loss it is. */
+    buyShopEval: (ctx, sim) => {
+      const ref = wareRef(sim.store, sim.item);
+      if (!sim.wields) {
+        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
+      }
+      return powerOf(session, ctx, {
+        wield: [ref],
+        ...sim.qty > 1 ? { carry: [{ item: ref, number: sim.qty - 1 }] } : {}
+      });
+    },
+    /* borg_think_home_buy_useful: the same question about the home's shelves,
+     * which are a store like any other (index BORG_HOME in view.stores()). */
+    buyHomeEval: (ctx, sim) => {
+      const ref = wareRef(sim.store, sim.item);
+      if (!sim.wields) {
+        return powerOf(session, ctx, { carry: [{ item: ref, number: sim.qty }] });
+      }
+      return powerOf(session, ctx, { wield: [ref] });
+    },
+    /* borg_think_shop_sell_useless: the power once `qty` of this stack is gone.
+     * `release` empties a body slot when the handle names worn gear, so selling
+     * the amulet the borg has on is one change rather than a remove and a sale. */
+    sellEval: (ctx, item, qty) => powerOf(session, ctx, {
+      release: [{ handle: item.handle, number: qty }]
+    }),
+    /* borg_think_home_sell_bad (borg-store-sell.c:376) asks about ONE of a
+     * stack, not the whole stack. */
+    sellHomeBadEval: (ctx, item) => powerOf(session, ctx, {
+      release: [{ handle: item.handle, number: 1 }]
+    })
+    /* weaponSwapEval / armourSwapEval are deliberately NOT wired. They value a
+     * home ware as the borg's SWAP weapon or armour, and this port has no swap
+     * subsystem: weapon_swap_value and armour_swap_value contribute 0 to
+     * borgPower (trait/power.ts), so an evaluator here would compare two numbers
+     * that are equal by construction and buy on the tiebreak. Unreachable until
+     * the swap subsystem is ported, not merely unwired. */
+  };
+}
+function buildThinkSession(resolvers = {}) {
+  const session = {
+    flow: void 0,
+    storeMem: createStoreMemory(),
+    resolvers,
+    ctx: null,
+    arrivalPickup: false,
+    lastGrid: "",
+    junked: /* @__PURE__ */ new Set(),
+    pickupTried: ""
+  };
+  session.flow = createFlow(buildFlowHooks(session));
+  return session;
+}
+var SESSIONS = /* @__PURE__ */ new WeakMap();
+function getThinkSession(world) {
+  let s = SESSIONS.get(world);
+  if (!s) {
+    s = buildThinkSession();
+    SESSIONS.set(world, s);
+  }
+  return s;
+}
+function installThinkSession(world, session) {
+  SESSIONS.set(world, session);
+}
+function primeSession(session, ctx) {
+  session.ctx = ctx;
+  const w = ctx.world;
+  const g = getDangerGlobals(w);
+  const curhp = w.self.trait[27 /* CURHP */] ?? 0;
+  g.avoidance = curhp;
+  if (session.resolvers.resolveMonsterFacts) {
+    g.resolveFacts = session.resolvers.resolveMonsterFacts;
+  }
+  session.flow.state.avoidance = curhp;
+  session.flow.state.hooks.forceDescend = session.resolvers.forceDescend ?? false;
 }
 
 // src/perceive-facts.ts

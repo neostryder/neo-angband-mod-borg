@@ -21,6 +21,7 @@ import {
   borgFlowSpread,
   createFlowState,
   dataIdx,
+  defaultFlowHooks,
 } from "./flow.js";
 import { createFlow } from "./index.js";
 
@@ -259,5 +260,72 @@ describe("determinism", () => {
     const b = dirOf(createFlow().toKills(makeCtx(scenario, traits), 250));
     expect(a).toBe(b);
     expect(a).toBeGreaterThan(0);
+  });
+});
+
+/* borg_play_step's trap and door magic (borg-flow.c:898-987). */
+describe("borg_play_step's trap and door magic", () => {
+  const cast = { code: "cast", spell: 1 } as unknown as AgentCommand;
+  type Calls = { trap: Array<[number, number, boolean]>; door: Array<[number, number]> };
+  const hooked = (
+    trapAnswer: AgentCommand | null,
+    doorAnswer: { cmd: AgentCommand; via: "destroy" | "melt" } | null,
+  ): { flow: ReturnType<typeof createFlowState>; calls: Calls } => {
+    const calls: Calls = { trap: [], door: [] };
+    const flow = createFlowState({
+      ...defaultFlowHooks(),
+      disableTrap: (_c, y, x, spellOk) => {
+        calls.trap.push([y, x, spellOk]);
+        return trapAnswer;
+      },
+      forceDoor: (_c, y, x) => {
+        calls.door.push([y, x]);
+        return doorAnswer;
+      },
+    });
+    return { flow, calls };
+  };
+  const code = (cmd: AgentCommand | null): string | undefined => (cmd as { code?: string } | null)?.code;
+
+  /** The borg at (10,10), the step east onto (11,10). */
+  const atTrap = (): BorgContext => {
+    const ctx = makeCtx({ player: { grid: { x: 10, y: 10 } } }, { CLEVEL: 25, CDEPTH: 5, LIGHT: 1, CURSP: 20, MAXSP: 20 });
+    ctx.world.map.at(11, 10).trap = true;
+    return ctx;
+  };
+
+  it("disables a trap by magic when it can, aimed at the trap, and will not rest beside it", () => {
+    const ctx = atTrap();
+    const { flow, calls } = hooked(cast, null);
+    expect(borgPlayStep(ctx, flow, 10, 11)).toBe(cast);
+    expect(calls.trap).toEqual([[10, 11, true]]);
+    expect(ctx.world.map.at(11, 10).trap).toBe(false);
+    expect(ctx.world.self.noRestPrep).toBe(3000);
+  });
+
+  it("offers the spell only near full mana, and disarms by hand without magic", () => {
+    const ctx = atTrap();
+    ctx.world.self.trait[BI.CURSP] = 10;
+    const { flow, calls } = hooked(null, null);
+    expect(code(borgPlayStep(ctx, flow, 10, 11))).toBe("disarm");
+    expect(calls.trap).toEqual([[10, 11, false]]);
+    expect(ctx.world.self.noRestPrep).toBe(0);
+  });
+
+  it("melts a stuck door, aimed at it, and forgets the closed-door list", () => {
+    const ctx = makeCtx({ player: { grid: { x: 10, y: 10 } }, cells: { "11,10": { feat: FEAT.CLOSED } } }, { CLEVEL: 25, CDEPTH: 5, LIGHT: 1 });
+    ctx.world.self.timeThisPanel = 500;
+    const { flow, calls } = hooked(null, { cmd: cast, via: "melt" });
+    flow.closed.num = 3;
+    expect(borgPlayStep(ctx, flow, 10, 11)).toBe(cast);
+    expect(calls.door).toEqual([[10, 11]]);
+    expect(flow.closed.num).toBe(0);
+  });
+
+  it("opens the door by hand when no magic applies", () => {
+    const ctx = makeCtx({ player: { grid: { x: 10, y: 10 } }, cells: { "11,10": { feat: FEAT.CLOSED } } }, { CLEVEL: 25, CDEPTH: 5, LIGHT: 1 });
+    ctx.world.self.timeThisPanel = 500;
+    const { flow } = hooked(null, null);
+    expect(code(borgPlayStep(ctx, flow, 10, 11))).toBe("open");
   });
 });

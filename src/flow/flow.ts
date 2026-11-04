@@ -109,6 +109,19 @@ export interface FlowHooks {
   hasDistanceAttack: (world: BorgWorld) => boolean;
   /** Lay a glyph of warding at the current grid (spell/scroll/activation). */
   layGlyph: (ctx: BorgContext) => AgentCommand | null;
+  /**
+   * borg_play_step's trap magic (borg-flow.c:901-924): the disable-traps
+   * activation aimed at the trap grid, else - when `spellOk` (SP above 4/5) -
+   * the Disable Traps, Destroy Doors spell. Null when neither is available.
+   */
+  disableTrap: (ctx: BorgContext, y: number, x: number, spellOk: boolean) => AgentCommand | null;
+  /**
+   * borg_play_step's door magic (borg-flow.c:963-987). "destroy" is the
+   * Disable Traps, Destroy Doors spell or the destroy-doors activation;
+   * "melt" is Stone to Mud, Shatter Stone, a ring of digging or the
+   * stone-to-mud activation, aimed at the door. Null when none applies.
+   */
+  forceDoor: (ctx: BorgContext, y: number, x: number) => { readonly cmd: AgentCommand; readonly via: "destroy" | "melt" } | null;
   /** OPT(player, birth_force_descend): the level cannot be climbed. */
   forceDescend: boolean;
   /** borg_prepared(depth + 1) == NULL: safe to dive one level deeper. */
@@ -147,6 +160,8 @@ export function defaultFlowHooks(): FlowHooks {
     canDigMagic: () => false,
     hasDistanceAttack: () => false,
     layGlyph: () => null,
+    disableTrap: () => null,
+    forceDoor: () => null,
     forceDescend: false,
     preparedToDescend: () => true,
     countSell: () => 0,
@@ -692,7 +707,7 @@ export function borgPlayStep(
   /* Glyph of warding -- walk onto */
   if (ag.glyph) return act.move(dir);
 
-  /* Traps -- disarm (spell/activation disable needs P8.x; go straight to it) */
+  /* Traps -- disarm (borg-flow.c:898-934). */
   if (
     trait(w, BI.LIGHT) &&
     !trait(w, BI.ISBLIND) &&
@@ -700,6 +715,14 @@ export function borgPlayStep(
     !w.facts.scaryGuyOnLevel &&
     ag.trap
   ) {
+    /* The disable-traps activation, then the spell when near full mana. Both
+     * only disable the trap, so the borg does not rest next to it. */
+    const magic = flow.hooks.disableTrap(ctx, y, x, trait(w, BI.CURSP) > Math.trunc((trait(w, BI.MAXSP) * 4) / 5));
+    if (magic !== null) {
+      ag.trap = false;
+      w.self.noRestPrep = 3000;
+      return magic;
+    }
     ag.trap = false;
     return act.disarm(dir);
   }
@@ -715,6 +738,15 @@ export function borgPlayStep(
       const ag2 = w.map.at(ax, ay);
       if (ag2.kill && trait(w, BI.CLEVEL) < 15 && !trait(w, BI.ISAFRAID))
         return null;
+    }
+    /* "Use other techniques from time to time" (borg-flow.c:963-987). The
+     * draw happens on every door, as the C's `!randint0(100) || ...` does. */
+    if (ctx.rng.randint0(100) === 0 || w.self.timeThisPanel >= 500) {
+      const forced = flow.hooks.forceDoor(ctx, y, x);
+      if (forced !== null) {
+        if (forced.via === "melt" && flow.closed.num) flow.closed.wipe();
+        return forced.cmd;
+      }
     }
     if (flow.closed.num) flow.closed.wipe();
     return act.open(dir);

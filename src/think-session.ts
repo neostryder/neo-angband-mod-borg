@@ -56,6 +56,8 @@ import {
 } from "./store/index.js";
 import {
   Spell,
+  borgActivateItem,
+  borgActivateRing,
   borgReadScroll,
   borgSpell,
   borgSpellLegal,
@@ -63,6 +65,7 @@ import {
   SVAL,
 } from "./item/index.js";
 import type { BorgWorld } from "./world/model.js";
+import { borgTarget } from "./fight/index.js";
 
 /**
  * Injection points a host supplies via createBorg. All optional; each defaults
@@ -206,6 +209,29 @@ function buildFlowHooks(session: ThinkSession): FlowHooks {
     layGlyph: (c) =>
       borgSpell(c, Spell.GLYPH_OF_WARDING) ??
       borgReadScroll(c, SVAL.scroll.rune_of_protection!),
+    /* borg_play_step's trap and door magic (borg-flow.c:901-924, 963-987),
+     * each aimed at the step grid the way the C's borg_target(goal.g) /
+     * direction keypress aims it. */
+    disableTrap: (c, y, x, spellOk) => {
+      const activation = borgActivateItem(c, "act_disable_traps");
+      if (activation !== null) {
+        borgTarget(c, y, x);
+        return activation;
+      }
+      return spellOk ? borgSpell(c, Spell.DISABLE_TRAPS_DESTROY_DOORS) : null;
+    },
+    forceDoor: (c, y, x) => {
+      const destroy = borgSpell(c, Spell.DISABLE_TRAPS_DESTROY_DOORS) ?? borgActivateItem(c, "act_destroy_doors");
+      if (destroy !== null) return { cmd: destroy, via: "destroy" as const };
+      const melt =
+        borgSpell(c, Spell.TURN_STONE_TO_MUD) ??
+        borgSpell(c, Spell.SHATTER_STONE) ??
+        borgActivateRing(c, SVAL.ring.digging!) ??
+        borgActivateItem(c, "act_stone_to_mud");
+      if (melt === null) return null;
+      borgTarget(c, y, x);
+      return { cmd: melt, via: "melt" as const };
+    },
     forceDescend: session.resolvers.forceDescend ?? false,
     preparedToDescend: (world) =>
       borgPrepared(ctx(), (world.self.trait[BI.CDEPTH] ?? 0) + 1) === null,
