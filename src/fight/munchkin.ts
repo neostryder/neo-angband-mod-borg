@@ -72,7 +72,9 @@ export function borgMunchkinMage(ctx: BorgContext): AgentCommand | null {
     }
     if (!ctx.world.map.inBounds(kill.pos.x, kill.pos.y)) continue;
     const ag = ctx.world.map.at(kill.pos.x, kill.pos.y);
-    if (!(ag.info & 0x08)) continue; /* BORG_OKAY */
+    /* BORG_OKAY ("on the current panel") is treated as set, as flow-kill.ts
+     * does: the port has no panel and never sets the flag, so requiring it
+     * left this scan with no monster at all. */
     if (!(ag.info & 0x20)) continue; /* BORG_VIEW */
     if (dist(ctx.world.self.c.y, ctx.world.self.c.x, kill.pos.y, kill.pos.x) > maxRange(ctx)) continue;
     fs.tempX[fs.tempN] = kill.pos.x;
@@ -138,7 +140,9 @@ export function borgMunchkinMelee(ctx: BorgContext): AgentCommand | null {
     }
     if (!ctx.world.map.inBounds(kill.pos.x, kill.pos.y)) continue;
     const ag = ctx.world.map.at(kill.pos.x, kill.pos.y);
-    if (!(ag.info & 0x08)) continue;
+    /* BORG_OKAY ("on the current panel") is treated as set, as flow-kill.ts
+     * does: the port has no panel and never sets the flag, so requiring it
+     * left this scan with no monster at all. */
     if (!(ag.info & 0x20)) continue;
     if (dist(ctx.world.self.c.y, ctx.world.self.c.x, kill.pos.y, kill.pos.x) !== 1) continue;
     fs.tempX[fs.tempN] = kill.pos.x;

@@ -175,10 +175,34 @@ describe("borgAttack (attack.c:5148)", () => {
     ctx.world.self.c = { x: 20, y: 12 };
     ctx.world.kills.at(1).power = 30;
     ctx.world.kills.at(1).awake = true;
-    ctx.world.map.at(21, 12).info |= 0x08 | 0x20; /* BORG_OKAY | BORG_VIEW */
+    ctx.world.map.at(21, 12).info |= 0x20; /* BORG_VIEW, as perceive sets it: nothing sets BORG_OKAY */
     getDangerGlobals(ctx.world).resolveFacts = () =>
       facts({ blows: [{ dice: 1, sides: 4, effect: MONBLOW.HURT }] });
     const cmd = borgAttack(ctx);
+    expect(cmd).not.toBeNull();
+    expect(cmd!.code).toBe("walk");
+  });
+});
+
+describe("borgAttack through perceive", () => {
+  it("targets a monster the borg perceives, with the grid flags play really sets", async () => {
+    /* No hand-set flags: the world is built by perceive, as in play. */
+    const { BorgWorld } = await import("../world/model.js");
+    const { perceive, makePerceiveMemo } = await import("../perceive.js");
+    const { makeScenarioView, makeFakeActions } = await import("../harness.js");
+    const { makeBorgRng } = await import("../rng.js");
+    const { borgNotice, BI: TBI } = await import("../trait/index.js");
+    const world = new BorgWorld();
+    const view = makeScenarioView({ player: { grid: { x: 20, y: 12 } }, monsters: [{ grid: { x: 21, y: 12 } }] });
+    const ctx = { world, view, act: makeFakeActions(), rng: makeBorgRng() };
+    borgNotice(ctx as never);
+    perceive(world, view, makePerceiveMemo());
+    for (const [k, v] of Object.entries({ WDD: 2, WDS: 6, BLOWS: 1, THN: 100, CLEVEL: 10, CDEPTH: 1, SPEED: 110 })) world.self.trait[TBI[k as keyof typeof TBI]] = v;
+    world.kills.at(1).power = 30;
+    world.kills.at(1).awake = true;
+    getDangerGlobals(world).resolveFacts = () => facts({ blows: [{ dice: 1, sides: 4, effect: MONBLOW.HURT }] });
+    expect(world.map.at(21, 12).info & 0x08).toBe(0); /* BORG_OKAY really is never set */
+    const cmd = borgAttack(ctx as never);
     expect(cmd).not.toBeNull();
     expect(cmd!.code).toBe("walk");
   });
@@ -287,7 +311,7 @@ describe("borgBackAway (caution.c:1664)", () => {
     k.awake = true;
     k.speed = 110;
     k.when = ctx.world.clock;
-    ctx.world.map.at(11, 3).info |= 0x08 | 0x20; /* BORG_OKAY | BORG_VIEW */
+    ctx.world.map.at(11, 3).info |= 0x20; /* BORG_VIEW, as perceive sets it */
     getDangerGlobals(ctx.world).avoidance = 20;
     getDangerGlobals(ctx.world).resolveFacts = () =>
       facts({ blows: [{ dice: 3, sides: 6, effect: MONBLOW.HURT }] });

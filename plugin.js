@@ -12244,7 +12244,6 @@ function borgAttack(ctx, boostedBravery = false) {
     }
     if (!ctx.world.map.inBounds(kill.pos.x, kill.pos.y)) continue;
     const ag = ctx.world.map.at(kill.pos.x, kill.pos.y);
-    if (!(ag.info & 8)) continue;
     if (!(ag.info & 32)) continue;
     if (dist(ctx.world.self.c.y, ctx.world.self.c.x, kill.pos.y, kill.pos.x) > maxRange2(ctx)) continue;
     if (!ag.kill) ag.kill = i;
@@ -13085,7 +13084,6 @@ function auxTeleAway(ctx, fs, p1) {
     if (kill.when < ctx.world.clock - 2) continue;
     if (!ctx.world.map.inBounds(kill.pos.x, kill.pos.y)) continue;
     const ag = ctx.world.map.at(kill.pos.x, kill.pos.y);
-    if (!(ag.info & 8)) continue;
     if (!(ag.info & 32)) continue;
     if (ag.feat >= FEAT.RUBBLE && ag.feat <= FEAT.PERM) continue;
     const d = Math.max(Math.abs(kill.pos.y - ctx.world.self.c.y), Math.abs(kill.pos.x - ctx.world.self.c.x));
@@ -13157,7 +13155,6 @@ function nearEvil(ctx) {
     if (!kill.rIdx) continue;
     if (kill.when < ctx.world.clock - 2) continue;
     if (!ctx.world.map.inBounds(kill.pos.x, kill.pos.y)) continue;
-    if (!(ctx.world.map.at(kill.pos.x, kill.pos.y).info & 8)) continue;
     if (Math.max(Math.abs(kill.pos.y - ctx.world.self.c.y), Math.abs(kill.pos.x - ctx.world.self.c.x)) > 3) continue;
     if (getDangerGlobals(ctx.world).resolveFacts(ctx, i).flags.has("EVIL")) return true;
   }
