@@ -7,15 +7,20 @@
  * and the decision run again, and what the Borg says to a prompt.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as Core from "@rpgm-tools/neo-angband-core";
-import type { AgentCommand, AgentController } from "@rpgm-tools/neo-angband-core";
+import type { AgentCommand, AgentController, ItemView } from "@rpgm-tools/neo-angband-core";
 import type { Api2Prompt } from "@rpgm-tools/neo-angband-mod-sdk";
 import { fakeGame, knownWorld } from "../harness-api2.js";
 import { createActFacade, intentOf, REST_COMPLETE } from "./act.js";
 import { createTick, promptAnswer, IDLE_BEFORE_RELEASE, REFUSALS_BEFORE_RELEASE, STALLS_BEFORE_FORGET, STALLS_BEFORE_RELEASE, type Decider } from "./controller.js";
 import { createBridge, type Bridge } from "./host.js";
 import type { World } from "./world.js";
+import { createBorg } from "../controller.js";
+import * as Think from "../think.js";
+import { buildItemDeps, getThinkSession } from "../think-session.js";
+import { borgWearRecharge } from "../item/item-wear.js";
+import { TV } from "../item/svals.js";
 
 describe("the act verbs", () => {
   it("turn a command into the intent the game takes", () => {
@@ -94,6 +99,54 @@ async function publishedGame() {
   await host.prime();
   return { game, host, status };
 }
+
+describe("recharge continuation across API2 retries (#76)", () => {
+  it.each([false, true])("preserves wear/rest order when a loadout retry starts with pending rest=%s", async (pendingRest) => {
+    const game = fakeGame();
+    const amulet: ItemView = {
+      handle: 7, kindKey: "", aware: true, nameColor: "", label: "charging amulet",
+      tval: TV.AMULET, sval: 1, pval: 0, number: 1, weight: 1, ac: 0, toA: 0,
+      toH: 0, toD: 0, dd: 0, ds: 0, ego: false, artifact: false, flags: [],
+      modifiers: [], brands: [], slays: [], resists: [], curses: [], egoName: null,
+      artifactName: null, activation: true, timeout: 10, inscription: null,
+    };
+    const view = { ...game.view, inventory: () => [amulet] };
+    const borg = createBorg({ rngSeed: 1 });
+    const session = getThinkSession(borg.world);
+    session.rechargeRest = pendingRest;
+    const realThink = Think.think;
+    // Isolate selection of this late rung. The real controller snapshot,
+    // real queued-rest consumer, item selector and API2 retry all run.
+    const selection = vi.spyOn(Think, "think").mockImplementation((ctx) => {
+      const state = getThinkSession(ctx.world);
+      return state.rechargeRest ? realThink(ctx)
+        : borgWearRecharge(ctx, { ...buildItemDeps(state), canRest: true });
+    });
+    let pending = true;
+    let rounds = 0;
+    const tick = createTick(bridge({
+      readWorld: () => Promise.resolve({ view, facts: { shopnum: null, kinds: new Map() } } as World),
+      loadoutsPending: () => pending,
+      settleLoadouts: () => { pending = false; rounds++; return Promise.resolve(1); },
+    }), borg);
+    try {
+      await tick(game.mod, game.input());
+      expect(rounds).toBe(1);
+      expect(game.submitted.map((entry) => entry.intent)).toEqual([
+        { kind: "command", command: pendingRest
+          ? { code: "rest", args: { count: 75 } }
+          : { code: "wield", args: { handle: 7 } } },
+      ]);
+      if (!pendingRest) {
+        await tick(game.mod, game.input());
+        expect(game.submitted[1]!.intent).toEqual({ kind: "command", command: { code: "rest", args: { count: 75 } } });
+      }
+      expect(session.rechargeRest).toBe(false);
+    } finally {
+      selection.mockRestore();
+    }
+  });
+});
 
 describe("one tick", () => {
   it("submits the targets, under a fresh token, and then the command", async () => {

@@ -16321,12 +16321,12 @@ function createBorg(opts = {}) {
   const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
   let lastDepth = -1;
   let retry = false;
-  let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
+  let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup, rechargeRest: session.rechargeRest ?? false };
   const controller = hostController((view, act) => {
     const ctx = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect };
     const recordStep = !retry;
     retry = false;
-    before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
+    before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup, rechargeRest: session.rechargeRest ?? false };
     world.clock += 1;
     world.self.timeThisPanel += 1;
     const depth = view.player().depth;
@@ -16382,6 +16382,7 @@ function createBorg(opts = {}) {
     world.self.timeThisPanel -= 1;
     session.lastGrid = before.lastGrid;
     session.arrivalPickup = before.arrival;
+    session.rechargeRest = before.rechargeRest;
   };
   return { world, rng, controller, rewind };
 }
