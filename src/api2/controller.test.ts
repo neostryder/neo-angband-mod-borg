@@ -201,6 +201,23 @@ describe("one tick", () => {
     expect(game.released).toEqual([]);
   });
 
+  it("does not count a command repeated while an affliction wears off", async () => {
+    /* A confused character trying a locked door: each try takes a turn and the
+     * confusion falls, so it is waiting it out, not stalling. */
+    const game = fakeGame({ scenario: { player: { grid: { x: 5, y: 5 }, depth: 2 } } });
+    let confused = STALLS_BEFORE_RELEASE * 3;
+    const world = () => {
+      confused -= 1;
+      const view = Object.create(game.view) as typeof game.view;
+      const base = game.view.player();
+      (view as { player: unknown }).player = () => ({ ...base, status: { ...base.status, confused } });
+      return Promise.resolve({ view, facts: { shopnum: null, kinds: new Map() } } as unknown as World);
+    };
+    const tick = createTick(bridge({ readWorld: world }), { controller: () => ({ code: "open", dir: 2 }) as AgentCommand, rewind: () => undefined, forget: () => undefined });
+    for (let n = 0; n < STALLS_BEFORE_RELEASE * 2; n++) await tick(game.mod, game.input());
+    expect(game.released).toEqual([]);
+  });
+
   it("reads no world at a wait with a prompt, and waits out a death or other phase", async () => {
     const game = fakeGame();
     let reads = 0;

@@ -16820,10 +16820,13 @@ function aimedGrid(command, from) {
   if (dir === void 0 || dir < 1 || dir > 9 || dir === 5) return null;
   return { x: from.x + DIR_DX[dir], y: from.y + DIR_DY[dir] };
 }
+var AFFLICTIONS = ["blind", "confused", "afraid", "poisoned", "cut", "stun", "paralyzed"];
 function sceneOf(world) {
   const player = world.view.player();
+  const status = player["status"] ?? {};
+  const afflictions = AFFLICTIONS.map((name) => status[name] ?? 0);
   const monsters = world.view.monsters().map((monster) => [monster.grid.x, monster.grid.y, monster.hp]);
-  return JSON.stringify([player.grid.x, player.grid.y, player["depth"], player["hp"], player["sp"], player["exp"], player["gold"], monsters]);
+  return JSON.stringify([player.grid.x, player.grid.y, player["depth"], player["hp"], player["sp"], player["exp"], player["gold"], afflictions, monsters]);
 }
 function createTick(bridge2, borg) {
   let refusals = 0;

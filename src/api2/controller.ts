@@ -81,10 +81,22 @@ function aimedGrid(command: AgentCommand, from: { readonly x: number; readonly y
 }
 
 /** The scene a command was chosen against: where the character is, what it has, and what stands near. */
+/**
+ * The timed afflictions that wear off with time. A command repeated while one
+ * of them counts down is waiting it out, not stalling: a confused character
+ * that may not rest (borg_check_rest refuses with fewer than two food items,
+ * borg-flow-misc.c:1286-1290) keeps trying a locked door, each try takes a
+ * turn and the confusion falls. Food is left out on purpose: it falls every
+ * turn, so a rest that changes nothing else would never read as a stall.
+ */
+const AFFLICTIONS = ["blind", "confused", "afraid", "poisoned", "cut", "stun", "paralyzed"] as const;
+
 function sceneOf(world: World): string {
   const player = world.view.player() as unknown as Readonly<Record<string, unknown>> & { readonly grid: { readonly x: number; readonly y: number } };
+  const status = (player["status"] ?? {}) as Readonly<Record<string, unknown>>;
+  const afflictions = AFFLICTIONS.map((name) => status[name] ?? 0);
   const monsters = world.view.monsters().map((monster) => [monster.grid.x, monster.grid.y, monster.hp]);
-  return JSON.stringify([player.grid.x, player.grid.y, player["depth"], player["hp"], player["sp"], player["exp"], player["gold"], monsters]);
+  return JSON.stringify([player.grid.x, player.grid.y, player["depth"], player["hp"], player["sp"], player["exp"], player["gold"], afflictions, monsters]);
 }
 
 export function createTick(bridge: Bridge, borg: Decider): Tick {
