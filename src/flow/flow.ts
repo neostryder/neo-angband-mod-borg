@@ -14,9 +14,10 @@
  *   the next AgentCommand (ctx.act.move/melee/tunnel/open/disarm/close/ascend)
  *   instead. borg_flow_old therefore returns AgentCommand | null (null == "no
  *   step / goal cancelled") and every goal-flow function returns that up.
- * - borg_danger (P8.2) and the trait[] self-model (P8.3) are not yet ported, so
- *   danger is an injectable FlowHooks.danger (default 0 == no danger, the
- *   faithful degenerate value) and traits read 0 until filled. The BFS, cost
+ * - borg_danger and the trait[] self-model reach the flow through injectable
+ *   FlowHooks; both are ported, and the session wires FlowHooks.danger to
+ *   borgDanger (think-session.ts). The defaults (danger 0, the degenerate "no
+ *   danger" value) serve only unit tests that build a bare flow. The BFS, cost
  *   model, fear thresholds, goal ordering, AUTO_FLOW_MAX (1536), the 250-grid
  *   path assumption and the play-step branch order are ported verbatim.
  * - Trap and door magic uses the session's spell/item hooks (borg-flow.c:903-987).
@@ -105,10 +106,11 @@ export function borgTrackStep(track: BorgTrack, y: number, x: number): void {
 }
 
 /**
- * Injectable dependencies that the flow code reaches for but that live in
- * subsystems not yet ported. Every default is the faithful "nothing available"
- * value so the flow behaves exactly as a borg with no danger model / no digging
- * magic / no ranged attack, rather than fabricating behaviour.
+ * Injectable dependencies the flow code reaches for in other subsystems. All
+ * of them are ported and the session wires every one (think-session.ts,
+ * buildFlowHooks). The defaults are the "nothing available" values (no
+ * danger, no digging magic, no ranged attack) for unit tests that build a
+ * bare flow, never for play.
  */
 export interface FlowHooks {
   /** borg_danger(y, x, 1, true, false): estimated danger at a grid. */

@@ -3,8 +3,9 @@
  * reference/src/borg/borg-flow-take.c (borg_flow_take and borg_flow_take_scum).
  *
  * ADAPTATIONS
- * - "Require one empty pack slot" (borg_items[PACK_SLOTS-1].iqty) needs the
- *   inventory model (P8.5), so it is delegated to FlowHooks.packFull.
+ * - "Require one empty pack slot" (borg_items[PACK_SLOTS-1].iqty) is
+ *   FlowHooks.packFull, which the session wires to the inventory model
+ *   (think-session.ts).
  * - The gold-scumming book/ammo-kind cheats need k_info; they are gated by the
  *   same GOLD >= 500000 guard as upstream (default gold 0 -> inactive) and left
  *   out. The lunal-mode take variant (heavily inventory/quiver dependent) is a

@@ -3,10 +3,11 @@
  * reference/src/borg/borg-flow-glyph.c (borg_flow_glyph, the "sea of runes" the
  * borg builds around itself before facing Morgoth).
  *
- * ADAPTATION. Laying the glyph itself is an action (spell / rune scroll /
- * activation) from subsystems not yet ported, so on arrival the port calls
- * FlowHooks.layGlyph(ctx); if it returns null (no means to lay one) the flow
- * yields, exactly as upstream's cast/read/activate chain failing. The room
+ * ADAPTATION. Laying the glyph itself is an action (spell / rune scroll), so
+ * on arrival the port calls FlowHooks.layGlyph(ctx), which the session wires
+ * to Glyph of Warding or a Rune of Protection scroll (think-session.ts). If it
+ * returns null (no means to lay one) the flow yields, exactly as upstream's
+ * cast/read/activate chain failing. The room
  * search, scoring, and flow are ported verbatim.
  */
 

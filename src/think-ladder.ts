@@ -18,7 +18,8 @@
  *     (borg-junk.c). borg_play_magic (borg-magic-play.c) is ported in
  *     src/item/magic-play.ts. borg_drop_junk is
  *     mapped to the ported borgCrushJunk (borg-junk.c's junk-dropping routine).
- *   borg_must_return_to_town (borg-prepared.c) is approximated by borgRestock.
+ *   borg_must_return_to_town (borg-prepared.c:828) is ported with both of its
+ *   guards (mustReturnToTown below).
  *
  * SCUM MODES. borg_think_dungeon_lunal / _munchkin and borg_money_scum are
  * gated by the borg config flags BORG_SELF_LUNAL / BORG_MUNCHKIN_START /
