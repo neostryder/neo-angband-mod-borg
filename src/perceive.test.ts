@@ -341,8 +341,15 @@ describe("a monster that is not where the Borg left it", () => {
   function twoTicks(second: Parameters<typeof makeScenarioView>[0]): BorgWorld {
     const world = new BorgWorld();
     const memo = makePerceiveMemo();
+    // This is a lit room, explicitly: an empty equipment view has no torch
+    // (B68), so PlayerView.light alone must not invent illumination.
+    const lit: Record<string, { glow: boolean }> = {};
+    for (let y = 10; y <= 14; y++) {
+      for (let x = 19; x <= 23; x++) lit[`${String(x)},${String(y)}`] = { glow: true };
+    }
     const first = makeScenarioView({
       player: { grid: { x: 20, y: 12 } },
+      cells: lit,
       monsters: [{ id: 9, race: "kobold", grid: { x: 21, y: 12 } }],
     });
     const ctx1: BorgContext = {
@@ -359,6 +366,7 @@ describe("a monster that is not where the Borg left it", () => {
     const view = makeScenarioView({
       player: { grid: { x: 20, y: 12 } },
       ...second,
+      cells: { ...lit, ...second?.cells },
     });
     const ctx2: BorgContext = {
       world,

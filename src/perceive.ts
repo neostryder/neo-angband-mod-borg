@@ -97,7 +97,7 @@ export function perceive(
   world.facts.depth = p.depth;
 
   ingestMap(world, view);
-  borgUpdateLight(world);
+  borgUpdateLight(world, view);
   const seen = ingestMonsters(world, view);
   ingestFloor(world, view, oldX, oldY, valuation);
 
@@ -192,7 +192,7 @@ function ingestMap(world: BorgWorld, view: BorgView): void {
  * is four diagonals plus a boxed scan of everything in view within the light's
  * own distance approximation.
  */
-function borgUpdateLight(world: BorgWorld): void {
+function borgUpdateLight(world: BorgWorld, view: BorgView): void {
   const map = world.map;
 
   /* Clear them all (the C keeps a list of the grids it lit; the port rescans,
@@ -214,20 +214,25 @@ function borgUpdateLight(world: BorgWorld): void {
   const floorAt = (y: number, x: number): boolean =>
     borgCaveFloorBold(world, y, x);
 
-  /* Player grid (the C lights it whatever the radius, provided a light exists;
-   * a radius of zero is how "no light source" reaches here). */
-  if (radius <= 0) return;
+  /* FORK (Mandos #68), DEFECT toward borg-cave-light.c:96: test the worn
+   * light, not BI_LIGHT. A torchless Necromancer has BI_LIGHT=1 for UNLIGHT
+   * vision (trait.c:1765); that must not illuminate its grid or penalize
+   * its spells. The C still lights the player grid at radius zero. */
+  const lamp = view.equipment()[5]; /* INVEN_LIGHT / EQUIP_LIGHT */
+  if (!lamp || lamp.number <= 0) return;
   lightUp(cy, cx);
 
   /* Radius 1 -- torch radius */
-  lightUp(cy + 1, cx);
-  lightUp(cy - 1, cx);
-  lightUp(cy, cx + 1);
-  lightUp(cy, cx - 1);
-  lightUp(cy + 1, cx + 1);
-  lightUp(cy + 1, cx - 1);
-  lightUp(cy - 1, cx + 1);
-  lightUp(cy - 1, cx - 1);
+  if (radius >= 1) {
+    lightUp(cy + 1, cx);
+    lightUp(cy - 1, cx);
+    lightUp(cy, cx + 1);
+    lightUp(cy, cx - 1);
+    lightUp(cy + 1, cx + 1);
+    lightUp(cy + 1, cx - 1);
+    lightUp(cy - 1, cx + 1);
+    lightUp(cy - 1, cx - 1);
+  }
 
   /* Radius 2 -- lantern radius */
   if (

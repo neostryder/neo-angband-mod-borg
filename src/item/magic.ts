@@ -32,6 +32,7 @@ import {
   CLASS_BLACKGUARD,
 } from "../trait/trait-index.js";
 import { trait } from "./deps.js";
+import { BORG_LIGHT } from "../world/grid.js";
 
 /* Spell method values (borg-magic.h:30-35) - kept for effect classification. */
 export const BORG_MAGIC_ICK = 0;
@@ -567,9 +568,11 @@ export function borgSpellFailRate(
   if (trait(ctx, BI.ISAFRAID)) chance += 20;
 
   let minfail = trait(ctx, BI.FAIL2);
+  /* FORK (Mandos #68), DEFECT toward magic.c:525: player_has(PF_ZERO_FAIL),
+   * not a Mage-only guess. Necromancers also carry the declared flag. */
   const zeroFail = playerHas
     ? playerHas("ZERO_FAIL")
-    : classOf(ctx) === CLASS_MAGE; /* only mage has PF_ZERO_FAIL in 4.2.6 */
+    : (ctx.view.player().classFlags ?? []).includes("ZERO_FAIL");
   if (!zeroFail) {
     if (minfail < 5) minfail = 5;
   }
@@ -594,8 +597,9 @@ export function borgSpellFailRate(
 function borgOnLitGrid(ctx: BorgContext): boolean {
   const { x, y } = ctx.world.self.c;
   if (!ctx.world.map.inBounds(x, y)) return false;
-  /* BORG_LIGHT (0x10) | BORG_GLOW (0x02): lit by torch or perma-lit. */
-  return (ctx.world.map.at(x, y).info & 0x12) !== 0;
+  /* FORK (Mandos #68), DEFECT toward magic.c:534: the C tests BORG_LIGHT
+   * alone. Permanent BORG_GLOW is not part of this predicate. */
+  return (ctx.world.map.at(x, y).info & BORG_LIGHT) !== 0;
 }
 
 /** borg_spell_okay_fail(spell, allowFail) (magic.c:565). */
