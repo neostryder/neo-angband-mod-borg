@@ -15,7 +15,8 @@
  * NOT-YET-PORTED subsystem calls (represented as ladder stages that yield):
  *   borg_swap_rings / borg_wear_rings / borg_wear_recharge / borg_dump_quiver
  *     (borg-item-wear.c), borg_drop_hole / borg_drop_slow / borg_destroy_floor
- *     (borg-junk.c), borg_play_magic (borg-magic-play.c). borg_drop_junk is
+ *     (borg-junk.c). borg_play_magic (borg-magic-play.c) is ported in
+ *     src/item/magic-play.ts. borg_drop_junk is
  *     mapped to the ported borgCrushJunk (borg-junk.c's junk-dropping routine).
  *   borg_must_return_to_town (borg-prepared.c) is approximated by borgRestock.
  *
@@ -96,6 +97,7 @@ import {
 import { borgNearMonsterType } from "./perceive-facts.js";
 import { junkKey, takeValue } from "./perceive.js";
 import { playerHas } from "./trait/player-flags.js";
+import { borgPlayMagic } from "./item/magic-play.js";
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -657,7 +659,11 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
-  /* Learn useful spells immediately (:1579): borg_play_magic not ported. */
+  /* Learn useful spells immediately (:1579). */
+  {
+    const cmd = borgPlayMagic(ctx, false);
+    if (cmd) return cmd;
+  }
 
   /* Wear a weapon if using a digger or nothing (:1582). */
   if (borgWieldIsDigger(ctx) || !borgHasWeapon(ctx)) {
@@ -1033,7 +1039,11 @@ export function borgThinkDungeon(
 
   /*** Leave the level (:2037) ***/
 
-  /* Study/test boring spells: borg_play_magic not ported. */
+  /* Study/test boring spells (:2038). */
+  if (!ctx.world.self.goal.fleeing) {
+    const cmd = borgPlayMagic(ctx, true);
+    if (cmd) return cmd;
+  }
 
   /* Search for secret doors (:2047). */
   {

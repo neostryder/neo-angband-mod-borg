@@ -391,7 +391,7 @@ export function ratingsForClass(cls: number): Rating[] | null {
 }
 
 /** The borg class index this think (BI_CLASS, else derived from the view). */
-function classOf(ctx: BorgContext): number {
+export function classOf(ctx: BorgContext): number {
   const t = ctx.world.self.trait[BI.CLASS];
   if (t !== undefined && t !== 0) return t;
   return classIndexFromName(ctx.view.player().cls);
