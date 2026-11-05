@@ -52,6 +52,7 @@ import { borgCfg, borgPrepared } from "./trait/index.js";
 import {
   borgCountSell,
   borgFirstEmptyInventorySlot,
+  packSlots,
   createStoreMemory,
   type StoreDeps,
   type StoreMemory,
@@ -76,6 +77,8 @@ import { borgHasDistanceAttack } from "./fight/attack.js";
  * to the faithful conservative behavior documented on the field.
  */
 export interface BorgResolvers {
+  /** Local danger after a simulated equipment change. */
+  loadoutDanger?: (ctx: BorgContext, change: BorgLoadoutChange) => number | null;
   bookKind?: BorgContext["bookKind"];
   spellEffect?: BorgContext["spellEffect"];
   /**
@@ -158,6 +161,8 @@ export interface ThinkSession {
   ctx: BorgContext | null;
   /** Gear handle for the queued R75 (borg-item-wear.c:1516-1528). */
   rechargeRest?: number | false;
+  /** The second takeoff queued by borg_swap_rings. */
+  ringTakeoff?: number | false;
   /**
    * Is the Borg still in the arrival moment on this grid? True from the think
    * after it steps somewhere new, until it issues any command other than a
@@ -368,6 +373,9 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
     hasHole: borgFirstEmptyInventorySlot(c) !== -1,
+    emptySlots: packSlots(c) - c.view.inventory().filter((item) => item.number > 0
+      && !(c.view.quiver?.() ?? []).some((ammo) => ammo.handle === item.handle)).length,
+    queueRingTakeoff: (handle) => { session.ringTakeoff = handle; },
     restAfterWear: (handle) => { session.rechargeRest = handle; },
     fearRegion: fear.region(py, px),
     ...(res.resolveActivation
@@ -381,13 +389,21 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
       : {}),
     ...(res.loadoutPower
       ? {
-          /* borg_wear_stuff (wear.c:858): the power if this pack item were worn.
-           * The engine picks the slot, so a ring goes to the hand wield_slot
-           * would put it in rather than to a hand this code guessed at. */
-          wearEval: (item: ItemView) =>
-            powerOf(session, c, {
+          /* borg_wear_stuff (wear.c:858,947) simulates each full ring slot.
+           * Other equipment uses the engine's default destination. */
+          wearEval: (item: ItemView, slot?: number) =>
+            powerOf(session, c, slot === undefined ? {
               wield: [{ from: "gear", handle: item.handle }],
-            }),
+            } : { wieldAt: [{ item: { from: "gear", handle: item.handle }, slot }] }),
+          wearDanger: (item: ItemView, slot: number) => res.loadoutDanger?.(c, {
+            wieldAt: [{ item: { from: "gear", handle: item.handle }, slot }],
+          }) ?? null,
+          removeEval: (slot: number) => {
+            const score = res.loadoutPower!(c, { remove: [slot] });
+            if (score === null) return null;
+            const base = simulationBaseline(session, c, res.loadoutPower!);
+            return base === null ? null : w.self.power + score - base;
+          },
           bestEval: (wieldAt) => {
             const score = res.loadoutPower!(c, { wieldAt });
             const base = simulationBaseline(session, c, res.loadoutPower!);

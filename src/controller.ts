@@ -128,7 +128,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   let lastDepth = -1;
   let retry = false;
   let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
-    rechargeRest: session.rechargeRest ?? false, panel: 0, resetLevel: world.resetLevel, junked: new Set(session.junked) };
+    rechargeRest: session.rechargeRest ?? false, ringTakeoff: session.ringTakeoff ?? false,
+    panel: 0, resetLevel: world.resetLevel, junked: new Set(session.junked) };
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
@@ -136,7 +137,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     const recordStep = !retry;
     retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
-      rechargeRest: session.rechargeRest ?? false, panel: world.self.timeThisPanel, resetLevel: world.resetLevel, junked: new Set(session.junked) };
+      rechargeRest: session.rechargeRest ?? false, ringTakeoff: session.ringTakeoff ?? false,
+      panel: world.self.timeThisPanel, resetLevel: world.resetLevel, junked: new Set(session.junked) };
 
     /* Unknown recall effects keep the depth (borg-messages-react.c:229-242). */
     world.resetRecallDepth = false;
@@ -271,6 +273,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
      * effects with their commands. A discarded decision restores them. */
     session.rechargeRest = before.rechargeRest;
     world.resetLevel = before.resetLevel;
+    session.ringTakeoff = before.ringTakeoff;
     session.junked.clear();
     for (const key of before.junked) session.junked.add(key);
   };

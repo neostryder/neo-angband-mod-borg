@@ -13,7 +13,7 @@
  * stubs (see NOT-YET-PORTED below) so the ladder shape stays faithful.
  *
  * NOT-YET-PORTED subsystem calls (represented as ladder stages that yield):
- *   borg_swap_rings / borg_wear_rings and borg_destroy_floor.
+ *   borg_destroy_floor.
  *   borg_play_magic (borg-magic-play.c) is ported in src/item/magic-play.ts.
  *   The drop_hole / drop_slow / dump_quiver / wear_recharge rungs
  *   run here; borg_drop_junk is
@@ -77,6 +77,8 @@ import {
   borgMaintainLight,
   borgUseThings,
   borgWearStuff,
+  borgSwapRings,
+  borgWearRings,
   borgRemoveStuff,
   borgCrushJunk,
   borgDropHole,
@@ -673,6 +675,11 @@ export function borgThinkDungeon(
   const g = self.goal;
   const flow = session.flow;
   const st = flow.state;
+  if (session.ringTakeoff) {
+    const handle = session.ringTakeoff;
+    session.ringTakeoff = false;
+    if (ctx.view.equipment().some((item) => item?.handle === handle)) return ctx.act.takeoff(handle);
+  }
   /* borg-item-wear.c:1516-1528 queues R75 after wearing. The API submits
    * wearing separately, so the equipment view confirms its completion. */
   if (session.rechargeRest) {
@@ -887,9 +894,9 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
-  /* Wear/swap gear (:1601). borg_swap_rings / borg_wear_rings not ported. */
+  /* Wear/swap gear (:1601-1607). */
   {
-    const cmd = borgWearStuff(ctx, itemDeps);
+    const cmd = borgWearStuff(ctx, itemDeps) ?? borgSwapRings(ctx, itemDeps) ?? borgWearRings(ctx, itemDeps);
     if (cmd) return cmd;
   }
 

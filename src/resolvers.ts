@@ -41,7 +41,7 @@ import type { BorgResolvers } from "./think-session.js";
 import type { BlowFacts, FactsResolver, MonsterFacts } from "./danger/facts.js";
 import { defaultResolveMonsterFacts } from "./danger/facts.js";
 import { borgMonBlowEffect } from "./danger/tables.js";
-import { borgSimulatePower } from "./trait/simulate.js";
+import { borgSimulatePower, borgSimulateDanger } from "./trait/simulate.js";
 
 /** The one field every activation source (kind/ego/artifact) carries. */
 interface ActivationLike {
@@ -276,5 +276,6 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     // when there is no live derive behind it (a worldless harness) - so this is
     // correct without asking the host anything.
     loadoutPower: (ctx, change) => borgSimulatePower(ctx, change),
+    loadoutDanger: (ctx, change) => borgSimulateDanger(ctx, change),
   };
 }

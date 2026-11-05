@@ -18,7 +18,8 @@ import { makeBorgRng } from "./rng.js";
 import type { BorgContext } from "./context.js";
 import { BI } from "./trait/trait-index.js";
 import { TV } from "./item/svals.js";
-import { borgWearStuff, borgRemoveStuff, Spell, borgGetSpellNumber, SVAL } from "./item/index.js";
+import { borgWearStuff, borgSwapRings, borgWearRings, borgRemoveStuff, Spell, borgGetSpellNumber, SVAL } from "./item/index.js";
+import { borgThinkDungeon } from "./think-ladder.js";
 import { borgFlowGlyph } from "./flow/flow-glyph.js";
 import { borgFlowKillAim } from "./flow/flow-kill.js";
 import { borgAttack } from "./fight/attack.js";
@@ -28,7 +29,8 @@ import { perceive, makePerceiveMemo } from "./perceive.js";
 import { makeCoreResolvers } from "./resolvers.js";
 import { primeSession } from "./think-session.js";
 import { FEAT } from "./core-api.js";
-import { buildItemDeps, buildStoreDeps, buildThinkSession } from "./think-session.js";
+import { buildItemDeps, buildStoreDeps, buildThinkSession, getThinkSession } from "./think-session.js";
+import { createBorg } from "./controller.js";
 import type { BorgResolvers } from "./think-session.js";
 import type { BorgLoadoutChange } from "./trait/simulate.js";
 
@@ -332,6 +334,147 @@ describe("glyph and re-aim capability chains", () => {
     getFightState(ctx.world).successfulTarget = 0;
     expect(borgFlowKillAim(ctx, flow, true)).toMatchObject({ code: "walk" });
     expect(ctx.world.self.c).toEqual({ x: 20, y: 12 });
+  });
+});
+
+describe("ring choices (borg-item-wear.c:259-519,846-1015)", () => {
+  function rings(options: { powers?: number[]; dangers?: number[]; danger?: number; seed?: number;
+    left?: ItemView | null; right?: ItemView | null; inventory?: ItemView[] } = {}) {
+    const seen: BorgLoadoutChange[] = [];
+    const setup = primed({
+      loadoutPower: (_ctx, change) => {
+        seen.push(change);
+        const slot = change.wieldAt?.[0]?.slot;
+        return slot === undefined ? 1000 : options.powers?.[slot - 2] ?? 2000;
+      },
+      loadoutDanger: (_ctx, change) => options.dangers?.[change.wieldAt![0]!.slot - 2] ?? 0,
+    }, options.inventory ?? [item({ tval: TV.RING, handle: 42 })]);
+    const equipment = [null, null,
+      options.right === undefined ? item({ tval: TV.RING, handle: 20 }) : options.right,
+      options.left === undefined ? item({ tval: TV.RING, handle: 30 }) : options.left];
+    setup.ctx.view = { ...setup.ctx.view, equipment: () => equipment };
+    setup.ctx.rng = makeBorgRng(options.seed ?? 51);
+    setup.ctx.world.self.trait[BI.CDEPTH] = 1;
+    const deps = { ...buildItemDeps(setup.session), danger: options.danger ?? 0 };
+    return { ...setup, seen, deps };
+  }
+
+  it("waits for the C random check when both fingers are full", () => {
+    const { ctx, deps, seen } = rings({ seed: 1 });
+    const expected = makeBorgRng(1);
+    expect(expected.randint0(100)).not.toBe(10);
+    expect(borgWearStuff(ctx, deps)).toBeNull();
+    expect(seen).toEqual([]);
+    expect(ctx.rng.randint0(10000)).toBe(expected.randint0(10000));
+  });
+
+  it.each([
+    { powers: [2000, 2000], handle: 30 },
+    { powers: [2000, 1500], handle: 20 },
+    { powers: [1000, 1000], handle: null },
+    { powers: [1001, 1000], handle: 20 },
+  ])("compares tight then loose and applies the final strict power gate: %j", ({ powers, handle }) => {
+    const { ctx, deps, seen } = rings({ powers });
+    const cmd = borgWearStuff(ctx, deps);
+    if (handle === null) expect(cmd).toBeNull();
+    else expect(cmd).toMatchObject({ code: "takeoff", args: { handle } });
+    expect(candidates(seen)).toEqual([2, 3].map((slot) => ({ wieldAt: [{ item: { from: "gear", handle: 42 }, slot }] })));
+    expect(ctx.world.self.timeThisPanel).toBe(handle === null ? 0 : 1);
+  });
+
+  it.each([
+    { danger: 10, dangers: [10, 11], handle: null },
+    { danger: 10, dangers: [9, 10], handle: 20 },
+    { danger: 0, dangers: [0, 0], handle: 30 },
+  ])("uses the C danger gate: %j", ({ danger, dangers, handle }) => {
+    const { ctx, deps } = rings({ danger, dangers });
+    const cmd = borgWearStuff(ctx, deps);
+    if (handle === null) expect(cmd).toBeNull();
+    else expect(cmd?.args?.["handle"]).toBe(handle);
+  });
+
+  it("considers a cursed worn ring and still draws before the One Ring shortcut", () => {
+    const { ctx, deps } = rings({ seed: 1,
+      right: item({ handle: 20, tval: TV.RING, curses: ["slowness"] }),
+      inventory: [item({ handle: 42, tval: TV.RING, artifact: true, artifactName: "'The One Ring'" })] });
+    const expected = makeBorgRng(1);
+    expected.randint0(100);
+    expect(borgWearStuff(ctx, deps)).toMatchObject({ code: "takeoff", args: { handle: 20 } });
+    expect(ctx.rng.randint0(10000)).toBe(expected.randint0(10000));
+  });
+
+  it("draws after a successful non-ring comparison, but not after a rejected one", () => {
+    const { ctx, session } = primed(recorder(2000).resolvers, [item()]);
+    const expected = makeBorgRng(1);
+    expected.randint0(100);
+    expect(borgWearStuff(ctx, buildItemDeps(session))?.code).toBe("wield");
+    expect(ctx.rng.randint0(10000)).toBe(expected.randint0(10000));
+    const flat = primed(recorder(1000).resolvers, [item()]);
+    expect(borgWearStuff(flat.ctx, buildItemDeps(flat.session))).toBeNull();
+    expect(flat.ctx.rng.randint0(10000)).toBe(makeBorgRng(1).randint0(10000));
+  });
+
+  it("wears the last best ring with both fingers empty and keeps the 50-point margin out of this rung", () => {
+    const inventory = [item({ tval: TV.RING, handle: 41, sval: 1 }), item({ tval: TV.RING, handle: 42, sval: 2 })];
+    const { ctx, deps } = rings({ inventory, right: null, left: null, powers: [1001, 1001] });
+    expect(borgWearRings(ctx, deps)).toMatchObject({ code: "wield", args: { handle: 42 } });
+    expect(borgWearRings(ctx, { ...deps, emptySlots: 1 })).toBeNull();
+  });
+
+  it("keeps a lone loose One Ring and removes an ordinary lone loose ring only in town", () => {
+    const { ctx, deps } = rings({ right: null });
+    expect(borgSwapRings(ctx, deps)).toBeNull();
+    ctx.world.self.trait[BI.CDEPTH] = 0;
+    expect(borgSwapRings(ctx, deps)).toMatchObject({ code: "takeoff", args: { handle: 30 } });
+    const one = rings({ right: null, left: item({ tval: TV.RING, artifactName: "'The One Ring'" }) });
+    one.ctx.world.self.trait[BI.CDEPTH] = 0;
+    expect(borgSwapRings(one.ctx, one.deps)).toBeNull();
+  });
+
+  it("queues the C's second town takeoff through the session and ladder", () => {
+    const { ctx, session } = primed({ loadoutPower: (_ctx, change) => change.remove?.[0] === 2 ? 2000 : 1000 });
+    const equipment = [null, null, item({ handle: 20, tval: TV.RING }), item({ handle: 30, tval: TV.RING })];
+    ctx.view = { ...ctx.view, equipment: () => equipment };
+    expect(borgSwapRings(ctx, buildItemDeps(session))).toMatchObject({ code: "takeoff", args: { handle: 20 } });
+    expect(session.ringTakeoff).toBe(30);
+    equipment[2] = null;
+    expect(borgThinkDungeon(ctx, session)).toMatchObject({ code: "takeoff", args: { handle: 30 } });
+    expect(session.ringTakeoff).toBe(false);
+    expect(ctx.world.self.timeThisPanel).toBe(0);
+  });
+
+  it("restores a queued takeoff when the controller retries the decision", () => {
+    const borg = createBorg({ rngSeed: 1 });
+    const session = getThinkSession(borg.world);
+    session.ringTakeoff = 30;
+    const source = makeScenarioView({ player: { depth: 1 } });
+    const view = { ...source, equipment: () => [null, null, null, item({ handle: 30, tval: TV.RING })] };
+    expect(borg.controller(view, makeFakeActions())).toMatchObject({ code: "takeoff", args: { handle: 30 } });
+    expect(session.ringTakeoff).toBe(false);
+    borg.rewind();
+    expect(session.ringTakeoff).toBe(30);
+    expect(borg.controller(view, makeFakeActions())).toMatchObject({ code: "takeoff", args: { handle: 30 } });
+  });
+
+  it.each(["space", "level", "hungry", "weak", "unaware"])("respects the empty-finger %s guard", (guard) => {
+    const { ctx, deps } = rings({ right: null, left: null });
+    if (guard === "space") deps.emptySlots = 1;
+    if (guard === "level") deps.clock = 2001;
+    if (guard === "hungry") ctx.world.self.trait[BI.ISHUNGRY] = 1;
+    if (guard === "weak") ctx.world.self.trait[BI.ISWEAK] = 1;
+    if (guard === "unaware") deps.isAware = () => false;
+    expect(borgWearRings(ctx, deps)).toBeNull();
+  });
+
+  it("respects the town reordering space and time guards and protects the tight One Ring", () => {
+    const { ctx, deps } = rings({ right: null });
+    ctx.world.self.trait[BI.CDEPTH] = 0;
+    expect(borgSwapRings(ctx, { ...deps, emptySlots: 1 })).toBeNull();
+    deps.clock = 1001;
+    expect(borgSwapRings(ctx, deps)).toBeNull();
+    const one = rings({ right: item({ tval: TV.RING, artifactName: "'The One Ring'" }) });
+    one.ctx.world.self.trait[BI.CDEPTH] = 0;
+    expect(borgSwapRings(one.ctx, { ...one.deps, removeEval: () => 2000 })).toBeNull();
   });
 });
 

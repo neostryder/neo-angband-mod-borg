@@ -16,12 +16,12 @@ import type { BorgContext, ItemView, AgentCommand } from "./types.js";
 import { BI } from "../trait/trait-index.js";
 import { TV } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
-import { trait, isAware, isIdent, isCursed, itemValue, canRest, needsIdent, packItems } from "./deps.js";
+import { trait, isAware, isIdent, isCursed, isOneRing, itemValue, canRest, clockOf, danger, needsIdent, packItems } from "./deps.js";
 import { SVAL } from "./svals.js";
 import { mod as modOf } from "../trait/item-util.js";
 import type { BorgLoadoutChange, BorgLoadoutRef } from "../trait/simulate.js";
 import {
-  BORG_HOME, borgHomeFull, borgInventoryFull, homeWares, isOneRing,
+  BORG_HOME, borgHomeFull, borgInventoryFull, homeWares, isOneRing as isOneRingAt,
   type StoreDeps,
 } from "../store/store.js";
 
@@ -32,11 +32,18 @@ export interface WearDeps extends ItemDeps {
   /** birth_randarts option (skip un-IDd randart artifacts); default false. */
   randarts?: boolean;
   /** borg.power if `item` were worn (the C's borg_notice/borg_power sim). */
-  wearEval?: (item: ItemView) => number;
+  wearEval?: (item: ItemView, slot?: number) => number;
   /** Power for a complete equipment combination (borg-item-wear.c:1229). */
   bestEval?: (choices: NonNullable<BorgLoadoutChange["wieldAt"]>) => number | null;
   /** A cursed item has a curse with power below 100 (borg-item-analyze.c:347). */
   uncursable?: (item: ItemView) => boolean;
+  /** Local danger with the candidate in a particular ring slot. */
+  wearDanger?: (item: ItemView, slot: number) => number | null;
+  /** Power after moving the item in this slot into the pack. */
+  removeEval?: (slot: number) => number | null;
+  emptySlots?: number;
+  /** The C queues both takeoffs when reordering rings in town. */
+  queueRingTakeoff?: (handle: number) => void;
   /**
    * borg_began: the Borg clock when it arrived on this level, for the
    * "been sitting here forever" guard (wear.c:779). Default 0, which with a
@@ -195,7 +202,7 @@ export function borgBestStuff(
         if (wieldSlot(item) !== BEST_SLOTS[n]) continue;
         if (n === 9 && trial[8] === choice) continue;
         const worn = equipment[BEST_ORDER[n]!];
-        if (worn && isOneRing(worn, stores)) continue;
+        if (worn && isOneRingAt(worn, stores)) continue;
         trial[n] = choice;
         search(n + 1);
         trial[n] = null;
@@ -245,6 +252,50 @@ export function borgBestStuff(
   return null;
 }
 
+/* borg-item.h:134-135 orders the tight ring before the loose ring. */
+const RIGHT_RING = 2;
+const LEFT_RING = 3;
+
+/** borg-item-wear.c:259-379 reorders rings in town. */
+export function borgSwapRings(ctx: BorgContext, d?: WearDeps): AgentCommand | null {
+  if (d?.hasHole === false || (d?.emptySlots ?? 2) < 2) return null;
+  if (clockOf(ctx, d) - (d?.began ?? 0) > 1000 || trait(ctx, BI.CDEPTH) !== 0) return null;
+  const equipment = ctx.view.equipment();
+  const right = equipment[RIGHT_RING];
+  const left = equipment[LEFT_RING];
+  if (left?.number && !right?.number && !isOneRing(left)) return ctx.act.takeoff(left.handle);
+  if (!right?.number || isOneRing(right)) return null;
+  const v1 = left?.number ? ctx.world.self.power : d?.removeEval?.(LEFT_RING);
+  const v2 = d?.removeEval?.(RIGHT_RING);
+  if (v1 == null || v2 == null || v2 <= v1) return null;
+  if (left?.number) d?.queueRingTakeoff?.(left.handle);
+  return ctx.act.takeoff(right.handle);
+}
+
+/** borg-item-wear.c:397-519 chooses the last best ring when both fingers are empty. */
+export function borgWearRings(ctx: BorgContext, d?: WearDeps): AgentCommand | null {
+  if (d?.hasHole === false || (d?.emptySlots ?? 2) < 2) return null;
+  const equipment = ctx.view.equipment();
+  if (equipment[LEFT_RING]?.number || equipment[RIGHT_RING]?.number) return null;
+  if (trait(ctx, BI.ISHUNGRY) || trait(ctx, BI.ISWEAK)) return null;
+  if (clockOf(ctx, d) - (d?.began ?? 0) > 2000) return null;
+  let best: ItemView | null = null;
+  let bestPower = 0;
+  for (const item of packItems(ctx)) {
+    if (!isAware(item, d) || itemValue(item, d) === 0) continue;
+    if (d?.randarts && item.artifact && !isIdent(item, d)) continue;
+    if (item.tval !== TV.RING) continue;
+    let p = d?.wearEval?.(item, LEFT_RING) ?? ctx.world.self.power;
+    if (isOneRing(item)) p = ctx.world.self.power * 2;
+    if (best && p < bestPower) continue;
+    best = item;
+    bestPower = p;
+  }
+  if (!best || bestPower <= ctx.world.self.power) return null;
+  ctx.world.self.timeThisPanel++;
+  return ctx.act.wear(best.handle);
+}
+
 /**
  * borg_wear_stuff (wear.c:745): wear the carried item that most improves power.
  * Returns the wear command, or null.
@@ -269,8 +320,12 @@ export function borgWearStuff(
   const currentPower = ctx.world.self.power;
   let bestPower = currentPower;
   let best: ItemView | null = null;
+  let bestRingSlot = -1;
+  const equipment = ctx.view.equipment();
+  const left = equipment[LEFT_RING];
+  const right = equipment[RIGHT_RING];
 
-  for (const item of ctx.view.inventory()) {
+  for (const item of packItems(ctx)) {
     if (item.number <= 0) continue;
     if (!isAware(item, d)) continue;
     if (itemValue(item, d) <= 0) continue; /* worthless (wear.c:801) */
@@ -283,32 +338,42 @@ export function borgWearStuff(
 
     /* Over weight limit: only swap in more-STR items (wear.c:836). */
     if (trait(ctx, BI.ISENCUMB)) {
-      const worn = wornInSlot(ctx, slot);
+      const worn = slot === "ring" ? left : wornInSlot(ctx, slot);
       if (worn && modOf(worn, "STR") > modOf(item, "STR")) continue;
     }
 
-    /* Evaluate the loadout (wear.c:858). Without the seam, no improvement. */
-    const p = d?.wearEval ? d.wearEval(item) : currentPower;
+    const fullRings = slot === "ring" && !!left?.number && !!right?.number;
+    if (!fullRings) {
+      /* Evaluate the loadout (wear.c:858). Without the seam, no improvement. */
+      let p = d?.wearEval ? d.wearEval(item, slot === "ring" ? LEFT_RING : undefined) : currentPower;
+      if (isOneRing(item) && !left?.tval) p = -99999;
+      if (slot === "ring") {
+        const afterDanger = d?.wearDanger?.(item, LEFT_RING);
+        if (afterDanger == null || danger(d) < afterDanger) continue;
+      }
 
-    /* "Ignore essentially equal swaps" (wear.c:913). THE MARGIN IS THE ANTI-LOOP,
-     * and 50 rather than 0 is the whole point: two wooden torches with a few turns
-     * of fuel between them score within a handful of points of each other, so a
-     * plain `p > bestPower` made each the better choice in turn and the borg spent
-     * every turn of the rest of its life swapping one for the other. Measured over
-     * a headless run before this line existed: 3964 wield commands out of 4000
-     * decisions.
-     *
-     * NOT PORTED, and honestly: upstream also refuses a swap that raises the
-     * danger at the current grid (`if (danger < d) continue`, wear.c:908), which
-     * needs borg_danger re-run over the simulated loadout. The wearEval seam
-     * answers with a power and nothing else, so there is no simulated world here
-     * to ask. It costs the borg a swap it should have declined, not a loop. */
-    if (p <= bestPower + 50) continue;
+      /* The 50-point margin prevents equal-value equipment swap loops (wear.c:913).
+       * Non-ring danger simulation remains outside this ring port. */
+      if (p <= bestPower + 50) continue;
 
-    bestPower = p;
-    best = item;
-    /* borg-item-wear.c:921 draws for the ring check after a regular upgrade. */
-    ctx.rng.randint0(100);
+      bestPower = p;
+      best = item;
+    }
+
+    /* The C draws even for a non-ring or the One Ring (wear.c:921). */
+    if (ctx.rng.randint0(100) === 10 || isOneRing(item)) {
+      if (!fullRings) continue;
+      for (const ringSlot of [RIGHT_RING, LEFT_RING]) {
+        let p = d?.wearEval?.(item, ringSlot) ?? currentPower;
+        const afterDanger = d?.wearDanger?.(item, ringSlot);
+        if (ringSlot === LEFT_RING && isOneRing(item)) p = -99999;
+        if (p < bestPower) continue;
+        if (afterDanger == null || (danger(d) <= afterDanger && danger(d) !== 0)) continue;
+        best = item;
+        bestPower = p;
+        bestRingSlot = ringSlot;
+      }
+    }
   }
 
   /* The final gate is against the CURRENT power, not against the running best
@@ -317,6 +382,9 @@ export function borgWearStuff(
     /* borg.time_this_panel++ (wear.c:1021): a wear is an action, and the panel
      * clock is what the ladder's own anti-loop rungs read. */
     ctx.world.self.timeThisPanel++;
+    if (bestRingSlot >= 0 && best.tval === TV.RING) {
+      return ctx.act.takeoff(equipment[bestRingSlot]!.handle);
+    }
     return ctx.act.wear(best.handle);
   }
   return null;

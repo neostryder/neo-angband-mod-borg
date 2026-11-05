@@ -158,7 +158,13 @@ function production(
         return number > 0 ? [{ ...entry, number,
           ...(entry.value === undefined ? {} : { value: Math.trunc(entry.value * number / entry.number) }) }] : [];
       });
-      return { after: { player: view.player(), equipment: worn, inventory: after } } as never;
+      const equipment = [...worn];
+      for (const slot of change.remove ?? []) {
+        const removed = equipment[slot];
+        if (removed) after.push(removed);
+        equipment[slot] = null;
+      }
+      return { after: { player: view.player(), equipment, inventory: after } } as never;
     },
   };
   const ctx: BorgContext = { view: borgView(view), act: makeFakeActions(), rng: makeBorgRng(1), world: new BorgWorld() };

@@ -74,6 +74,8 @@ import type { BorgWorld } from "../world/model.js";
 import { borgNotice } from "./trait.js";
 import { borgPower } from "./power.js";
 import type { BorgTraitOpts } from "./config.js";
+import { borgDanger } from "../danger/danger.js";
+import { getDangerState } from "../danger/state.js";
 
 /**
  * Where one item in a hypothetical loadout comes from: a gear handle for
@@ -205,4 +207,18 @@ export function borgSimulatePower(
    * it. Running anything less here would score a half-built self-model. */
   borgNotice(simCtx, opts);
   return borgPower(simCtx, opts);
+}
+
+/** borg-item-wear.c:874,955 rejects a ring swap that raises local danger. */
+export function borgSimulateDanger(ctx: BorgContext, change: BorgLoadoutChange): number | null {
+  const answer = (ctx.view as LoadoutCapableView).simulateLoadout?.(change);
+  if (!answer) return null;
+  const simCtx: BorgContext = { ...ctx, world: shadowWorld(ctx.world), view: shadowView(ctx.view, answer) };
+  borgNotice(simCtx);
+  const live = getDangerState(ctx.world);
+  const scratch = getDangerState(simCtx.world);
+  scratch.globals = { ...live.globals, tpOtherIndices: [...live.globals.tpOtherIndices] };
+  scratch.fear = live.fear;
+  scratch.maxRange = live.maxRange;
+  return borgDanger(simCtx, ctx.world.self.c.y, ctx.world.self.c.x, 1, true, false);
 }

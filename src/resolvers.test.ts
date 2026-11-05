@@ -22,6 +22,8 @@ import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { MONBLOW } from "./danger/tables.js";
 import { getDerived } from "./trait/state.js";
 import type { BorgContext } from "./context.js";
+import { getDangerGlobals } from "./danger/state.js";
+import { BI } from "./trait/trait-index.js";
 
 /** A minimal MonsterRace carrying only the fields the resolver reads. */
 function fakeRace(over: Partial<MonsterRace> = {}): MonsterRace {
@@ -339,6 +341,30 @@ describe("makeCoreResolvers: hypothetical-loadout power", () => {
     const change = { wield: [{ from: "gear" as const, handle: 12 }] };
     resolvers.loadoutPower!(ctx, change);
     expect(seen).toEqual([change]);
+  });
+
+  it("scores ring danger from the simulated traits and preserves the live state", () => {
+    const resolvers = makeCoreResolvers({ races: [fakeRace()] });
+    function danger(speed: number) {
+      const seen: unknown[] = [];
+      const ctx = ctxWithView(viewThatSimulates({ player: { speed, hp: 300, maxHp: 300, depth: 10 } }, (change) => seen.push(change)));
+      ctx.world.self.c = { x: 20, y: 12 };
+      ctx.world.self.trait[BI.SPEED] = 110;
+      const index = ctx.world.kills.alloc();
+      Object.assign(ctx.world.kills.at(index), { rIdx: 7, pos: { x: 21, y: 12 }, speed: 110, power: 100, awake: true });
+      const globals = getDangerGlobals(ctx.world);
+      globals.resolveFacts = resolvers.resolveMonsterFacts!;
+      globals.avoidance = 300;
+      const before = [...ctx.world.self.trait];
+      const change: BorgLoadoutChange = { wieldAt: [{ item: { from: "gear", handle: 42 }, slot: 3 }] };
+      const score = resolvers.loadoutDanger!(ctx, change);
+      expect(seen).toEqual([change]);
+      expect(ctx.world.self.trait).toEqual(before);
+      expect(getDangerGlobals(ctx.world)).toBe(globals);
+      return score;
+    }
+    expect(danger(80)).toBeGreaterThan(danger(130)!);
+    expect(resolvers.loadoutDanger!(ctxWithView(makeScenarioView()), {})).toBeNull();
   });
 
   it("leaves the LIVE self-model exactly as it found it", () => {

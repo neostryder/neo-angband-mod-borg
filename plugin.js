@@ -3937,6 +3937,44 @@ function wornInSlot(ctx, slot) {
   }
   return null;
 }
+var RIGHT_RING = 2;
+var LEFT_RING = 3;
+function borgSwapRings(ctx, d) {
+  if (d?.hasHole === false || (d?.emptySlots ?? 2) < 2) return null;
+  if (clockOf(ctx, d) - (d?.began ?? 0) > 1e3 || trait3(ctx, 105 /* CDEPTH */) !== 0) return null;
+  const equipment2 = ctx.view.equipment();
+  const right = equipment2[RIGHT_RING];
+  const left = equipment2[LEFT_RING];
+  if (left?.number && !right?.number && !isOneRing(left)) return ctx.act.takeoff(left.handle);
+  if (!right?.number || isOneRing(right)) return null;
+  const v1 = left?.number ? ctx.world.self.power : d?.removeEval?.(LEFT_RING);
+  const v2 = d?.removeEval?.(RIGHT_RING);
+  if (v1 == null || v2 == null || v2 <= v1) return null;
+  if (left?.number) d?.queueRingTakeoff?.(left.handle);
+  return ctx.act.takeoff(right.handle);
+}
+function borgWearRings(ctx, d) {
+  if (d?.hasHole === false || (d?.emptySlots ?? 2) < 2) return null;
+  const equipment2 = ctx.view.equipment();
+  if (equipment2[LEFT_RING]?.number || equipment2[RIGHT_RING]?.number) return null;
+  if (trait3(ctx, 109 /* ISHUNGRY */) || trait3(ctx, 108 /* ISWEAK */)) return null;
+  if (clockOf(ctx, d) - (d?.began ?? 0) > 2e3) return null;
+  let best = null;
+  let bestPower = 0;
+  for (const item of packItems(ctx)) {
+    if (!isAware(item, d) || itemValue(item, d) === 0) continue;
+    if (d?.randarts && item.artifact && !isIdent(item, d)) continue;
+    if (item.tval !== TV.RING) continue;
+    let p = d?.wearEval?.(item, LEFT_RING) ?? ctx.world.self.power;
+    if (isOneRing(item)) p = ctx.world.self.power * 2;
+    if (best && p < bestPower) continue;
+    best = item;
+    bestPower = p;
+  }
+  if (!best || bestPower <= ctx.world.self.power) return null;
+  ctx.world.self.timeThisPanel++;
+  return ctx.act.wear(best.handle);
+}
 function borgWearStuff(ctx, d) {
   if (trait3(ctx, 109 /* ISHUNGRY */) || trait3(ctx, 108 /* ISWEAK */)) return null;
   if (d?.hasHole === false) return null;
@@ -3945,7 +3983,11 @@ function borgWearStuff(ctx, d) {
   const currentPower = ctx.world.self.power;
   let bestPower = currentPower;
   let best = null;
-  for (const item of ctx.view.inventory()) {
+  let bestRingSlot = -1;
+  const equipment2 = ctx.view.equipment();
+  const left = equipment2[LEFT_RING];
+  const right = equipment2[RIGHT_RING];
+  for (const item of packItems(ctx)) {
     if (item.number <= 0) continue;
     if (!isAware(item, d)) continue;
     if (itemValue(item, d) <= 0) continue;
@@ -3953,16 +3995,40 @@ function borgWearStuff(ctx, d) {
     const slot = wieldSlot(item);
     if (!slot) continue;
     if (trait3(ctx, 122 /* ISENCUMB */)) {
-      const worn = wornInSlot(ctx, slot);
+      const worn = slot === "ring" ? left : wornInSlot(ctx, slot);
       if (worn && mod(worn, "STR") > mod(item, "STR")) continue;
     }
-    const p = d?.wearEval ? d.wearEval(item) : currentPower;
-    if (p <= bestPower + 50) continue;
-    bestPower = p;
-    best = item;
+    const fullRings = slot === "ring" && !!left?.number && !!right?.number;
+    if (!fullRings) {
+      let p = d?.wearEval ? d.wearEval(item, slot === "ring" ? LEFT_RING : void 0) : currentPower;
+      if (isOneRing(item) && !left?.tval) p = -99999;
+      if (slot === "ring") {
+        const afterDanger = d?.wearDanger?.(item, LEFT_RING);
+        if (afterDanger == null || danger(d) < afterDanger) continue;
+      }
+      if (p <= bestPower + 50) continue;
+      bestPower = p;
+      best = item;
+    }
+    if (ctx.rng.randint0(100) === 10 || isOneRing(item)) {
+      if (!fullRings) continue;
+      for (const ringSlot of [RIGHT_RING, LEFT_RING]) {
+        let p = d?.wearEval?.(item, ringSlot) ?? currentPower;
+        const afterDanger = d?.wearDanger?.(item, ringSlot);
+        if (ringSlot === LEFT_RING && isOneRing(item)) p = -99999;
+        if (p < bestPower) continue;
+        if (afterDanger == null || danger(d) <= afterDanger && danger(d) !== 0) continue;
+        best = item;
+        bestPower = p;
+        bestRingSlot = ringSlot;
+      }
+    }
   }
   if (best && bestPower > currentPower) {
     ctx.world.self.timeThisPanel++;
+    if (bestRingSlot >= 0 && best.tval === TV.RING) {
+      return ctx.act.takeoff(equipment2[bestRingSlot].handle);
+    }
     return ctx.act.wear(best.handle);
   }
   return null;
@@ -8142,6 +8208,18 @@ function borgSimulatePower(ctx, change, opts = {}) {
   };
   borgNotice(simCtx, opts);
   return borgPower(simCtx, opts);
+}
+function borgSimulateDanger(ctx, change) {
+  const answer = ctx.view.simulateLoadout?.(change);
+  if (!answer) return null;
+  const simCtx = { ...ctx, world: shadowWorld(ctx.world), view: shadowView(ctx.view, answer) };
+  borgNotice(simCtx);
+  const live = getDangerState(ctx.world);
+  const scratch = getDangerState(simCtx.world);
+  scratch.globals = { ...live.globals, tpOtherIndices: [...live.globals.tpOtherIndices] };
+  scratch.fear = live.fear;
+  scratch.maxRange = live.maxRange;
+  return borgDanger(simCtx, ctx.world.self.c.y, ctx.world.self.c.x, 1, true, false);
 }
 
 // src/store/home.ts
@@ -14915,6 +14993,10 @@ function buildItemDeps(session) {
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
     hasHole: borgFirstEmptyInventorySlot(c) >= 0,
+    emptySlots: packSlots(c) - c.view.inventory().filter((item) => item.number > 0 && !(c.view.quiver?.() ?? []).some((ammo) => ammo.handle === item.handle)).length,
+    queueRingTakeoff: (handle) => {
+      session.ringTakeoff = handle;
+    },
     restAfterWear: (handle) => {
       session.rechargeRest = handle;
     },
@@ -14924,12 +15006,20 @@ function buildItemDeps(session) {
     } : {},
     ...res.activateHandle ? { activateItem: (act) => res.activateHandle(c, act) } : {},
     ...res.loadoutPower ? {
-      /* borg_wear_stuff (wear.c:858): the power if this pack item were worn.
-       * The engine picks the slot, so a ring goes to the hand wield_slot
-       * would put it in rather than to a hand this code guessed at. */
-      wearEval: (item) => powerOf(session, c, {
+      /* borg_wear_stuff (wear.c:858,947) simulates each full ring slot.
+       * Other equipment uses the engine's default destination. */
+      wearEval: (item, slot) => powerOf(session, c, slot === void 0 ? {
         wield: [{ from: "gear", handle: item.handle }]
-      }),
+      } : { wieldAt: [{ item: { from: "gear", handle: item.handle }, slot }] }),
+      wearDanger: (item, slot) => res.loadoutDanger?.(c, {
+        wieldAt: [{ item: { from: "gear", handle: item.handle }, slot }]
+      }) ?? null,
+      removeEval: (slot) => {
+        const score = res.loadoutPower(c, { remove: [slot] });
+        if (score === null) return null;
+        const base = simulationBaseline(session, c, res.loadoutPower);
+        return base === null ? null : w.self.power + score - base;
+      },
       /* borg-junk.c:1319-1357 keeps the item in the pack during removal. */
       simRemove: (item) => {
         const slot = c.view.equipment().findIndex((worn) => worn?.handle === item.handle);
@@ -15460,6 +15550,11 @@ function borgThinkDungeon(ctx, session) {
   const g = self.goal;
   const flow = session.flow;
   const st2 = flow.state;
+  if (session.ringTakeoff) {
+    const handle = session.ringTakeoff;
+    session.ringTakeoff = false;
+    if (ctx.view.equipment().some((item) => item?.handle === handle)) return ctx.act.takeoff(handle);
+  }
   if (session.rechargeRest) {
     const handle = session.rechargeRest;
     session.rechargeRest = false;
@@ -15588,7 +15683,7 @@ function borgThinkDungeon(ctx, session) {
     if (cmd) return cmd;
   }
   {
-    const cmd = borgWearStuff(ctx, itemDeps);
+    const cmd = borgWearStuff(ctx, itemDeps) ?? borgSwapRings(ctx, itemDeps) ?? borgWearRings(ctx, itemDeps);
     if (cmd) return cmd;
   }
   {
@@ -16811,6 +16906,7 @@ function createBorg(opts = {}) {
     lastGrid: session.lastGrid,
     arrival: session.arrivalPickup,
     rechargeRest: session.rechargeRest ?? false,
+    ringTakeoff: session.ringTakeoff ?? false,
     panel: 0,
     junked: new Set(session.junked)
   };
@@ -16822,6 +16918,7 @@ function createBorg(opts = {}) {
       lastGrid: session.lastGrid,
       arrival: session.arrivalPickup,
       rechargeRest: session.rechargeRest ?? false,
+      ringTakeoff: session.ringTakeoff ?? false,
       panel: world.self.timeThisPanel,
       junked: new Set(session.junked)
     };
@@ -16883,6 +16980,7 @@ function createBorg(opts = {}) {
     session.lastGrid = before.lastGrid;
     session.arrivalPickup = before.arrival;
     session.rechargeRest = before.rechargeRest;
+    session.ringTakeoff = before.ringTakeoff;
     session.junked.clear();
     for (const key of before.junked) session.junked.add(key);
   };
@@ -16980,7 +17078,8 @@ function makeCoreResolvers(input) {
     // which the agent API declares optional on the view itself, and answers null
     // when there is no live derive behind it (a worldless harness) - so this is
     // correct without asking the host anything.
-    loadoutPower: (ctx, change) => borgSimulatePower(ctx, change)
+    loadoutPower: (ctx, change) => borgSimulatePower(ctx, change),
+    loadoutDanger: (ctx, change) => borgSimulateDanger(ctx, change)
   };
 }
 
