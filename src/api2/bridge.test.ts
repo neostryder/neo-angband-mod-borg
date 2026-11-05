@@ -22,6 +22,10 @@ import { BorgWorld } from "../world/model.js";
 import { perceive, makePerceiveMemo } from "../perceive.js";
 import { makeBorgRng } from "../rng.js";
 import { makeFakeActions } from "../harness.js";
+import { borgNotice } from "../trait/trait.js";
+import { borgPower } from "../trait/power.js";
+import { BI } from "../trait/trait-index.js";
+import { SVAL } from "../item/svals.js";
 
 const SCENARIO: Scenario = {
   player: { grid: { x: 5, y: 5 }, depth: 3 },
@@ -155,6 +159,60 @@ describe("the bridge", () => {
     expect(isCursed(items[5]!)).toBe(true);
     await bridge.readWorld();
     expect(calls.filter((file) => file === "ego_item")).toHaveLength(1);
+  });
+});
+
+describe("food cure wiring through published content", () => {
+  it.each([
+    ["BLIND", BI.FOOD_CURE_BLIND, 300],
+    ["CONFUSED", BI.FOOD_CURE_CONF, 400],
+  ] as const)("counts %s cures by stack quantity and applies the C power weight", async (subtype, trait, weight) => {
+    const game = fakeGame({ engine: { core: Core } });
+    const food = (over: Partial<KnownItem>): KnownItem => ({
+      handle: 1, kindKey: "kind:0", baseName: "food", carried: true, aware: true,
+      label: "food", nameColor: "white", tval: TV.FOOD, sval: 99, pval: 0, number: 2,
+      weight: 0, ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, ego: false,
+      artifact: false, flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [],
+      egoName: null, artifactName: null, activation: false, charging: 0, unknownRunes: false,
+      inscription: null, ...over,
+    });
+    const inventory = [food({}), food({ handle: 2, tval: TV.MUSHROOM, number: 1 }),
+      food({ handle: 3, aware: false, number: 7 }),
+      food({ handle: 4, kindKey: "kind:1", number: 8 }),
+      food({ handle: 5, kindKey: "kind:2", number: 9 }),
+      food({ handle: 6, tval: TV.POTION, number: 10 }),
+      food({ handle: 7, curses: ["doom"], number: 11 }),
+      food({ handle: 8, kindKey: "kind:3", number: 12 })];
+    const known = { ...knownWorld(game.view), inventory };
+    game.mod.view.world = async () => ({ ok: true, value: known });
+    const cure = { eff: "CURE", type: subtype };
+    game.mod.content.records = async (file) => ({ ok: true, value: file === "object" ? [
+      { effect: [{ eff: "RANDOM" }, cure, cure] },
+      { effect: [cure, { eff: "CRUNCH" }] },
+      { effect: [cure, { eff: "TIMED_INC", type: "CONFUSED" }] },
+      { effect: [{ eff: "TIMED_DEC", type: subtype }] },
+    ] : [] });
+    const bridge = createBridge(game.mod);
+    await bridge.prime();
+    const snapshot = (await bridge.readWorld())!;
+    const ctx = { world: new BorgWorld(), view: snapshot.view, act: makeFakeActions(), rng: makeBorgRng() };
+    borgNotice(ctx, { uncursable: () => false });
+    expect(ctx.world.self.trait[trait]).toBe(3);
+    const power = borgPower(ctx);
+    ctx.world.self.trait[trait] = 0;
+    expect(power - borgPower(ctx)).toBe(3 * weight);
+    borgNotice(ctx);
+    expect(ctx.world.self.trait[trait]).toBe(14);
+    known.inventory = [food({ tval: TV.MUSHROOM, sval: SVAL.mush.cure_mind! })];
+    const next = (await bridge.readWorld())!;
+    borgNotice({ ...ctx, view: next.view }, { cfg: { munchkinStart: true, munchkinLevel: 12 } });
+    expect(ctx.world.self.trait[trait]).toBe(0);
+    borgNotice({ ...ctx, view: next.view }, { cfg: { munchkinStart: false } });
+    expect(ctx.world.self.trait[trait]).toBe(2);
+    known.inventory = [];
+    borgNotice({ ...ctx, view: (await bridge.readWorld())!.view });
+    expect(ctx.world.self.trait[trait]).toBe(0);
+    await bridge.dispose();
   });
 });
 

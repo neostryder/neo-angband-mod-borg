@@ -28,6 +28,7 @@ import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { makeBorgRng } from "./rng.js";
 import { borgView } from "./core-api.js";
 import type { BorgContext } from "./context.js";
+import { getFearCaches } from "./danger/state.js";
 
 /** Build a primed context (perceive + notice run) for a scenario. */
 function makeCtx(scenario: Parameters<typeof makeScenarioView>[0]): {
@@ -46,6 +47,28 @@ function makeCtx(scenario: Parameters<typeof makeScenarioView>[0]): {
   perceive(world, view, makePerceiveMemo());
   return { ctx, world };
 }
+
+describe("previous HP wiring", () => {
+  it("saves HP after unseen spell messages and refreshes it for each update", () => {
+    const { world, controller } = createBorg({ resolvers: { spellMessages: [{
+      index: 2, levels: [{ message: "", blindMessage: "Something casts a spell.", missMessage: "" }],
+    }] } });
+    const act = makeFakeActions();
+    const view = (hp: number, messages: string[] = []) => makeScenarioView({
+      player: { grid: { x: 22, y: 22 }, depth: 3, hp, maxHp: 100 }, messages,
+    });
+    controller(view(100), act);
+    expect(world.self.oldchp).toBe(100);
+    controller(view(70, ["Something casts a spell."]), act);
+    expect(getFearCaches(world).region2d[2]![2]).toBe(60);
+    expect(world.self.oldchp).toBe(70);
+    controller(view(90), act);
+    expect(world.self.oldchp).toBe(90);
+    controller(view(80, ["Something casts a spell."]), act);
+    expect(getFearCaches(world).region2d[2]![2]).toBe(80);
+    expect(world.self.oldchp).toBe(80);
+  });
+});
 
 describe("tracking deletion cleanup", () => {
   function tracked() {

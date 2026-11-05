@@ -16,6 +16,7 @@
  */
 
 import { flatSvals } from "../item/svals.js";
+import type { ItemView } from "@rpgm-tools/neo-angband-core";
 
 /** borg_cfg[] settings the ported decision code reads (borg.txt defaults). */
 export interface BorgCfg {
@@ -243,6 +244,8 @@ export interface BorgTraitOpts {
   home?: BorgHomeSeam;
   frame?: BorgFrame;
   svals?: BorgSvals;
+  /** Curse powers are absent from ItemView; the equipment loop assumes removable curses. */
+  uncursable?: (item: ItemView) => boolean;
 }
 
 /** Resolve a partial opts bundle to a fully-populated one with defaults. */
@@ -252,6 +255,7 @@ export interface ResolvedOpts {
   home: BorgHomeSeam;
   frame: BorgFrame;
   svals: BorgSvals;
+  uncursable: (item: ItemView) => boolean;
 }
 
 /** Fill in defaults for any unsupplied seam. */
@@ -262,5 +266,6 @@ export function resolveOpts(opts: BorgTraitOpts = {}): ResolvedOpts {
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? defaultFrame(),
     svals: opts.svals ?? flatSvals(),
+    uncursable: opts.uncursable ?? ((item) => item.curses.length > 0),
   };
 }

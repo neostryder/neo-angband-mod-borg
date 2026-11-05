@@ -129,15 +129,14 @@ function pickLeastEnchantedWeapon(
   return best;
 }
 
-/** Brand ammo (borg_brand_weapon, enchant.c:513): quiver access unavailable. */
+/** Brand ammo (borg_brand_weapon, enchant.c:513): action remains a stub. */
 function borgBrandWeapon(
   ctx: BorgContext,
   _d?: ItemDeps,
 ): AgentCommand | null {
   if (!trait(ctx, BI.NEED_BRAND_WEAPON)) return null;
   if (!trait(ctx, BI.ABRAND)) return null;
-  /* The eligible items live in the quiver (QUIVER_START..QUIVER_END), which the
-   * frozen AgentView does not expose here; nothing to brand from the pack. */
+  /* NEED_BRAND_WEAPON counts eligible stacks, but this action has no picker. */
   return null;
 }
 

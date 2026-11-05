@@ -3673,6 +3673,9 @@ function flatSvals() {
 }
 
 // src/item/deps.ts
+function hasKindEffect(item, index, subtype) {
+  return item.borgAnalysis?.effects?.some((effect) => effect.index === index && (subtype === void 0 || effect.subtype === subtype)) ?? false;
+}
 function isCursed(item) {
   return item.borgAnalysis?.cursed ?? item.curses.length > 0;
 }
@@ -6643,7 +6646,8 @@ function resolveOpts(opts = {}) {
     spells: opts.spells ?? defaultSpellSeam(),
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? defaultFrame(),
-    svals: opts.svals ?? flatSvals()
+    svals: opts.svals ?? flatSvals(),
+    uncursable: opts.uncursable ?? ((item) => item.curses.length > 0)
   };
 }
 
@@ -6717,6 +6721,341 @@ function borgCheatBuffTimers(temp, s) {
   temp.berserk = on(s.shero);
 }
 
+// src/item/item-use.ts
+function borgQuaffPotion(ctx, sval, d) {
+  const item = borgSlot(ctx, TV.POTION, sval, d);
+  if (!item) return null;
+  return ctx.act.quaff(item.handle);
+}
+var quaffStore = /* @__PURE__ */ new WeakMap();
+function quaffState(world) {
+  let s = quaffStore.get(world);
+  if (!s) {
+    s = { whenLastQuaff: 0 };
+    quaffStore.set(world, s);
+  }
+  return s;
+}
+function borgQuaffCrit(ctx, noCheck, d) {
+  const st2 = quaffState(ctx.world);
+  const borgT = clockOf(ctx, d);
+  const sval = SVAL.potion.cure_critical;
+  if (noCheck) {
+    const cmd2 = borgQuaffPotion(ctx, sval, d);
+    if (cmd2) st2.whenLastQuaff = borgT;
+    return cmd2;
+  }
+  if (st2.whenLastQuaff > borgT - 4 && st2.whenLastQuaff <= borgT && ctx.rng.randint1(100) < 75)
+    return null;
+  if (trait3(ctx, 231 /* ACCW */) < 2) return null;
+  const cmd = borgQuaffPotion(ctx, sval, d);
+  if (cmd) st2.whenLastQuaff = borgT;
+  return cmd;
+}
+function borgQuaffUnknown(ctx, d) {
+  let n = null;
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0) continue;
+    if (item.tval !== TV.POTION) continue;
+    if (isAware(item, d)) continue;
+    n = item;
+  }
+  return n ? ctx.act.quaff(n.handle) : null;
+}
+function borgReadScroll(ctx, sval, d) {
+  if (noLight(ctx)) return null;
+  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */) || trait3(ctx, 121 /* ISFORGET */))
+    return null;
+  const item = borgSlot(ctx, TV.SCROLL, sval, d);
+  if (!item) return null;
+  ctx.world.self.goal.shop = ctx.world.self.goal.ware = ctx.world.self.goal.item = -1;
+  return ctx.act.read(item.handle);
+}
+function borgReadUnknown(ctx, d) {
+  let n = null;
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0) continue;
+    if (item.tval !== TV.SCROLL) continue;
+    if (isAware(item, d)) continue;
+    n = item;
+  }
+  if (!n) return null;
+  if (noLight(ctx)) return null;
+  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) return null;
+  return ctx.act.read(n.handle);
+}
+function borgEat(ctx, tval, sval, d) {
+  const item = borgSlot(ctx, tval, sval, d);
+  if (!item) return null;
+  return ctx.act.eat(item.handle);
+}
+function borgEatUnknown(ctx, d) {
+  let n = null;
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0) continue;
+    if (item.tval !== TV.FOOD && item.tval !== TV.MUSHROOM) continue;
+    if (isAware(item, d)) continue;
+    n = item;
+  }
+  return n ? ctx.act.eat(n.handle) : null;
+}
+function borgEquipsRod(ctx, sval, d) {
+  const item = borgSlot(ctx, TV.ROD, sval, d);
+  if (!item) return false;
+  if (!item.pval) return false;
+  const fail = deviceFail(ctx, itemLevel(item, d));
+  return fail <= 500;
+}
+function borgZapRod(ctx, sval, d) {
+  const item = borgSlot(ctx, TV.ROD, sval, d);
+  if (!item) return null;
+  if (!item.pval) return null;
+  const fail = deviceFail(ctx, itemLevel(item, d));
+  if (sval !== SVAL.rod.recall) {
+    if (fail > 500) return null;
+  }
+  return ctx.act.zapRod(item.handle);
+}
+function borgUseStaff(ctx, sval, d) {
+  const item = borgSlot(ctx, TV.STAFF, sval, d);
+  if (!item) return null;
+  if (!item.pval) return null;
+  return ctx.act.useStaff(item.handle);
+}
+function borgUseUnknown(ctx, d) {
+  let n = null;
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0) continue;
+    if (item.tval !== TV.STAFF) continue;
+    if (isAware(item, d)) continue;
+    n = item;
+  }
+  return n ? ctx.act.useStaff(n.handle) : null;
+}
+function borgUseStaffFail(ctx, sval, d) {
+  const item = borgSlot(ctx, TV.STAFF, sval, d);
+  if (!item) return null;
+  if (!item.pval) return null;
+  const fail = deviceFail(ctx, itemLevel(item, d));
+  if (fail > 500) {
+    if (sval !== SVAL.staff.teleportation) return null;
+    if (!trait3(ctx, 114 /* ISCONFUSED */) && !trait3(ctx, 112 /* ISBLIND */)) {
+      if (fail > 500) return null;
+    }
+  }
+  return ctx.act.useStaff(item.handle);
+}
+function borgEquipsStaffFail(ctx, sval, d) {
+  const item = borgSlot(ctx, TV.STAFF, sval, d);
+  if (!item) return false;
+  if (!item.pval) return false;
+  const fail = deviceFail(ctx, itemLevel(item, d));
+  if (sval === SVAL.staff.destruction) return true;
+  if (fail > 500) {
+    if (sval !== SVAL.staff.teleportation) return false;
+    if (sval === SVAL.staff.teleportation && !trait3(ctx, 114 /* ISCONFUSED */)) {
+      if (fail < 650) return false;
+    }
+  }
+  return true;
+}
+function borgAimWand(ctx, sval, d) {
+  const item = borgSlot(ctx, TV.WAND, sval, d);
+  if (!item) return null;
+  if (!item.pval) return null;
+  return ctx.act.aimWand(item.handle);
+}
+function* equipment(ctx) {
+  for (const item of ctx.view.equipment()) {
+    if (item && item.number > 0) yield item;
+  }
+}
+function borgEquipsRing(ctx, ringSval, d) {
+  for (const item of equipment(ctx)) {
+    if (!isAware(item, d)) continue;
+    if (item.tval !== TV.RING || item.sval !== ringSval) continue;
+    if (item.timeout) continue;
+    if (!isIdent(item, d)) continue;
+    const fail = deviceFail(ctx, itemLevel(item, d));
+    if (fail > 500) continue;
+    return true;
+  }
+  return false;
+}
+function borgActivateRing(ctx, ringSval, d) {
+  for (const item of equipment(ctx)) {
+    if (!isAware(item, d)) continue;
+    if (item.tval !== TV.RING || item.sval !== ringSval) continue;
+    if (item.timeout) continue;
+    if (!isIdent(item, d)) continue;
+    return ctx.act.activate(item.handle);
+  }
+  return null;
+}
+function borgEquipsDragon(ctx, dragSval, d) {
+  for (const item of equipment(ctx)) {
+    if (!isAware(item, d)) continue;
+    if (item.tval !== TV.DRAG_ARMOR || item.sval !== dragSval) continue;
+    if (item.timeout) continue;
+    if (!isIdent(item, d)) continue;
+    const fail = deviceFail(ctx, itemLevel(item, d));
+    if (fail > 500) return false;
+    return true;
+  }
+  return false;
+}
+function borgActivateDragon(ctx, dragSval, d) {
+  for (const item of equipment(ctx)) {
+    if (!isAware(item, d)) continue;
+    if (item.tval !== TV.DRAG_ARMOR || item.sval !== dragSval) continue;
+    if (item.timeout) continue;
+    if (!isIdent(item, d)) continue;
+    return ctx.act.activate(item.handle);
+  }
+  return null;
+}
+function borgActivateItem(ctx, act, d) {
+  const handle = activateHandle(act, d);
+  if (handle === null) return null;
+  return ctx.act.activate(handle);
+}
+function borgEquipsItem(ctx, act, checkCharge, d) {
+  return equipsItem(act, checkCharge, d);
+}
+function borgActivateFailure(ctx, tval, sval, d) {
+  const item = borgSlot(ctx, tval, sval, d);
+  if (!item) return 100;
+  if (!item.pval) return 100;
+  if (!item.activation) return 100;
+  return deviceFail(ctx, itemLevel(item, d));
+}
+function borgUseThings(ctx, d) {
+  const P = SVAL.potion;
+  const M = SVAL.mush;
+  const inTown = trait3(ctx, 105 /* CDEPTH */) === 0;
+  if (trait3(ctx, 125 /* ISFIXEXP */)) {
+    const cmd = borgSpell(ctx, 49 /* REVITALIZE */) || borgSpell(ctx, 70 /* REMEMBRANCE */) || (trait3(ctx, 27 /* CURHP */) > 90 ? borgSpell(ctx, 130 /* UNHOLY_REPRIEVE */) : null) || borgActivateItem(ctx, "act_restore_exp", d) || borgActivateItem(ctx, "act_restore_st_lev", d) || borgActivateItem(ctx, "act_restore_life", d) || borgQuaffPotion(ctx, P.restore_life, d);
+    if (cmd) return cmd;
+  }
+  {
+    const cmd = borgQuaffPotion(ctx, P.inc_str, d) || borgQuaffPotion(ctx, P.inc_int, d) || borgQuaffPotion(ctx, P.inc_wis, d) || borgQuaffPotion(ctx, P.inc_dex, d) || borgQuaffPotion(ctx, P.inc_con, d);
+    if (cmd) return cmd;
+  }
+  {
+    const cmd = trait3(ctx, 127 /* ISFIXSTR */) && (borgQuaffPotion(ctx, P.inc_str, d) || borgEat(ctx, TV.MUSHROOM, M.purging, d) || borgActivateItem(ctx, "act_shroom_purging", d) || borgActivateItem(ctx, "act_restore_str", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 128 /* ISFIXINT */) && (borgQuaffPotion(ctx, P.inc_int, d) || borgActivateItem(ctx, "act_restore_int", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 129 /* ISFIXWIS */) && (borgQuaffPotion(ctx, P.inc_wis, d) || borgActivateItem(ctx, "act_restore_wis", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 130 /* ISFIXDEX */) && (borgQuaffPotion(ctx, P.inc_dex, d) || borgActivateItem(ctx, "act_restore_dex", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 131 /* ISFIXCON */) && (borgQuaffPotion(ctx, P.inc_con, d) || borgActivateItem(ctx, "act_restore_con", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.purging, d) || borgActivateItem(ctx, "act_shroom_purging", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d));
+    if (cmd) return cmd;
+  }
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0 || !isAware(item, d)) continue;
+    if (item.tval === TV.POTION) {
+      if (item.sval === P.enlightenment) {
+        if (inTown) continue;
+      } else if (item.sval === P.inc_all) {
+        const cmd = borgQuaffPotion(ctx, item.sval, d);
+        if (cmd) return cmd;
+      }
+    } else if (item.tval === TV.SCROLL) {
+      if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) continue;
+      if (item.sval === SVAL.scroll.mapping || item.sval === SVAL.scroll.acquirement || item.sval === SVAL.scroll.star_acquirement) {
+        if (inTown) continue;
+        const cmd = borgReadScroll(ctx, item.sval, d);
+        if (cmd) return cmd;
+      }
+    }
+  }
+  if (trait3(ctx, 109 /* ISHUNGRY */)) {
+    const cmd = borgSpell(ctx, 32 /* REMOVE_HUNGER */) || borgSpell(ctx, 51 /* HERBAL_CURING */) || borgQuaffPotion(ctx, P.slime_mold, d) || borgEat(ctx, TV.FOOD, SVAL.food.slime_mold, d) || borgEat(ctx, TV.FOOD, SVAL.food.slice, d) || borgEat(ctx, TV.FOOD, SVAL.food.apple, d) || borgEat(ctx, TV.FOOD, SVAL.food.pint, d) || borgEat(ctx, TV.FOOD, SVAL.food.handful, d) || borgEat(ctx, TV.FOOD, SVAL.food.honey_cake, d) || borgEat(ctx, TV.FOOD, SVAL.food.ration, d) || borgEat(ctx, TV.FOOD, SVAL.food.waybread, d) || borgEat(ctx, TV.FOOD, SVAL.food.draught, d) || borgActivateItem(ctx, "act_food_waybread", d);
+    if (cmd) return cmd;
+  }
+  return null;
+}
+function borgRecharging(ctx, d, playerHas2) {
+  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) return null;
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0) continue;
+    if (!isIdent(item, d) || !isAware(item, d)) continue;
+    let charge = false;
+    if (item.tval === TV.WAND && item.pval <= 1) charge = true;
+    if (item.tval === TV.STAFF) {
+      if (item.pval < 2 && borgSpellOkayFail(ctx, 7 /* RECHARGING */, 96, playerHas2) && item.sval < SVAL.staff.power)
+        charge = true;
+      if (item.pval <= 1) charge = true;
+      if (item.sval === SVAL.staff.teleportation && item.pval < 3 && trait3(ctx, 105 /* CDEPTH */) === 0)
+        charge = true;
+      if (item.number + item.pval >= 4 && item.pval >= 1) charge = false;
+    }
+    if (!charge) continue;
+    const cmd = borgReadScroll(ctx, SVAL.scroll.recharging, d) || borgSpellFail(ctx, 7 /* RECHARGING */, 96, playerHas2) || borgActivateItem(ctx, "act_recharge", d);
+    if (cmd) return cmd;
+    break;
+  }
+  return null;
+}
+
+// src/item/item-id.ts
+function borgItemNoteNeedsId(item, d) {
+  return needsIdent(item, d);
+}
+function borgTestStuff(ctx, d) {
+  const freeId = borgSpellLegal(ctx, 8 /* IDENTIFY_RUNE */);
+  if (trait3(ctx, 30 /* CURSP */) < 50 && freeId && !canRest(d)) return null;
+  if (danger(d) > 1) return null;
+  let best = null;
+  let bestV = -1;
+  for (const item of ctx.view.equipment()) {
+    if (!item || item.number <= 0) continue;
+    if (!borgItemNoteNeedsId(item, d)) continue;
+    let v = 0;
+    if (item.artifact) v = itemValue(item, d) + 15e4;
+    if (item.ego) v = itemValue(item, d) + 1e5;
+    if (borgItemNoteNeedsId(item, d)) v = itemValue(item, d) + 2e4;
+    if (!v) continue;
+    if (v <= bestV) continue;
+    best = item;
+    bestV = v;
+  }
+  const maxDepth = trait3(ctx, 106 /* MAXDEPTH */);
+  for (const item of ctx.view.inventory()) {
+    if (item.number <= 0) continue;
+    if (!borgItemNoteNeedsId(item, d)) continue;
+    let v = 0;
+    if (item.artifact) v = itemValue(item, d) + 15e4;
+    if (borgItemNoteNeedsId(item, d)) v = itemValue(item, d) + 2e4;
+    else if (freeId) v = itemValue(item, d);
+    if (!isAware(item, d)) {
+      switch (item.tval) {
+        case TV.RING:
+        case TV.AMULET:
+          v += maxDepth * 5e3;
+          break;
+        case TV.ROD:
+          v += maxDepth * 3e3;
+          break;
+        case TV.WAND:
+        case TV.STAFF:
+          v += maxDepth * 2e3;
+          break;
+        case TV.POTION:
+        case TV.SCROLL:
+          if (maxDepth < 5) break;
+          v += maxDepth * 500;
+          break;
+        case TV.FOOD:
+          v += maxDepth * 10;
+          break;
+      }
+    }
+    if (!v) continue;
+    if (v <= bestV) continue;
+    best = item;
+    bestV = v;
+  }
+  if (best) {
+    return borgSpell(ctx, 8 /* IDENTIFY_RUNE */) || borgReadScroll(ctx, SVAL.scroll.identify, d);
+  }
+  return null;
+}
+
 // src/trait/trait.ts
 var SLOT_WIELD = 0;
 var SLOT_BOW = 1;
@@ -6738,13 +7077,18 @@ function borgNotice(ctx, opts = {}) {
   t[153 /* AMMO_SIDES */] = 4;
   const cls = classIndexFromName(p.cls);
   const spellStat = spellStatForClass(cls);
+  const inven = view.inventory();
+  const carried = new Set(inven.filter(present).map((item) => item.handle));
+  const quiver = (view.quiver?.() ?? []).filter((item) => present(item) && carried.has(item.handle));
+  const quivered = new Set(quiver.map((item) => item.handle));
   const c = {
     t,
     d,
     p,
     R: R2,
     equip: view.equipment(),
-    inven: view.inventory(),
+    inven: inven.filter((item) => !quivered.has(item.handle)),
+    quiver,
     temp: ctx.world.self.temp,
     cls,
     spellStat
@@ -6752,8 +7096,6 @@ function borgNotice(ctx, opts = {}) {
   borgNoticePlayer(c);
   borgNoticeEquipment(c);
   borgNoticeInventory(c);
-  const carried = new Set(c.inven.filter(present).map((item) => item.handle));
-  t[158 /* QUIVER_SLOTS */] = (view.quiver?.() ?? []).filter((item) => present(item) && carried.has(item.handle)).length;
   finishNotice(c);
   ctx.world.self.trait = t;
   const speed = t[44 /* SPEED */] ?? 110;
@@ -6847,6 +7189,10 @@ function borgNoticeEquipment(c) {
       if (!t[159 /* FIRST_CURSED */]) t[159 /* FIRST_CURSED */] = i + 1;
     }
     t[260 /* WEIGHT */] = t[260 /* WEIGHT */] + item.weight * item.number;
+    if ((!isCursed(item) || item.artifact || c.R.uncursable(item)) && borgItemNoteNeedsId(item)) {
+      t[254 /* ALL_NEED_ID */] = t[254 /* ALL_NEED_ID */] + 1;
+      t[253 /* WORN_NEED_ID */] = t[253 /* WORN_NEED_ID */] + 1;
+    }
     const known = c.R.frame.statKnown;
     t[5 /* ASTR */] = t[5 /* ASTR */] + mod(item, "STR") * (known ? known[0] ?? 0 : 1);
     t[6 /* AINT */] = t[6 /* AINT */] + mod(item, "INT") * (known ? known[1] ?? 0 : 1);
@@ -7087,6 +7433,8 @@ function borgNoticeEquipment(c) {
     t[51 /* SINV */] = 1;
   if (t[57 /* SAV */] >= 100) t[86 /* FRACT */] = 1;
   if (t[57 /* SAV */] >= 100 && t[76 /* RDARK */] && t[75 /* RLITE */]) t[77 /* RBLIND */] = 1;
+  t[158 /* QUIVER_SLOTS */] = c.quiver.length;
+  for (const item of c.quiver) noticeAmmo(c, item);
 }
 function applyCurses(t, item) {
   for (const name of item.curses) {
@@ -7185,13 +7533,18 @@ function borgNoticeInventory(c) {
   const { t, d, inven, R: R2 } = c;
   const sv = R2.svals;
   const equip = c.equip;
-  for (const item of inven) {
-    if (!present(item)) continue;
+  for (let i = 0; i < PACK_SIZE - t[158 /* QUIVER_SLOTS */]; i++) {
+    const item = inven[i];
+    if (!present(item)) {
+      t[262 /* EMPTY */] = t[262 /* EMPTY */] + 1;
+      continue;
+    }
     if (isAmmoTval(item.tval)) {
       noticeAmmo(c, item);
       continue;
     }
     t[260 /* WEIGHT */] = t[260 /* WEIGHT */] + item.weight * item.number;
+    if (borgItemNoteNeedsId(item)) t[254 /* ALL_NEED_ID */] = t[254 /* ALL_NEED_ID */] + 1;
     if (item.curses.length > 0) {
       t[160 /* WHERE_CURSED */] = t[160 /* WHERE_CURSED */] | BORG_INVEN;
       if (!t[159 /* FIRST_CURSED */]) t[159 /* FIRST_CURSED */] = 1;
@@ -7307,16 +7660,25 @@ function noticeAmmo(c, item) {
     return;
   }
   if (item.ego) t[156 /* AMISSILES_SPECIAL */] = t[156 /* AMISSILES_SPECIAL */] + item.number;
+  if (perItemValue(item) <= 0 || t[154 /* AMMO_POWER */] < 3) return;
+  if ((c.R.spells.equipsItem("act_firebrand") || c.R.spells.spellLegalFail("BRAND_AMMUNITION", 65)) && item.number >= 5 && !item.ego && !item.artifact && isIdent(item)) {
+    t[243 /* NEED_BRAND_WEAPON */] = t[243 /* NEED_BRAND_WEAPON */] + 20;
+  }
 }
 function noticeFood(c, item) {
   const { t, R: R2 } = c;
   const sv = R2.svals;
+  if (!item.aware || isCursed(item) && !item.artifact && !R2.uncursable(item)) return;
+  if (item.tval === TV_MUSHROOM && R2.cfg.munchkinStart && t[36 /* MAXCLEVEL */] < R2.cfg.munchkinLevel && (item.sval === sv.mush_purging || item.sval === sv.mush_restoring || item.sval === sv.mush_cure_mind)) return;
+  if (hasKindEffect(item, "CRUNCH") || hasKindEffect(item, "TIMED_INC", "CONFUSED")) return;
   if (item.tval === TV_FOOD) {
     if (item.sval === sv.food_apple || item.sval === sv.food_handful || item.sval === sv.food_slime_mold || item.sval === sv.food_pint || item.sval === sv.food_sip)
       t[41 /* FOOD_LO */] = t[41 /* FOOD_LO */] + item.number;
     else if (item.sval === sv.food_ration || item.sval === sv.food_slice || item.sval === sv.food_honey_cake || item.sval === sv.food_waybread || item.sval === sv.food_draught)
       t[40 /* FOOD_HI */] = t[40 /* FOOD_HI */] + item.number;
   }
+  if (hasKindEffect(item, "CURE", "CONFUSED")) t[42 /* FOOD_CURE_CONF */] = t[42 /* FOOD_CURE_CONF */] + item.number;
+  if (hasKindEffect(item, "CURE", "BLIND")) t[43 /* FOOD_CURE_BLIND */] = t[43 /* FOOD_CURE_BLIND */] + item.number;
 }
 function noticeRod(c, item) {
   const { t, R: R2 } = c;
@@ -9838,341 +10200,6 @@ function borgThinkStore(ctx, shopNum, d, wearDeps) {
   ctx.world.self.goal.ware = -1;
   ctx.world.self.goal.item = -1;
   return ctx.act.shopExit();
-}
-
-// src/item/item-use.ts
-function borgQuaffPotion(ctx, sval, d) {
-  const item = borgSlot(ctx, TV.POTION, sval, d);
-  if (!item) return null;
-  return ctx.act.quaff(item.handle);
-}
-var quaffStore = /* @__PURE__ */ new WeakMap();
-function quaffState(world) {
-  let s = quaffStore.get(world);
-  if (!s) {
-    s = { whenLastQuaff: 0 };
-    quaffStore.set(world, s);
-  }
-  return s;
-}
-function borgQuaffCrit(ctx, noCheck, d) {
-  const st2 = quaffState(ctx.world);
-  const borgT = clockOf(ctx, d);
-  const sval = SVAL.potion.cure_critical;
-  if (noCheck) {
-    const cmd2 = borgQuaffPotion(ctx, sval, d);
-    if (cmd2) st2.whenLastQuaff = borgT;
-    return cmd2;
-  }
-  if (st2.whenLastQuaff > borgT - 4 && st2.whenLastQuaff <= borgT && ctx.rng.randint1(100) < 75)
-    return null;
-  if (trait3(ctx, 231 /* ACCW */) < 2) return null;
-  const cmd = borgQuaffPotion(ctx, sval, d);
-  if (cmd) st2.whenLastQuaff = borgT;
-  return cmd;
-}
-function borgQuaffUnknown(ctx, d) {
-  let n = null;
-  for (const item of ctx.view.inventory()) {
-    if (item.number <= 0) continue;
-    if (item.tval !== TV.POTION) continue;
-    if (isAware(item, d)) continue;
-    n = item;
-  }
-  return n ? ctx.act.quaff(n.handle) : null;
-}
-function borgReadScroll(ctx, sval, d) {
-  if (noLight(ctx)) return null;
-  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */) || trait3(ctx, 121 /* ISFORGET */))
-    return null;
-  const item = borgSlot(ctx, TV.SCROLL, sval, d);
-  if (!item) return null;
-  ctx.world.self.goal.shop = ctx.world.self.goal.ware = ctx.world.self.goal.item = -1;
-  return ctx.act.read(item.handle);
-}
-function borgReadUnknown(ctx, d) {
-  let n = null;
-  for (const item of ctx.view.inventory()) {
-    if (item.number <= 0) continue;
-    if (item.tval !== TV.SCROLL) continue;
-    if (isAware(item, d)) continue;
-    n = item;
-  }
-  if (!n) return null;
-  if (noLight(ctx)) return null;
-  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) return null;
-  return ctx.act.read(n.handle);
-}
-function borgEat(ctx, tval, sval, d) {
-  const item = borgSlot(ctx, tval, sval, d);
-  if (!item) return null;
-  return ctx.act.eat(item.handle);
-}
-function borgEatUnknown(ctx, d) {
-  let n = null;
-  for (const item of ctx.view.inventory()) {
-    if (item.number <= 0) continue;
-    if (item.tval !== TV.FOOD && item.tval !== TV.MUSHROOM) continue;
-    if (isAware(item, d)) continue;
-    n = item;
-  }
-  return n ? ctx.act.eat(n.handle) : null;
-}
-function borgEquipsRod(ctx, sval, d) {
-  const item = borgSlot(ctx, TV.ROD, sval, d);
-  if (!item) return false;
-  if (!item.pval) return false;
-  const fail = deviceFail(ctx, itemLevel(item, d));
-  return fail <= 500;
-}
-function borgZapRod(ctx, sval, d) {
-  const item = borgSlot(ctx, TV.ROD, sval, d);
-  if (!item) return null;
-  if (!item.pval) return null;
-  const fail = deviceFail(ctx, itemLevel(item, d));
-  if (sval !== SVAL.rod.recall) {
-    if (fail > 500) return null;
-  }
-  return ctx.act.zapRod(item.handle);
-}
-function borgUseStaff(ctx, sval, d) {
-  const item = borgSlot(ctx, TV.STAFF, sval, d);
-  if (!item) return null;
-  if (!item.pval) return null;
-  return ctx.act.useStaff(item.handle);
-}
-function borgUseUnknown(ctx, d) {
-  let n = null;
-  for (const item of ctx.view.inventory()) {
-    if (item.number <= 0) continue;
-    if (item.tval !== TV.STAFF) continue;
-    if (isAware(item, d)) continue;
-    n = item;
-  }
-  return n ? ctx.act.useStaff(n.handle) : null;
-}
-function borgUseStaffFail(ctx, sval, d) {
-  const item = borgSlot(ctx, TV.STAFF, sval, d);
-  if (!item) return null;
-  if (!item.pval) return null;
-  const fail = deviceFail(ctx, itemLevel(item, d));
-  if (fail > 500) {
-    if (sval !== SVAL.staff.teleportation) return null;
-    if (!trait3(ctx, 114 /* ISCONFUSED */) && !trait3(ctx, 112 /* ISBLIND */)) {
-      if (fail > 500) return null;
-    }
-  }
-  return ctx.act.useStaff(item.handle);
-}
-function borgEquipsStaffFail(ctx, sval, d) {
-  const item = borgSlot(ctx, TV.STAFF, sval, d);
-  if (!item) return false;
-  if (!item.pval) return false;
-  const fail = deviceFail(ctx, itemLevel(item, d));
-  if (sval === SVAL.staff.destruction) return true;
-  if (fail > 500) {
-    if (sval !== SVAL.staff.teleportation) return false;
-    if (sval === SVAL.staff.teleportation && !trait3(ctx, 114 /* ISCONFUSED */)) {
-      if (fail < 650) return false;
-    }
-  }
-  return true;
-}
-function borgAimWand(ctx, sval, d) {
-  const item = borgSlot(ctx, TV.WAND, sval, d);
-  if (!item) return null;
-  if (!item.pval) return null;
-  return ctx.act.aimWand(item.handle);
-}
-function* equipment(ctx) {
-  for (const item of ctx.view.equipment()) {
-    if (item && item.number > 0) yield item;
-  }
-}
-function borgEquipsRing(ctx, ringSval, d) {
-  for (const item of equipment(ctx)) {
-    if (!isAware(item, d)) continue;
-    if (item.tval !== TV.RING || item.sval !== ringSval) continue;
-    if (item.timeout) continue;
-    if (!isIdent(item, d)) continue;
-    const fail = deviceFail(ctx, itemLevel(item, d));
-    if (fail > 500) continue;
-    return true;
-  }
-  return false;
-}
-function borgActivateRing(ctx, ringSval, d) {
-  for (const item of equipment(ctx)) {
-    if (!isAware(item, d)) continue;
-    if (item.tval !== TV.RING || item.sval !== ringSval) continue;
-    if (item.timeout) continue;
-    if (!isIdent(item, d)) continue;
-    return ctx.act.activate(item.handle);
-  }
-  return null;
-}
-function borgEquipsDragon(ctx, dragSval, d) {
-  for (const item of equipment(ctx)) {
-    if (!isAware(item, d)) continue;
-    if (item.tval !== TV.DRAG_ARMOR || item.sval !== dragSval) continue;
-    if (item.timeout) continue;
-    if (!isIdent(item, d)) continue;
-    const fail = deviceFail(ctx, itemLevel(item, d));
-    if (fail > 500) return false;
-    return true;
-  }
-  return false;
-}
-function borgActivateDragon(ctx, dragSval, d) {
-  for (const item of equipment(ctx)) {
-    if (!isAware(item, d)) continue;
-    if (item.tval !== TV.DRAG_ARMOR || item.sval !== dragSval) continue;
-    if (item.timeout) continue;
-    if (!isIdent(item, d)) continue;
-    return ctx.act.activate(item.handle);
-  }
-  return null;
-}
-function borgActivateItem(ctx, act, d) {
-  const handle = activateHandle(act, d);
-  if (handle === null) return null;
-  return ctx.act.activate(handle);
-}
-function borgEquipsItem(ctx, act, checkCharge, d) {
-  return equipsItem(act, checkCharge, d);
-}
-function borgActivateFailure(ctx, tval, sval, d) {
-  const item = borgSlot(ctx, tval, sval, d);
-  if (!item) return 100;
-  if (!item.pval) return 100;
-  if (!item.activation) return 100;
-  return deviceFail(ctx, itemLevel(item, d));
-}
-function borgUseThings(ctx, d) {
-  const P = SVAL.potion;
-  const M = SVAL.mush;
-  const inTown = trait3(ctx, 105 /* CDEPTH */) === 0;
-  if (trait3(ctx, 125 /* ISFIXEXP */)) {
-    const cmd = borgSpell(ctx, 49 /* REVITALIZE */) || borgSpell(ctx, 70 /* REMEMBRANCE */) || (trait3(ctx, 27 /* CURHP */) > 90 ? borgSpell(ctx, 130 /* UNHOLY_REPRIEVE */) : null) || borgActivateItem(ctx, "act_restore_exp", d) || borgActivateItem(ctx, "act_restore_st_lev", d) || borgActivateItem(ctx, "act_restore_life", d) || borgQuaffPotion(ctx, P.restore_life, d);
-    if (cmd) return cmd;
-  }
-  {
-    const cmd = borgQuaffPotion(ctx, P.inc_str, d) || borgQuaffPotion(ctx, P.inc_int, d) || borgQuaffPotion(ctx, P.inc_wis, d) || borgQuaffPotion(ctx, P.inc_dex, d) || borgQuaffPotion(ctx, P.inc_con, d);
-    if (cmd) return cmd;
-  }
-  {
-    const cmd = trait3(ctx, 127 /* ISFIXSTR */) && (borgQuaffPotion(ctx, P.inc_str, d) || borgEat(ctx, TV.MUSHROOM, M.purging, d) || borgActivateItem(ctx, "act_shroom_purging", d) || borgActivateItem(ctx, "act_restore_str", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 128 /* ISFIXINT */) && (borgQuaffPotion(ctx, P.inc_int, d) || borgActivateItem(ctx, "act_restore_int", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 129 /* ISFIXWIS */) && (borgQuaffPotion(ctx, P.inc_wis, d) || borgActivateItem(ctx, "act_restore_wis", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 130 /* ISFIXDEX */) && (borgQuaffPotion(ctx, P.inc_dex, d) || borgActivateItem(ctx, "act_restore_dex", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d)) || trait3(ctx, 131 /* ISFIXCON */) && (borgQuaffPotion(ctx, P.inc_con, d) || borgActivateItem(ctx, "act_restore_con", d) || borgActivateItem(ctx, "act_restore_all", d) || borgEat(ctx, TV.MUSHROOM, M.purging, d) || borgActivateItem(ctx, "act_shroom_purging", d) || borgEat(ctx, TV.MUSHROOM, M.restoring, d));
-    if (cmd) return cmd;
-  }
-  for (const item of ctx.view.inventory()) {
-    if (item.number <= 0 || !isAware(item, d)) continue;
-    if (item.tval === TV.POTION) {
-      if (item.sval === P.enlightenment) {
-        if (inTown) continue;
-      } else if (item.sval === P.inc_all) {
-        const cmd = borgQuaffPotion(ctx, item.sval, d);
-        if (cmd) return cmd;
-      }
-    } else if (item.tval === TV.SCROLL) {
-      if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) continue;
-      if (item.sval === SVAL.scroll.mapping || item.sval === SVAL.scroll.acquirement || item.sval === SVAL.scroll.star_acquirement) {
-        if (inTown) continue;
-        const cmd = borgReadScroll(ctx, item.sval, d);
-        if (cmd) return cmd;
-      }
-    }
-  }
-  if (trait3(ctx, 109 /* ISHUNGRY */)) {
-    const cmd = borgSpell(ctx, 32 /* REMOVE_HUNGER */) || borgSpell(ctx, 51 /* HERBAL_CURING */) || borgQuaffPotion(ctx, P.slime_mold, d) || borgEat(ctx, TV.FOOD, SVAL.food.slime_mold, d) || borgEat(ctx, TV.FOOD, SVAL.food.slice, d) || borgEat(ctx, TV.FOOD, SVAL.food.apple, d) || borgEat(ctx, TV.FOOD, SVAL.food.pint, d) || borgEat(ctx, TV.FOOD, SVAL.food.handful, d) || borgEat(ctx, TV.FOOD, SVAL.food.honey_cake, d) || borgEat(ctx, TV.FOOD, SVAL.food.ration, d) || borgEat(ctx, TV.FOOD, SVAL.food.waybread, d) || borgEat(ctx, TV.FOOD, SVAL.food.draught, d) || borgActivateItem(ctx, "act_food_waybread", d);
-    if (cmd) return cmd;
-  }
-  return null;
-}
-function borgRecharging(ctx, d, playerHas2) {
-  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) return null;
-  for (const item of ctx.view.inventory()) {
-    if (item.number <= 0) continue;
-    if (!isIdent(item, d) || !isAware(item, d)) continue;
-    let charge = false;
-    if (item.tval === TV.WAND && item.pval <= 1) charge = true;
-    if (item.tval === TV.STAFF) {
-      if (item.pval < 2 && borgSpellOkayFail(ctx, 7 /* RECHARGING */, 96, playerHas2) && item.sval < SVAL.staff.power)
-        charge = true;
-      if (item.pval <= 1) charge = true;
-      if (item.sval === SVAL.staff.teleportation && item.pval < 3 && trait3(ctx, 105 /* CDEPTH */) === 0)
-        charge = true;
-      if (item.number + item.pval >= 4 && item.pval >= 1) charge = false;
-    }
-    if (!charge) continue;
-    const cmd = borgReadScroll(ctx, SVAL.scroll.recharging, d) || borgSpellFail(ctx, 7 /* RECHARGING */, 96, playerHas2) || borgActivateItem(ctx, "act_recharge", d);
-    if (cmd) return cmd;
-    break;
-  }
-  return null;
-}
-
-// src/item/item-id.ts
-function borgItemNoteNeedsId(item, d) {
-  return needsIdent(item, d);
-}
-function borgTestStuff(ctx, d) {
-  const freeId = borgSpellLegal(ctx, 8 /* IDENTIFY_RUNE */);
-  if (trait3(ctx, 30 /* CURSP */) < 50 && freeId && !canRest(d)) return null;
-  if (danger(d) > 1) return null;
-  let best = null;
-  let bestV = -1;
-  for (const item of ctx.view.equipment()) {
-    if (!item || item.number <= 0) continue;
-    if (!borgItemNoteNeedsId(item, d)) continue;
-    let v = 0;
-    if (item.artifact) v = itemValue(item, d) + 15e4;
-    if (item.ego) v = itemValue(item, d) + 1e5;
-    if (borgItemNoteNeedsId(item, d)) v = itemValue(item, d) + 2e4;
-    if (!v) continue;
-    if (v <= bestV) continue;
-    best = item;
-    bestV = v;
-  }
-  const maxDepth = trait3(ctx, 106 /* MAXDEPTH */);
-  for (const item of ctx.view.inventory()) {
-    if (item.number <= 0) continue;
-    if (!borgItemNoteNeedsId(item, d)) continue;
-    let v = 0;
-    if (item.artifact) v = itemValue(item, d) + 15e4;
-    if (borgItemNoteNeedsId(item, d)) v = itemValue(item, d) + 2e4;
-    else if (freeId) v = itemValue(item, d);
-    if (!isAware(item, d)) {
-      switch (item.tval) {
-        case TV.RING:
-        case TV.AMULET:
-          v += maxDepth * 5e3;
-          break;
-        case TV.ROD:
-          v += maxDepth * 3e3;
-          break;
-        case TV.WAND:
-        case TV.STAFF:
-          v += maxDepth * 2e3;
-          break;
-        case TV.POTION:
-        case TV.SCROLL:
-          if (maxDepth < 5) break;
-          v += maxDepth * 500;
-          break;
-        case TV.FOOD:
-          v += maxDepth * 10;
-          break;
-      }
-    }
-    if (!v) continue;
-    if (v <= bestV) continue;
-    best = item;
-    bestV = v;
-  }
-  if (best) {
-    return borgSpell(ctx, 8 /* IDENTIFY_RUNE */) || borgReadScroll(ctx, SVAL.scroll.identify, d);
-  }
-  return null;
 }
 
 // src/item/item-decurse.ts
@@ -17339,6 +17366,7 @@ function createBorg(opts = {}) {
     borgFollowMissingKills(ctx, session.flow.state);
     borgUpdateMonsterFear(ctx);
     borgForgetGoalWhileImpaired(world);
+    world.self.oldchp = world.self.trait[27 /* CURHP */] ?? 0;
     world.self.power = borgPower(ctx);
     const t = world.self.trait;
     if ((t[35 /* CLEVEL */] ?? 0) > (t[36 /* MAXCLEVEL */] ?? 0)) t[36 /* MAXCLEVEL */] = t[35 /* CLEVEL */];
@@ -17720,7 +17748,11 @@ function itemAnalyzer(api) {
         ds: dice ? Number(dice[2]) : item.ds,
         cursed: item.curses.length > 0 || item.flags.some((flag) => negative.has(flag)),
         oneRing: artifact ? artifact["act"] === "BIZARRE" : item.artifactName === "'The One Ring'",
-        randomPower: item.ego && (!ego || ["RAND_POWER", "RAND_SUSTAIN", "RAND_BASE_RES", "RAND_HI_RES", "RAND_RES_POWER"].some((flag) => flags.has(flag)))
+        randomPower: item.ego && (!ego || ["RAND_POWER", "RAND_SUSTAIN", "RAND_BASE_RES", "RAND_HI_RES", "RAND_RES_POWER"].some((flag) => flags.has(flag))),
+        effects: (Array.isArray(kind?.["effect"]) ? kind["effect"] : []).map((effect) => ({
+          index: String(field(effect, "eff") ?? ""),
+          subtype: String(field(effect, "type") ?? "")
+        }))
       };
     };
   };

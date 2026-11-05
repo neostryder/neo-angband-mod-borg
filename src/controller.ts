@@ -236,6 +236,9 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     borgUpdateMonsterFear(ctx);
     borgForgetGoalWhileImpaired(world);
 
+    /* Messages must compare damage with the preceding update's HP. */
+    world.self.oldchp = world.self.trait[BI.CURHP] ?? 0;
+
     /* 4. Score the world (borg_power, :459). */
     world.self.power = borgPower(ctx);
 

@@ -26,6 +26,8 @@ import { borgNotice } from "./trait.js";
 import { borgPower } from "./power.js";
 import { borgPrepared } from "./prepared.js";
 import { getDerived } from "./state.js";
+import { defaultSpellSeam } from "./config.js";
+import { TV, SVAL } from "../item/svals.js";
 
 /* A complete ItemView from a partial. */
 function item(o: Partial<ItemView>): ItemView {
@@ -164,6 +166,104 @@ describe("borg_notice equipment derivation", () => {
     borgNotice(ctx);
     expect(ctx.world.self.trait[BI.WS_EVIL]).toBe(2);
     expect(ctx.world.self.trait[BI.WS_UNDEAD]).toBe(5);
+  });
+});
+
+describe("borg_notice wiring", () => {
+  it("counts worn stacks needing identification and rewards wearing them", () => {
+    const ctx = mkCtx({}, equipArray({
+      0: item({ name: "a sword {??}", number: 3 }),
+      2: item({ inscription: "??", curses: ["doom"] }),
+      3: item({ inscription: "??", curses: ["doom"], artifact: true }),
+      4: item({ name: "a known ring" }),
+      6: item({ inscription: "??", curses: ["removable"] }),
+    }));
+    borgNotice(ctx, { uncursable: (entry) => entry.curses.includes("removable") });
+    const t = ctx.world.self.trait;
+    expect(t[BI.WORN_NEED_ID]).toBe(3);
+    expect(t[BI.ALL_NEED_ID]).toBe(3);
+    const power = borgPower(ctx);
+    t[BI.WORN_NEED_ID] = 0;
+    expect(power - borgPower(ctx)).toBe(30000);
+    borgNotice(ctx);
+    expect(ctx.world.self.trait[BI.WORN_NEED_ID]).toBe(4);
+    ctx.view.equipment = () => [];
+    borgNotice(ctx);
+    expect(ctx.world.self.trait[BI.WORN_NEED_ID]).toBe(0);
+  });
+
+  it("counts pack identification needs before awareness and curse checks, excluding ammo", () => {
+    const ctx = mkCtx({}, equipArray({ 0: item({ name: "a sword {??}" }) }), [
+      item({ name: "boots {??}", number: 5 }),
+      item({ inscription: "??", aware: false, curses: ["doom"] }),
+      item({ tval: TV.ARROW, name: "arrows {??}", number: 20 }),
+      item({ name: "empty {??}", number: 0 }),
+      item({ name: "known" }),
+    ]);
+    borgNotice(ctx);
+    const t = ctx.world.self.trait;
+    expect(t[BI.ALL_NEED_ID]).toBe(3);
+    t[BI.AID] = 2;
+    const power = borgPower(ctx);
+    t[BI.ALL_NEED_ID] = 0;
+    expect(power - borgPower(ctx)).toBe(12000);
+    ctx.view.inventory = () => [];
+    ctx.view.equipment = () => [];
+    borgNotice(ctx);
+    expect(ctx.world.self.trait[BI.ALL_NEED_ID]).toBe(0);
+  });
+
+  it("counts empty C pack slots after occupied quiver entries and rewards the first hole", () => {
+    const arrows = item({ handle: 1, tval: TV.ARROW, number: 5 });
+    const bolts = item({ handle: 2, tval: TV.BOLT, number: 5 });
+    const pack = Array.from({ length: 20 }, (_, i) => item({ handle: i + 3 }));
+    const ctx = mkCtx({}, [], [...pack, arrows, bolts]);
+    ctx.view.quiver = () => [arrows, bolts];
+    borgNotice(ctx);
+    const t = ctx.world.self.trait;
+    expect(t[BI.EMPTY]).toBe(1);
+    const power = borgPower(ctx);
+    t[BI.EMPTY] = 0;
+    expect(power - borgPower(ctx)).toBe(4000);
+    pack.push(item({ handle: 23, tval: TV.ARROW }));
+    ctx.view.inventory = () => [...pack, arrows, bolts];
+    borgNotice(ctx);
+    expect(ctx.world.self.trait[BI.EMPTY]).toBe(0);
+    pack[0] = item({ number: 0 });
+    borgNotice(ctx);
+    expect(ctx.world.self.trait[BI.EMPTY]).toBe(1);
+  });
+
+  it.each([
+    ["spell", {}, SVAL.bow.long_bow, 20],
+    ["activation", {}, SVAL.bow.long_bow, 20],
+    ["none", {}, SVAL.bow.long_bow, 0],
+    ["spell", {}, SVAL.bow.short_bow, 0],
+    ["spell", { number: 4 }, SVAL.bow.long_bow, 0],
+    ["spell", { number: 5 }, SVAL.bow.long_bow, 20],
+    ["spell", { value: 0 }, SVAL.bow.long_bow, 0],
+    ["spell", { tval: TV.BOLT }, SVAL.bow.long_bow, 0],
+    ["spell", { curses: ["doom"] }, SVAL.bow.long_bow, 0],
+    ["spell", { ego: true }, SVAL.bow.long_bow, 0],
+    ["spell", { artifact: true }, SVAL.bow.long_bow, 0],
+    ["spell", { name: "arrows {??}" }, SVAL.bow.long_bow, 0],
+    ["spell", { aware: false }, SVAL.bow.long_bow, 0],
+  ] satisfies [string, Partial<ItemView>, number | undefined, number][])("counts branding need with %s, %j and bow sval %i", (ability, changes, sval, expected) => {
+    const ammo = item({ handle: 1, tval: TV.ARROW, number: 20, value: 100, ...changes });
+    const ctx = mkCtx({}, equipArray({ 1: item({ tval: TV.BOW, sval: sval! }) }), [ammo]);
+    ctx.view.quiver = () => [ammo];
+    const spells = {
+      ...defaultSpellSeam(),
+      spellLegalFail: (spell: string, fail: number) => ability === "spell" && spell === "BRAND_AMMUNITION" && fail === 65,
+      equipsItem: (act: string) => ability === "activation" && act === "act_firebrand",
+    };
+    borgNotice(ctx, { spells });
+    expect(ctx.world.self.trait[BI.NEED_BRAND_WEAPON]).toBe(expected);
+    ctx.view.quiver = () => [];
+    borgNotice(ctx, { spells });
+    expect(ctx.world.self.trait[BI.NEED_BRAND_WEAPON]).toBe(expected);
+    borgNotice(ctx);
+    expect(ctx.world.self.trait[BI.NEED_BRAND_WEAPON]).toBe(0);
   });
 });
 

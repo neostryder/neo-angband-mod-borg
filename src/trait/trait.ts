@@ -69,6 +69,9 @@ import {
 import { resetDerived, addHas, type BorgDerived } from "./state.js";
 import { borgCheatBuffTimers } from "./buff-timers.js";
 import type { Temp } from "../world/model.js";
+import { hasKindEffect, isCursed, isIdent, perItemValue } from "../item/deps.js";
+import { borgItemNoteNeedsId } from "../item/item-id.js";
+import { PACK_SIZE } from "../store/store.js";
 
 /* Equipment body-slot indices (AgentView.equipment() order == game equip slots,
  * matching INVEN_WIELD..INVEN_FEET; generated/equip-slots.ts EQUIP_*). */
@@ -99,6 +102,7 @@ interface Ctx {
   R: ResolvedOpts;
   equip: Array<ItemView | null>;
   inven: ItemView[];
+  quiver: ItemView[];
   /** The live buff/resist flags, so the cross-check at :3010 can repair them. */
   temp: Temp;
   cls: number;
@@ -126,13 +130,18 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
 
   const cls = classIndexFromName(p.cls);
   const spellStat = spellStatForClass(cls);
+  const inven = view.inventory();
+  const carried = new Set(inven.filter(present).map((item) => item.handle));
+  const quiver = (view.quiver?.() ?? []).filter((item) => present(item) && carried.has(item.handle));
+  const quivered = new Set(quiver.map((item) => item.handle));
   const c: Ctx = {
     t,
     d,
     p,
     R,
     equip: view.equipment(),
-    inven: view.inventory(),
+    inven: inven.filter((item) => !quivered.has(item.handle)),
+    quiver,
     temp: ctx.world.self.temp,
     cls,
     spellStat,
@@ -141,11 +150,6 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
   borgNoticePlayer(c);
   borgNoticeEquipment(c);
   borgNoticeInventory(c);
-  /* borg-trait.c:1122-1129 counts occupied quiver entries for power penalties.
-   * Engine packSlotsUsed (game/gear.ts:551-575) instead charges one pack slot
-   * per 40 weighted missiles; pack capacity keeps that engine calculation. */
-  const carried = new Set(c.inven.filter(present).map((item) => item.handle));
-  t[BI.QUIVER_SLOTS] = (view.quiver?.() ?? []).filter((item) => present(item) && carried.has(item.handle)).length;
   finishNotice(c);
 
   /* Publish the finished buffer. */
@@ -252,7 +256,8 @@ function borgNoticePlayer(c: Ctx): void {
   t[BI.LIGHT] = p.light;
   t[BI.INFRA] = p.seeInfra;
 
-  /* SAURON_DEAD has no AgentView field; left 0 (caveat). */
+  /* Neither AgentView nor API 2 exposes a race death counter. History has
+   * display text without a race identity, so it cannot supply SAURON_DEAD. */
 }
 
 /**
@@ -302,6 +307,11 @@ function borgNoticeEquipment(c: Ctx): void {
     }
 
     t[BI.WEIGHT] = t[BI.WEIGHT]! + item.weight * item.number;
+
+    if ((!isCursed(item) || item.artifact || c.R.uncursable(item)) && borgItemNoteNeedsId(item)) {
+      t[BI.ALL_NEED_ID] = t[BI.ALL_NEED_ID]! + 1;
+      t[BI.WORN_NEED_ID] = t[BI.WORN_NEED_ID]! + 1;
+    }
 
     /* Affect stats (known mask defaults to 1). */
     const known = c.R.frame.statKnown;
@@ -658,8 +668,10 @@ function borgNoticeEquipment(c: Ctx): void {
   if (t[BI.SAV]! >= 100) t[BI.FRACT] = 1;
   if (t[BI.SAV]! >= 100 && t[BI.RDARK]! && t[BI.RLITE]!) t[BI.RBLIND] = 1;
 
-  /* Quiver ammo (trait.c:2178). AgentView folds the quiver into inventory(); it
-   * is noticed in borgNoticeInventory via borg_is_ammo. */
+  /* PACK_SLOTS and power use occupied quiver entries in the C, rather than
+   * the engine's weighted missile capacity used by the shopping helpers. */
+  t[BI.QUIVER_SLOTS] = c.quiver.length;
+  for (const item of c.quiver) noticeAmmo(c, item);
 }
 
 /** Apply an item's curse list to the CRS* traits (trait.c:1558). */
@@ -708,8 +720,12 @@ function borgNoticeInventory(c: Ctx): void {
   const sv = R.svals;
   const equip = c.equip;
 
-  for (const item of inven) {
-    if (!present(item)) continue;
+  for (let i = 0; i < PACK_SIZE - t[BI.QUIVER_SLOTS]!; i++) {
+    const item = inven[i];
+    if (!present(item)) {
+      t[BI.EMPTY] = t[BI.EMPTY]! + 1;
+      continue;
+    }
 
     /* Ammo in the pack / quiver (trait.c:2218 -> borg_notice_ammo). */
     if (isAmmoTval(item.tval)) {
@@ -718,6 +734,8 @@ function borgNoticeInventory(c: Ctx): void {
     }
 
     t[BI.WEIGHT] = t[BI.WEIGHT]! + item.weight * item.number;
+
+    if (borgItemNoteNeedsId(item)) t[BI.ALL_NEED_ID] = t[BI.ALL_NEED_ID]! + 1;
 
     if (item.curses.length > 0) {
       t[BI.WHERE_CURSED] = t[BI.WHERE_CURSED]! | BORG_INVEN;
@@ -855,12 +873,24 @@ function noticeAmmo(c: Ctx, item: ItemView): void {
     return;
   }
   if (item.ego) t[BI.AMISSILES_SPECIAL] = t[BI.AMISSILES_SPECIAL]! + item.number;
+  if (perItemValue(item) <= 0 || t[BI.AMMO_POWER]! < 3) return;
+  if (
+    (c.R.spells.equipsItem("act_firebrand") || c.R.spells.spellLegalFail("BRAND_AMMUNITION", 65)) &&
+    item.number >= 5 && !item.ego && !item.artifact && isIdent(item)
+  ) {
+    /* Both C branches count this stack; borgBrandWeapon remains a stub. */
+    t[BI.NEED_BRAND_WEAPON] = t[BI.NEED_BRAND_WEAPON]! + 20;
+  }
 }
 
 /** Food/mushroom analysis (trait.c:2264). */
 function noticeFood(c: Ctx, item: ItemView): void {
   const { t, R } = c;
   const sv = R.svals;
+  if (!item.aware || (isCursed(item) && !item.artifact && !R.uncursable(item))) return;
+  if (item.tval === TV_MUSHROOM && R.cfg.munchkinStart && t[BI.MAXCLEVEL]! < R.cfg.munchkinLevel &&
+    (item.sval === sv.mush_purging || item.sval === sv.mush_restoring || item.sval === sv.mush_cure_mind)) return;
+  if (hasKindEffect(item, "CRUNCH") || hasKindEffect(item, "TIMED_INC", "CONFUSED")) return;
   if (item.tval === TV_FOOD) {
     if (
       item.sval === sv.food_apple ||
@@ -879,8 +909,8 @@ function noticeFood(c: Ctx, item: ItemView): void {
     )
       t[BI.FOOD_HI] = t[BI.FOOD_HI]! + item.number;
   }
-  /* Effects-based food (nourish/cure) require effect data not in ItemView;
-   * omitted (caveat). */
+  if (hasKindEffect(item, "CURE", "CONFUSED")) t[BI.FOOD_CURE_CONF] = t[BI.FOOD_CURE_CONF]! + item.number;
+  if (hasKindEffect(item, "CURE", "BLIND")) t[BI.FOOD_CURE_BLIND] = t[BI.FOOD_CURE_BLIND]! + item.number;
 }
 
 /** Rod analysis (trait.c:2406). Activation-failure seam absent -> use the

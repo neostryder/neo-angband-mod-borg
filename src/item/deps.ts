@@ -22,9 +22,16 @@ export interface ItemAnalysis {
   cursed: boolean;
   oneRing: boolean;
   randomPower: boolean;
+  effects?: readonly { index: string; subtype: string }[];
 }
 
 type AnalyzedItem = ItemView & { borgAnalysis?: ItemAnalysis };
+
+/** Kind effects follow the full chain, including effects after RANDOM. */
+export function hasKindEffect(item: ItemView, index: string, subtype?: string): boolean {
+  return (item as AnalyzedItem).borgAnalysis?.effects?.some((effect) =>
+    effect.index === index && (subtype === undefined || effect.subtype === subtype)) ?? false;
+}
 
 /** borg-item-analyze.c:498-503 also treats negative-power flags as cursed. */
 export function isCursed(item: ItemView): boolean {
