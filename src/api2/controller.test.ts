@@ -8,12 +8,13 @@
  */
 
 import { describe, expect, it } from "vitest";
+import * as Core from "@rpgm-tools/neo-angband-core";
 import type { AgentCommand, AgentController } from "@rpgm-tools/neo-angband-core";
 import type { Api2Prompt } from "@rpgm-tools/neo-angband-mod-sdk";
-import { fakeGame } from "../harness-api2.js";
+import { fakeGame, knownWorld } from "../harness-api2.js";
 import { createActFacade, intentOf, REST_COMPLETE } from "./act.js";
 import { createTick, promptAnswer, IDLE_BEFORE_RELEASE, REFUSALS_BEFORE_RELEASE, STALLS_BEFORE_FORGET, STALLS_BEFORE_RELEASE, type Decider } from "./controller.js";
-import type { Bridge } from "./host.js";
+import { createBridge, type Bridge } from "./host.js";
 import type { World } from "./world.js";
 
 describe("the act verbs", () => {
@@ -71,6 +72,28 @@ function decider(controller: AgentController, rewinds: { count: number } = { cou
 }
 
 const WALK: AgentCommand = { code: "walk", dir: 6 } as AgentCommand;
+
+const AFFLICTION_GRADES = [
+  { field: "blind", name: "BLIND", grade: [{ name: "Blind", max: 10000 }] },
+  { field: "confused", name: "CONFUSED", grade: [{ name: "Confused", max: 10000 }] },
+  { field: "afraid", name: "AFRAID", grade: [{ name: "Afraid", max: 10000 }] },
+  { field: "poisoned", name: "POISONED", grade: [{ name: "Poisoned", max: 10000 }] },
+  { field: "paralyzed", name: "PARALYZED", grade: [{ name: "Paralyzed!", max: 10000 }] },
+  { field: "cut", name: "CUT", grade: [{ name: "Graze", max: 10 }, { name: "Light Cut", max: 25 }] },
+  { field: "stun", name: "STUN", grade: [{ name: "Stun", max: 50 }, { name: "Heavy Stun", max: 150 }] },
+] as const;
+
+async function publishedGame() {
+  const game = fakeGame({ scenario: { player: { grid: { x: 5, y: 5 }, depth: 2 } }, engine: { core: Core } });
+  const known = knownWorld(game.view);
+  const player = known.player!;
+  const status = { ...player.status };
+  (game.mod.view as { world: unknown }).world = () => Promise.resolve({ ok: true, value: { ...known, player: { ...player, status } } });
+  (game.mod.content as { records: unknown }).records = (file: string) => Promise.resolve({ ok: true, value: file === "player_timed" ? AFFLICTION_GRADES.map(({ name, grade }) => ({ name, grade })) : [] });
+  const host = createBridge(game.mod);
+  await host.prime();
+  return { game, host, status };
+}
 
 describe("one tick", () => {
   it("submits the targets, under a fresh token, and then the command", async () => {
@@ -201,21 +224,80 @@ describe("one tick", () => {
     expect(game.released).toEqual([]);
   });
 
-  it("does not count a command repeated while an affliction wears off", async () => {
-    /* A confused character trying a locked door: each try takes a turn and the
-     * confusion falls, so it is waiting it out, not stalling. */
-    const game = fakeGame({ scenario: { player: { grid: { x: 5, y: 5 }, depth: 2 } } });
-    let confused = STALLS_BEFORE_RELEASE * 3;
-    const world = () => {
-      confused -= 1;
-      const view = Object.create(game.view) as typeof game.view;
-      const base = game.view.player();
-      (view as { player: unknown }).player = () => ({ ...base, status: { ...base.status, confused } });
-      return Promise.resolve({ view, facts: { shopnum: null, kinds: new Map() } } as unknown as World);
-    };
-    const tick = createTick(bridge({ readWorld: world }), { controller: () => ({ code: "open", dir: 2 }) as AgentCommand, rewind: () => undefined, forget: () => undefined });
-    for (let n = 0; n < STALLS_BEFORE_RELEASE * 2; n++) await tick(game.mod, game.input());
+  it.each(AFFLICTION_GRADES)("resets the stall count when $field clears in the published view", async ({ field, grade }) => {
+    const { game, host, status } = await publishedGame();
+    status[field] = grade[0].name;
+    const seen: number[] = [];
+    const tick = createTick(host, decider((view) => {
+      seen.push(view.player().status[field]);
+      return { code: "open", dir: 2 } as AgentCommand;
+    }));
+    for (let n = 0; n < STALLS_BEFORE_RELEASE; n++) await tick(game.mod, game.input());
+    expect(seen).toEqual(Array<number>(STALLS_BEFORE_RELEASE).fill(1));
+    status[field] = null;
+    for (let n = 0; n < STALLS_BEFORE_RELEASE; n++) await tick(game.mod, game.input());
+    expect(seen.slice(STALLS_BEFORE_RELEASE)).toEqual(Array<number>(STALLS_BEFORE_RELEASE).fill(0));
     expect(game.released).toEqual([]);
+    await tick(game.mod, game.input());
+    expect(game.released).toHaveLength(1);
+    await host.dispose();
+  });
+
+  it.each([
+    { field: "cut", higher: "Light Cut", lower: "Graze", floor: 11 },
+    { field: "stun", higher: "Heavy Stun", lower: "Stun", floor: 51 },
+  ] as const)("resets the stall count when $field crosses a published grade boundary", async ({ field, higher, lower, floor }) => {
+    const { game, host, status } = await publishedGame();
+    status[field] = higher;
+    const seen: number[] = [];
+    const tick = createTick(host, decider((view) => {
+      seen.push(view.player().status[field]);
+      return { code: "open", dir: 2 } as AgentCommand;
+    }));
+    for (let n = 0; n < STALLS_BEFORE_RELEASE; n++) await tick(game.mod, game.input());
+    expect(seen).toEqual(Array<number>(STALLS_BEFORE_RELEASE).fill(floor));
+    status[field] = lower;
+    for (let n = 0; n < STALLS_BEFORE_RELEASE; n++) await tick(game.mod, game.input());
+    expect(seen.slice(STALLS_BEFORE_RELEASE)).toEqual(Array<number>(STALLS_BEFORE_RELEASE).fill(1));
+    expect(game.released).toEqual([]);
+    await tick(game.mod, game.input());
+    expect(game.released).toHaveLength(1);
+    await host.dispose();
+  });
+
+  it.each(AFFLICTION_GRADES)("counts identical commands while $field stays in one published grade", async ({ field, grade }) => {
+    const { game, host, status } = await publishedGame();
+    status[field] = grade[0].name;
+    const forgotten: string[] = [];
+    const tick = createTick(host, {
+      controller: (view) => {
+        expect(view.player().status[field]).toBe(1);
+        return { code: "open", dir: 2 } as AgentCommand;
+      },
+      rewind: () => undefined,
+      forget: (x, y) => void forgotten.push(`${String(x)},${String(y)}`),
+    });
+    for (let n = 0; n < STALLS_BEFORE_RELEASE; n++) await tick(game.mod, game.input());
+    expect(game.released).toEqual([]);
+    expect(forgotten).toHaveLength(Math.floor((STALLS_BEFORE_RELEASE - 1) / STALLS_BEFORE_FORGET));
+    await tick(game.mod, game.input());
+    expect(game.released).toHaveLength(1);
+    expect(game.submitted).toHaveLength(STALLS_BEFORE_RELEASE);
+    await host.dispose();
+  });
+
+  it("counts identical commands when only the published food percentage changes", async () => {
+    const { game, host, status } = await publishedGame();
+    const tick = createTick(host, decider((view) => {
+      expect(view.player().status.food).toBe(status.food * 100);
+      return { code: "open", dir: 2 } as AgentCommand;
+    }));
+    for (let n = 0; n <= STALLS_BEFORE_RELEASE; n++) {
+      status.food = 90 - n;
+      await tick(game.mod, game.input());
+    }
+    expect(game.released).toHaveLength(1);
+    await host.dispose();
   });
 
   it("reads no world at a wait with a prompt, and waits out a death or other phase", async () => {

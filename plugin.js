@@ -16823,10 +16823,9 @@ function aimedGrid(command, from) {
 var AFFLICTIONS = ["blind", "confused", "afraid", "poisoned", "cut", "stun", "paralyzed"];
 function sceneOf(world) {
   const player = world.view.player();
-  const status = player["status"] ?? {};
-  const afflictions = AFFLICTIONS.map((name) => status[name] ?? 0);
+  const afflictions = AFFLICTIONS.map((name) => player.status?.[name] ?? 0);
   const monsters = world.view.monsters().map((monster) => [monster.grid.x, monster.grid.y, monster.hp]);
-  return JSON.stringify([player.grid.x, player.grid.y, player["depth"], player["hp"], player["sp"], player["exp"], player["gold"], afflictions, monsters]);
+  return JSON.stringify([player.grid.x, player.grid.y, player.depth, player.hp, player.sp, player.exp, player.gold, afflictions, monsters]);
 }
 function createTick(bridge2, borg) {
   let refusals = 0;

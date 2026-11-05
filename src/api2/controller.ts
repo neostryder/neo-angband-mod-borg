@@ -80,23 +80,20 @@ function aimedGrid(command: AgentCommand, from: { readonly x: number; readonly y
   return { x: from.x + DIR_DX[dir]!, y: from.y + DIR_DY[dir]! };
 }
 
-/** The scene a command was chosen against: where the character is, what it has, and what stands near. */
 /**
- * The timed afflictions that wear off with time. A command repeated while one
- * of them counts down is waiting it out, not stalling: a confused character
- * that may not rest (borg_check_rest refuses with fewer than two food items,
- * borg-flow-misc.c:1286-1290) keeps trying a locked door, each try takes a
- * turn and the confusion falls. Food is left out on purpose: it falls every
- * turn, so a rest that changes nothing else would never read as a stall.
+ * The published view gives timed afflictions as grade floors. The scene changes
+ * when an effect clears or crosses a grade boundary; a countdown within one
+ * grade stays invisible. Food is a percentage times 100 and stays outside the
+ * key so a food change alone still counts as a stall.
  */
 const AFFLICTIONS = ["blind", "confused", "afraid", "poisoned", "cut", "stun", "paralyzed"] as const;
 
+/** The scene a command was chosen against: where the character is, what it has, and what stands near. */
 function sceneOf(world: World): string {
-  const player = world.view.player() as unknown as Readonly<Record<string, unknown>> & { readonly grid: { readonly x: number; readonly y: number } };
-  const status = (player["status"] ?? {}) as Readonly<Record<string, unknown>>;
-  const afflictions = AFFLICTIONS.map((name) => status[name] ?? 0);
+  const player = world.view.player();
+  const afflictions = AFFLICTIONS.map((name) => player.status?.[name] ?? 0);
   const monsters = world.view.monsters().map((monster) => [monster.grid.x, monster.grid.y, monster.hp]);
-  return JSON.stringify([player.grid.x, player.grid.y, player["depth"], player["hp"], player["sp"], player["exp"], player["gold"], afflictions, monsters]);
+  return JSON.stringify([player.grid.x, player.grid.y, player.depth, player.hp, player.sp, player.exp, player.gold, afflictions, monsters]);
 }
 
 export function createTick(bridge: Bridge, borg: Decider): Tick {
@@ -136,8 +133,10 @@ export function createTick(bridge: Bridge, borg: Decider): Tick {
     }
     idle = 0;
 
-    /* The same command against the same scene, again and again, is a command the
-     * game takes and does nothing with. */
+    /* The counter counts controller entries; engine repeats run between them.
+     * An active affliction alone keeps the counter running: open can fail its
+     * door test before spending a turn or applying confusion, so the effect's
+     * presence gives no evidence that this command advances its countdown. */
     const scene = sceneOf(world);
     const key = JSON.stringify(command);
     stalls = scene === lastScene && key === lastCommand ? stalls + 1 : 0;
