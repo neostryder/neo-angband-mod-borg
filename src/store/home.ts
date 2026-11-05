@@ -24,6 +24,7 @@ import { BI } from "../trait/trait-index.js";
 import { STAT_STR, STAT_INT, STAT_WIS, STAT_DEX, STAT_CON,
   CLASS_WARRIOR, spellStatForClass } from "../trait/trait-index.js";
 import { hasFlag, mod, resLevel } from "../trait/item-util.js";
+import { hasRandomPower } from "../item/deps.js";
 import { TV, SVAL } from "../item/svals.js";
 import {
   type StoreDeps,
@@ -191,9 +192,10 @@ function noticeDupe(
   all: ItemView[],
   d?: StoreDeps,
 ): void {
-  /* extra-power egos are never treated as duplicates (:294). This port lacks random-power
-   * ego data (frozen view), so approximate: an ego that needs *ID* is skipped. */
-  if (item.ego && needsIdent(item, d)) return;
+  /* FORK: B81 restores borg-home-notice.c:294's random-power guard.
+   * Known egos can still have different rolled powers; identification is a
+   * separate check below. The API2 analyzer already supplies this metadata. */
+  if (item.ego && hasRandomPower(item)) return;
   /* if it isn't identified, it isn't duplicate (:298). */
   if (needsIdent(item, d)) return;
 
@@ -326,8 +328,9 @@ export function borgNoticeHome(
     c.num_speed += mod(item, "SPEED") * iqty(item);
 
     if (item.artifact) c.num_artifact += iqty(item);
-    /* egos that need *ID* (:495): approximate random-power ego by needs_ident. */
-    if (item.ego && needsIdent(item, d)) c.num_ego += iqty(item);
+    /* FORK: B81 restores the random-power predicate as well as unknown runes
+     * (borg-home-notice.c:495-499); fixed-power egos get no extra ID premium. */
+    if (item.ego && hasRandomPower(item) && needsIdent(item, d)) c.num_ego += iqty(item);
 
     if (needsIdent(item, d) && fromHome) c.home_un_id++;
 

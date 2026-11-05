@@ -8002,7 +8002,7 @@ function isBook(tval) {
   return tval === TV.MAGIC_BOOK || tval === TV.PRAYER_BOOK || tval === TV.NATURE_BOOK || tval === TV.SHADOW_BOOK || tval === TV.OTHER_BOOK;
 }
 function noticeDupe(c, item, checkSval, index, all, d) {
-  if (item.ego && needsIdent2(item, d)) return;
+  if (item.ego && hasRandomPower(item)) return;
   if (needsIdent2(item, d)) return;
   let dupeCount = iqty(item) - 1;
   for (let x = 0; x < index; x++) {
@@ -8095,7 +8095,7 @@ function borgNoticeHome(ctx, opts, d) {
     addStat("CON", STAT_CON);
     c.num_speed += mod(item, "SPEED") * iqty(item);
     if (item.artifact) c.num_artifact += iqty(item);
-    if (item.ego && needsIdent2(item, d)) c.num_ego += iqty(item);
+    if (item.ego && hasRandomPower(item) && needsIdent2(item, d)) c.num_ego += iqty(item);
     if (needsIdent2(item, d) && fromHome) c.home_un_id++;
     switch (item.tval) {
       case TV.SOFT_ARMOR:
