@@ -171,6 +171,8 @@ describe("upward recall decisions", () => {
     const s = scenario({ player: { depth: 1, maxDepth: 1, light: 1, level: 11, maxLevel: 11 }, age: 199 });
     s.inventory.splice(4, 1);
     s.world.self.goal.rising = true;
+    /* Low food keeps the stay-on-level limit above 200 turns for this character level. */
+    s.world.self.trait[BI.FOOD] = 2;
     expect(s.leave(true)).toBeNull();
     s.world.clock += 1;
     expect(s.leave(true)?.code).toBe("walk");

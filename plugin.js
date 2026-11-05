@@ -9731,7 +9731,6 @@ function borgZapRod(ctx, sval, d) {
   if (sval !== SVAL.rod.recall) {
     if (fail > 500) return null;
   }
-  ctx.world.self.goal.shop = ctx.world.self.goal.ware = ctx.world.self.goal.item = -1;
   return ctx.act.zapRod(item.handle);
 }
 function borgUseStaff(ctx, sval, d) {
