@@ -22,7 +22,13 @@ were not retagged.
 
 ### Fixed
 
-- [Visible] The Borg recognizes shared class books by their registered kind when studying and casting. It answers the Banishment and Dimension Door test prompts and targets itself for aimed, random and teleport-to test effects.
+- [Visible] **The Borg attacks again.** Its attack routine required a flag that the port never sets because the port has no panel, so the Borg found no target to shoot or cast at in any class. Every scan that reads that flag now treats it as set.
+- [Visible] **A Necromancer without a torch no longer takes a spell-failure penalty that the 4.2.6 Borg does not apply.** The penalty adds 25 percentage points on a lit grid, and the Borg now marks a grid as lit only when it wears a light. Druids, Priests, and Necromancers also get the zero-fail floor that the 4.2.6 Borg gives them.
+- [Visible] **The Borg reacts to hallucination and amnesia.** While hallucinating, it records no monsters or objects, drops the objects held in its memory, skips the pass that looks for missing monsters, and does not read protection from evil or lay a glyph. If it is hallucinating and afraid, it forgets a monster it saw recently. While either status is active, it drops its current goal. Before this, neither status affected its decisions.
+- [Visible] **A Blackguard no longer rests to regain spell points.** Blackguards regain spell points by fighting, so the rest-for-mana and recovery steps skip them, as in the 4.2.6 Borg. Recovery picks its behavior by whether the class is primarily a caster, so a hybrid class with spell points is no longer handled as a caster.
+- [Visible] **Casters learn and test-cast spells.** Before this, no caster learned a spell. The Borg now studies new spells, tests each one with a trial cast, and recognizes spell books shared between classes, where hybrid classes use the casters' books with the spells at different positions in each class's list. Trial casts target the Borg itself for aimed, random, and teleport-to effects. A trial cast of Banishment answers its prompt, and a trial cast of Dimension Door gives it a direction.
+- [Visible] **Trap and door magic works while the Borg walks.** When a trap or door blocks its path, the Borg uses disable traps, destroy doors, and stone to mud from its books and from activations. It follows the 4.2.6 Borg's order and random draws, so seeded runs stay comparable.
+- [Visible] **The Borg no longer backs away from a monster indefinitely, and it forgets monsters and objects that are gone.** The Borg records its history of recent positions once per decision and skips that step while it is in a store. When a tracked monster or object is removed because it was killed, picked up, purged on a timer, or left behind on a new level, the Borg clears its map square and any goal pointing at it. Reading a tracking slot that was wiped no longer causes a crash.
 
 ## 1.4.0-beta.2 - 2026-10-30
 
