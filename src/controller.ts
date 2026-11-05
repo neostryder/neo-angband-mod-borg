@@ -80,8 +80,8 @@ export interface Borg {
   controller: AgentController;
   /**
    * Undo what the last decision did to the Borg's own counters (the clocks and
-   * the arrival latch), so the same view can be decided again as if it were the
-   * first look. A host whose reads arrive after the decision that wanted them
+   * the arrival latch) and mark its retry as sharing the same position entry.
+   * A host whose reads arrive after the decision that wanted them
    * (API 2 loadout simulations) decides again with the answers in hand; without
    * this each extra pass would age the Borg's clock by one more turn.
    */
@@ -119,11 +119,14 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
 
   let lastDepth = -1;
+  let retry = false;
   let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
     const ctx: BorgContext = { world, view, act, rng };
+    const recordStep = !retry;
+    retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
 
     /* 1. Advance the clocks exactly once (borg-think.c:447). */
@@ -186,9 +189,14 @@ export function createBorg(opts: BorgOptions = {}): Borg {
       junked: session.junked,
     });
 
-    /* Mark this grid as having been stepped on (borg-update.c:2466-2475,
-     * immediately after borg_update_map - perceive here). */
-    borgTrackStep(session.flow.state.step, world.self.c.y, world.self.c.x);
+    /* borg-update.c:2466-2479 records after the map update. Loadout retries
+     * share the decision's entry, matching one borg_update per dungeon decision
+     * (borg-think.c:455-456). Store decisions return before borg_update
+     * (borg-think.c:324-369). */
+    const shopNum = session.resolvers.inShop?.(ctx) ?? null;
+    if (recordStep && (shopNum === null || shopNum < 0)) {
+      borgTrackStep(session.flow.state.step, world.self.c.y, world.self.c.x);
+    }
 
     /* 3b. The tail of borg_update, in its own order. The wiring session is
      * primed first because both steps need the host's monster-race resolver;
@@ -228,6 +236,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   });
 
   const rewind = (): void => {
+    retry = true;
     /* Each decision adds one to both clocks, even on the pass that restarts the
      * level clock, so taking one back leaves them where the pass began. A level
      * change is not undone: the second pass sees the new depth already counted. */

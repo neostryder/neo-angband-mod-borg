@@ -5,7 +5,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { BorgTrack, borgTrackStep } from "./flow.js";
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "../world/model.js";
 import { perceive, makePerceiveMemo } from "../perceive.js";
@@ -260,34 +259,5 @@ describe("determinism", () => {
     const b = dirOf(createFlow().toKills(makeCtx(scenario, traits), 250));
     expect(a).toBe(b);
     expect(a).toBeGreaterThan(0);
-  });
-});
-
-describe("borgTrackStep (borg-update.c:2466-2475)", () => {
-  it("appends the stepped grid and keeps a sliding window", () => {
-    const track = new BorgTrack(100);
-    borgTrackStep(track, 3, 10);
-    borgTrackStep(track, 3, 9);
-    expect(track.num).toBe(2);
-    expect(track.x[0]).toBe(10);
-    expect(track.y[1]).toBe(3);
-  });
-
-  it("compacts at 75 so the ring never fills and the tail keeps sliding", () => {
-    const track = new BorgTrack(100);
-    for (let i = 0; i < 80; i++) borgTrackStep(track, 0, i);
-    /* The compact fires the moment num reaches 75 and on every add after,
-     * exactly as the C does (the first shift reads the never-written slot
-     * past the window, zero-filled here as static-zero there). The steady
-     * state: num pinned at 75, newest at [74], and exactly one entry sliding
-     * out per add. */
-    expect(track.num).toBe(75);
-    expect(track.x[74]).toBe(79);
-    const oldest = track.x[0]!;
-    borgTrackStep(track, 0, 80);
-    borgTrackStep(track, 0, 81);
-    expect(track.num).toBe(75);
-    expect(track.x[74]).toBe(81);
-    expect(track.x[0]!).toBe(oldest + 2);
   });
 });

@@ -3356,6 +3356,16 @@ var BorgTrack = class {
     this.num = 0;
   }
 };
+function borgTrackStep(track, y, x) {
+  track.add(y, x);
+  if (track.num >= 75) {
+    for (let i = 0; i <= 75; i++) {
+      track.x[i] = track.x[i + 1];
+      track.y[i] = track.y[i + 1];
+    }
+    track.num = 75;
+  }
+}
 function defaultFlowHooks() {
   return {
     danger: () => 0,
@@ -15782,9 +15792,12 @@ function createBorg(opts = {}) {
   const spells = buildSpellTable(session.resolvers.spellMessages ?? []);
   const tables = { hitBy: blows.hitBy, spell: spells.spell, spellInvisible: spells.spellInvisible };
   let lastDepth = -1;
+  let retry = false;
   let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
   const controller = hostController((view, act) => {
     const ctx = { world, view, act, rng };
+    const recordStep = !retry;
+    retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
     world.clock += 1;
     world.self.timeThisPanel += 1;
@@ -15814,6 +15827,10 @@ function createBorg(opts = {}) {
       kindCost: session.resolvers.kindCost,
       junked: session.junked
     });
+    const shopNum = session.resolvers.inShop?.(ctx) ?? null;
+    if (recordStep && (shopNum === null || shopNum < 0)) {
+      borgTrackStep(session.flow.state.step, world.self.c.y, world.self.c.x);
+    }
     primeSession(session, ctx);
     borgFollowMissingKills(ctx, session.flow.state);
     borgUpdateMonsterFear(ctx);
@@ -15832,6 +15849,7 @@ function createBorg(opts = {}) {
     return cmd;
   });
   const rewind = () => {
+    retry = true;
     world.clock -= 1;
     world.self.timeThisPanel -= 1;
     session.lastGrid = before.lastGrid;
