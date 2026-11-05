@@ -83,7 +83,13 @@ function step(options: {
   };
   const world = new BorgWorld();
   const act = makeFakeActions();
-  const ctx = { world, view, act, rng: makeBorgRng() };
+  /* The fixture's pack holds each class book at its 1-based position, so the
+   * shared book lookup answers with that position as the sval. */
+  const bookKind = (tval: number, name: string) => {
+    const position = books.findIndex((b) => b.tval === tval && b.name === name);
+    return position < 0 ? null : { tval, sval: position + 1 };
+  };
+  const ctx = { world, view, act, rng: makeBorgRng(), bookKind };
   borgNotice(ctx);
   perceive(world, view, makePerceiveMemo());
   const session = buildThinkSession(makeCoreResolvers({
