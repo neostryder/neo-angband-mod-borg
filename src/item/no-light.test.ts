@@ -303,7 +303,7 @@ describe("recovery illumination scans (borg-light.c:139-220)", () => {
 describe("late detection (borg-think-dungeon.c:2042-2044, 2074-2076)", () => {
   it("checks both fallback slots only when the door timestamp is absent or 500 turns old", () => {
     for (const last of [0, 1, 2]) {
-      const s = scenario({ player: { light: 1, sp: 20 }, spells: [] });
+      const s = scenario({ player: { light: 1, sp: 20 }, spells: [], food: 0 });
       s.world.clock = 501;
       s.world.self.whenDetectDoors = last;
       for (let y = 0; y < s.world.map.height; y++) for (let x = 0; x < s.world.map.width; x++) {
