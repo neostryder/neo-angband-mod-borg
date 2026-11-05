@@ -568,8 +568,9 @@ export function borgSpellFailRate(
   if (trait(ctx, BI.ISAFRAID)) chance += 20;
 
   let minfail = trait(ctx, BI.FAIL2);
-  /* FORK (Mandos #68), DEFECT toward magic.c:525: player_has(PF_ZERO_FAIL),
-   * not a Mage-only guess. Necromancers also carry the declared flag. */
+  /* The C tests player_has(PF_ZERO_FAIL) (borg-magic.c:525-527), which the class
+   * carries for Mage, Druid, Priest, and Necromancer, so the flag is read from
+   * the class flags and not guessed from the class. */
   const zeroFail = playerHas
     ? playerHas("ZERO_FAIL")
     : (ctx.view.player().classFlags ?? []).includes("ZERO_FAIL");
@@ -597,8 +598,10 @@ export function borgSpellFailRate(
 function borgOnLitGrid(ctx: BorgContext): boolean {
   const { x, y } = ctx.world.self.c;
   if (!ctx.world.map.inBounds(x, y)) return false;
-  /* FORK (Mandos #68), DEFECT toward magic.c:534: the C tests BORG_LIGHT
-   * alone. Permanent BORG_GLOW is not part of this predicate. */
+  /* The C borg tests BORG_LIGHT alone (borg-magic.c:532-534), so permanent BORG_GLOW is not part of
+   * this predicate. The engine's UNLIGHT penalty (player-spell.c:417) uses square_islit, which also
+   * counts a lit room, so a torchless Necromancer standing in a glowing room can accept a spell
+   * the engine still penalizes. */
   return (ctx.world.map.at(x, y).info & BORG_LIGHT) !== 0;
 }
 
