@@ -33,7 +33,7 @@
  */
 
 import type { AgentCommand, ItemView } from "@rpgm-tools/neo-angband-core";
-import { FEAT, REST_COMPLETE } from "./core-api.js";
+import { FEAT, REST_COMPLETE, REST_ALL_POINTS } from "./core-api.js";
 import type { BorgContext } from "./context.js";
 import { distance } from "./think.js";
 import {
@@ -55,6 +55,9 @@ import {
   GOAL_RECOVER,
 } from "./world/model.js";
 import { borgFlowOld } from "./flow/index.js";
+import { ddx_ddd, ddy_ddd, inBoundsFully } from "./flow/flow-consts.js";
+import { BORG_DARK, BORG_GLOW, BORG_MARK } from "./world/grid.js";
+import { CLASS_NECROMANCER } from "./trait/trait-index.js";
 import {
   borgAttack,
   borgCaution,
@@ -66,7 +69,7 @@ import {
   borgShadowShift,
   getFightState,
 } from "./fight/index.js";
-import { getDangerGlobals, borgDanger } from "./danger/index.js";
+import { getDangerGlobals, getFearCaches, borgDanger } from "./danger/index.js";
 import {
   BorgNeed,
   borgMaintainLight,
@@ -82,7 +85,9 @@ import {
   borgTestStuff,
   borgEnchanting,
   borgRecharging,
-  borgCheckLightOnly,
+  borgSpellLegal,
+  borgSpellOkay,
+  borgZapRod,
   borgCheckLight,
   borgLightBeam,
   borgSpell,
@@ -406,11 +411,7 @@ export function borgLeaveLevel(
 
 /**
  * borg_think_dungeon_light (borg-think-dungeon-util.c:147): survive running out
- * of light. Ported subset: consume food, refuel/wear light, recall/escape, take
- * up stairs, flee to stairs. The name-based Call-Light illumination pass needs
- * the detect/illuminate spell surface not in the ported item light API and is
- * documented as omitted (borgCheckLightOnly / borgLightBeam cover the ported
- * illumination path).
+ * of light by refuelling, recalling, resting on glow, illuminating, or fleeing.
  */
 export function borgThinkDungeonLight(
   ctx: BorgContext,
@@ -427,9 +428,8 @@ export function borgThinkDungeonLight(
 
   const noLight = !T(ctx, BI.LIGHT);
   if (noLight && T(ctx, BI.CDEPTH) >= 1) {
-    /* Recalling: sit tight (util:163). "&": rest as needed - the recall's own
-     * countdown, or a disturbance, ends it; there is no HP/SP target here. */
-    if (w.self.goal.recalling) return ctx.act.rest(REST_COMPLETE);
+    /* The recall countdown advances during nine turns of rest (borg-think-dungeon-util.c:164-170). */
+    if (w.self.goal.recalling) return ctx.act.rest(9);
 
     /* Wear stuff and see if it glows (util:172). */
     const wear = borgWearStuff(ctx, deps);
@@ -449,6 +449,68 @@ export function borgThinkDungeonLight(
     /* On an up stair -> take it (util:194). */
     if (!session.flow.state.hooks.forceDescend && standingFeat(ctx) === FEAT.LESS) {
       return ctx.act.ascend();
+    }
+
+    const { x: px, y: py } = w.self.c;
+    const necromancer = T(ctx, BI.CLASS) === CLASS_NECROMANCER;
+    const fear = getFearCaches(w);
+    /* A glowing grid supports mana recovery before illumination (borg-think-dungeon-util.c:203-249). */
+    if (
+      T(ctx, BI.CURSP) < T(ctx, BI.MAXSP) && T(ctx, BI.MAXSP) > 0 &&
+      ((w.map.at(px, py).info & BORG_GLOW) || necromancer) &&
+      !T(ctx, BI.ISWEAK) &&
+      (borgSpellLegal(ctx, Spell.HERBAL_CURING) || borgSpellLegal(ctx, Spell.REMOVE_HUNGER) ||
+        T(ctx, BI.FOOD) >= T(ctx, BI.CDEPTH)) &&
+      (borgSpellLegal(ctx, Spell.CALL_LIGHT) || borgSpellLegal(ctx, Spell.LIGHT_ROOM)) &&
+      !borgSpellOkay(ctx, Spell.CALL_LIGHT) && !borgSpellOkay(ctx, Spell.LIGHT_ROOM)
+    ) {
+      let notSafe = false;
+      for (let i = 0; i < 8; i++) {
+        const x = px + ddx_ddd[i]!;
+        const y = py + ddy_ddd[i]!;
+        if (inBoundsFully(x, y) && w.map.at(x, y).kill) notSafe = true;
+      }
+      if (fear.region(py, px) > Math.trunc(T(ctx, BI.CURHP) / 10)) notSafe = true;
+      if (fear.monsters(py, px) > Math.trunc(T(ctx, BI.CURHP) / 10)) notSafe = true;
+      if (!notSafe) return ctx.act.rest(REST_ALL_POINTS);
+    }
+
+    /* Adjacent darkness triggers illumination after more than seven turns (borg-think-dungeon-util.c:251-319). */
+    if (!w.self.whenCallLight || w.clock - w.self.whenCallLight > 7) {
+      for (let i = 0; i < 8; i++) {
+        const x = px + ddx_ddd[i]!;
+        const y = py + ddy_ddd[i]!;
+        if (!inBoundsFully(x, y)) continue;
+        const ag = w.map.at(x, y);
+        if (ag.feat >= FEAT.RUBBLE && ag.feat <= FEAT.PERM) continue;
+        if ((ag.feat === FEAT.OPEN || ag.feat === FEAT.BROKEN) && y === py && x === px) {
+          if (ctx.view.cell(px, py)?.glow) ag.info |= BORG_GLOW;
+          continue;
+        }
+        if (!necromancer) {
+          if ((ag.info & BORG_DARK) || ag.feat === FEAT.NONE || !(ag.info & BORG_MARK) || !(ag.info & BORG_GLOW)) {
+            const cmd =
+              borgActivateItem(ctx, "act_illumination", deps) ??
+              borgActivateItem(ctx, "act_light", deps) ??
+              borgZapRod(ctx, SVAL.rod.illumination!, deps) ??
+              borgUseStaff(ctx, SVAL.staff.light!, deps) ??
+              borgReadScroll(ctx, SVAL.scroll.light!, deps) ??
+              borgSpell(ctx, Spell.CALL_LIGHT) ?? borgSpell(ctx, Spell.LIGHT_ROOM);
+            if (cmd) {
+              w.self.whenCallLight = w.clock;
+              return cmd;
+            }
+            const beam = borgLightBeam(ctx, deps);
+            if (beam) return beam;
+          }
+        } else if (!(ag.info & BORG_DARK) || ag.feat === FEAT.NONE || !(ag.info & BORG_MARK) || (ag.info & BORG_GLOW)) {
+          const cmd = borgSpell(ctx, Spell.CREATE_DARKNESS);
+          if (cmd) {
+            w.self.whenCallLight = w.clock;
+            return cmd;
+          }
+        }
+      }
     }
 
     /* Flee to stairs (util:322). */
@@ -1084,6 +1146,12 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
+  /* Detection precedes each spastic search (borg-think-dungeon.c:2042-2044, 2074-2076). */
+  if (!self.whenDetectDoors || w.clock - self.whenDetectDoors >= 500) {
+    const cmd = borgCheckLight(ctx, itemDeps);
+    if (cmd) return cmd;
+  }
+
   /* Search for secret doors (:2047). */
   {
     const cmd = flow.spastic(ctx, false);
@@ -1104,6 +1172,12 @@ export function borgThinkDungeon(
   /* Leave the level (:2059). */
   {
     const cmd = borgLeaveLevel(ctx, session, true);
+    if (cmd) return cmd;
+  }
+
+  /* Detection precedes each spastic search (borg-think-dungeon.c:2042-2044, 2074-2076). */
+  if (!self.whenDetectDoors || w.clock - self.whenDetectDoors >= 500) {
+    const cmd = borgCheckLight(ctx, itemDeps);
     if (cmd) return cmd;
   }
 

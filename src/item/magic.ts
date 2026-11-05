@@ -31,7 +31,7 @@ import {
   CLASS_RANGER,
   CLASS_BLACKGUARD,
 } from "../trait/trait-index.js";
-import { trait } from "./deps.js";
+import { trait, noLight } from "./deps.js";
 import { BORG_LIGHT } from "../world/grid.js";
 
 /* Spell method values (borg-magic.h:30-35) - kept for effect classification. */
@@ -510,9 +510,6 @@ function spellHasTeleport(spell: Spell): boolean {
  * borg_spell_okay(spell): castable right now (magic.c:418). Not dark, not
  * blind/confused, affordable, and does not cut into class reserve mana (with the
  * nourish/teleport/low-depth-magic-missile exceptions).
- *
- * "dark" (no_light) is read from BI_LIGHT (light radius 0 => dark), the faithful
- * derived-trait reading.
  */
 export function borgSpellOkay(ctx: BorgContext, spell: Spell): boolean {
   const sidx = borgGetSpellNumber(ctx, spell);
@@ -521,7 +518,7 @@ export function borgSpellOkay(ctx: BorgContext, spell: Spell): boolean {
   if (!s) return false;
 
   /* Dark */
-  if (trait(ctx, BI.LIGHT) <= 0) return false;
+  if (noLight(ctx)) return false;
 
   /* Reserve mana per class (magic.c:433). */
   let reserveMana = 0;

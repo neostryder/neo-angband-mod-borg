@@ -8,11 +8,8 @@
  * uses the raw escape hatch with the engine's "refill" command code
  * (game/obj-cmd.ts). Wielding a fresh light uses act.wear.
  *
- * FIDELITY on the "should I bother lighting" scan: borg_check_light_only reads
- * the borg's own grid cache (borg_grids, BORG_LIGHT/floor/glow). This reads the
- * live CellView (passable=floor, glow=perma-lit, inView) around the player, which
- * expresses the same intent through the frozen contract. The action ladder and
- * the when_call_light / when_wizard_light timers are preserved exactly.
+ * The illumination scan reads remembered terrain and torchlight flags, with
+ * the live glow flag used by borg_check_light_only (borg-light.c:139-220).
  *
  * FIDELITY on borg_check_light's panel math: see world/panel.ts for the
  * detailed note on how q_x/q_y (the panel indices upstream reads off the
@@ -29,6 +26,8 @@ import type { ItemDeps } from "./deps.js";
 import { trait, borgSlot, clockOf } from "./deps.js";
 import { hasFlag } from "../trait/item-util.js";
 import { panelCol, panelRow, type DetectKind } from "../world/panel.js";
+import { BORG_LIGHT, AUTO_MAX_X, AUTO_MAX_Y } from "../world/grid.js";
+import { FEAT, borgCaveFloorGrid, borgCaveFloorBold, inBoundsFully, ddx_ddd, ddy_ddd } from "../flow/flow-consts.js";
 import {
   Spell,
   borgSpell,
@@ -76,9 +75,12 @@ function borgRefuelLantern(
 
   /* Else a spare, fuelled, non-everburning lantern. */
   if (!source) {
-    for (const item of ctx.view.inventory()) {
-      if (item.number <= 0) continue;
-      if (item.tval !== TV.LIGHT || item.sval !== SVAL.light.lantern) continue;
+    const first = borgSlot(ctx, TV.LIGHT, SVAL.light.lantern!, d);
+    const inventory = ctx.view.inventory();
+    /* The C scan stops at the first item outside the lantern run (borg-light.c:555-571). */
+    for (let i = inventory.findIndex((item) => item.handle === first?.handle); i >= 0 && i < inventory.length; i++) {
+      const item = inventory[i]!;
+      if (item.tval !== TV.LIGHT || item.sval !== SVAL.light.lantern) break;
       if (hasFlag(item, "NO_FUEL")) continue;
       if (item.timeout > 0) {
         source = item;
@@ -91,6 +93,8 @@ function borgRefuelLantern(
   /* Cannot refuel a torch with oil (light.c:584). */
   if (cur.sval !== SVAL.light.lantern) return null;
 
+  /* Refuelling clears the pending shop transaction (borg-light.c:596-597). */
+  ctx.world.self.goal.shop = ctx.world.self.goal.ware = ctx.world.self.goal.item = -1;
   return ctx.act.raw("refill", { handle: source.handle });
 }
 
@@ -143,10 +147,9 @@ function litFloorScan(ctx: BorgContext, radius: number): number {
   let floors = 0;
   for (let y = py - radius; y <= py + radius; y++) {
     for (let x = px - radius; x <= px + radius; x++) {
-      const c = ctx.view.cell(x, y);
-      if (!c) continue;
-      /* Floor lit by the player's light but not perma-lit (needs lighting). */
-      if (c.passable && c.inView && !c.glow) floors++;
+      if (!inBoundsFully(x, y)) continue;
+      const ag = ctx.world.map.at(x, y);
+      if (borgCaveFloorGrid(ag) && (ag.info & BORG_LIGHT) && !ctx.view.cell(x, y)?.glow) floors++;
     }
   }
   return floors;
@@ -155,18 +158,14 @@ function litFloorScan(ctx: BorgContext, radius: number): number {
 /** Count diagonal "corner" walls/unknowns around the player (radius-1 scan). */
 function cornerScan(ctx: BorgContext): number {
   const { x: px, y: py } = ctx.view.player().grid;
-  const diagonals: ReadonlyArray<readonly [number, number]> = [
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ];
   let corners = 0;
-  for (const [dx, dy] of diagonals) {
-    const c = ctx.view.cell(px + dx, py + dy);
-    if (!c) continue;
-    if (!c.known) corners++;
-    else if (!c.passable) corners++;
+  for (let i = 4; i < 8; i++) {
+    const x = px + ddx_ddd[i]!;
+    const y = py + ddy_ddd[i]!;
+    if (!inBoundsFully(x, y)) continue;
+    const ag = ctx.world.map.at(x, y);
+    if (ag.feat === FEAT.NONE) corners++;
+    if (!borgCaveFloorGrid(ag)) corners++;
   }
   return corners;
 }
@@ -251,9 +250,8 @@ function borgCheckDarkOnly(
   let floors = 0;
   for (let y = py - 2; y <= py + 2; y++) {
     for (let x = px - 2; x <= px + 2; x++) {
-      const c = ctx.view.cell(x, y);
-      if (!c) continue;
-      if (c.passable && c.glow) floors++;
+      if (!inBoundsFully(x, y)) continue;
+      if (borgCaveFloorGrid(ctx.world.map.at(x, y)) && ctx.view.cell(x, y)?.glow) floors++;
     }
   }
   if (floors < 11) return null;
@@ -465,23 +463,15 @@ export function borgCheckLight(
 
 /**
  * borg_light_beam(simulation=false): light a hallway with Spear of Light / a rod
- * or wand of light (light.c:675). The full four-direction corridor geometry is a
- * navigation concern (P8.6); this ports the ability gate and, when able, emits
- * the light action. Returns the command (or null); with simulation the caller
- * only wants to know if it is possible - use borgLightBeamOkay for that.
+ * or wand of light (borg-light.c:673-904). Simulation and execution use the
+ * same corridor geometry, direction order, and panel-edge exclusions.
  */
 export function borgLightBeamOkay(
   ctx: BorgContext,
   d?: ItemDeps,
   playerHas?: (flag: string) => boolean,
 ): boolean {
-  if (trait(ctx, BI.ISWEAK)) return false;
-  const wand = borgSlot(ctx, TV.WAND, SVAL.wand.light!, d);
-  return (
-    borgSpellOkayFail(ctx, Spell.SPEAR_OF_LIGHT, 20, playerHas) ||
-    (wand !== null && wand.pval > 0) ||
-    borgEquipsRod(ctx, SVAL.rod.light!, d)
-  );
+  return lightBeamDirection(ctx, d, playerHas) !== 5;
 }
 
 export function borgLightBeam(
@@ -489,10 +479,51 @@ export function borgLightBeam(
   d?: ItemDeps,
   playerHas?: (flag: string) => boolean,
 ): AgentCommand | null {
-  if (!borgLightBeamOkay(ctx, d, playerHas)) return null;
-  return (
+  const dir = lightBeamDirection(ctx, d, playerHas);
+  if (dir === 5) return null;
+  const cmd =
     borgSpellFail(ctx, Spell.SPEAR_OF_LIGHT, 20, playerHas) ||
     borgZapRod(ctx, SVAL.rod.light!, d) ||
-    borgAimWand(ctx, SVAL.wand.light!, d)
-  );
+    borgAimWand(ctx, SVAL.wand.light!, d);
+  return cmd ? { ...cmd, dir } : null;
+}
+
+/** Corridor geometry and edge guards follow borg-light.c:700-880. */
+function lightBeamDirection(
+  ctx: BorgContext,
+  d?: ItemDeps,
+  playerHas?: (flag: string) => boolean,
+): number {
+  if (trait(ctx, BI.ISWEAK)) return 5;
+  const spellOkay = borgSpellOkayFail(ctx, Spell.SPEAR_OF_LIGHT, 20, playerHas) ||
+    ((borgSlot(ctx, TV.WAND, SVAL.wand.light!, d)?.pval ?? 0) !== 0) ||
+    borgEquipsRod(ctx, SVAL.rod.light!, d);
+  const { x, y } = ctx.world.self.c;
+  const radius = trait(ctx, BI.LIGHT);
+  let dir = 5;
+  let blocked = false;
+  for (const [candidate, dx, dy] of [[8, 0, -1], [2, 0, 1], [6, 1, 0], [4, -1, 0]] as const) {
+    if (dir !== 5) break;
+    const xx = x + dx * (radius + 1);
+    const yy = y + dy * (radius + 1);
+    if ((dy < 0 && yy <= 0) || (dy > 0 && yy >= AUTO_MAX_Y) ||
+      (dx < 0 && xx <= 0) || (dx > 0 && xx >= AUTO_MAX_X)) continue;
+    blocked = false;
+    const ag = ctx.world.map.at(xx, yy);
+    const bold = borgCaveFloorBold(ctx.world, yy, xx);
+    for (let i = candidate === 4 ? 1 : 0; i <= radius; i++) {
+      if (borgCaveFloorBold(ctx.world, y + dy * i, x + dx * i) && !bold &&
+        ag.feat < FEAT.SECRET && ag.feat !== FEAT.CLOSED && !blocked) {
+        dir = candidate;
+      } else {
+        dir = 5;
+        blocked = true;
+        break;
+      }
+    }
+  }
+  if (!spellOkay || blocked ||
+    (dir === 2 && [18, 19, 29, 30, 40, 41, 51, 52].includes(y)) ||
+    (dir === 8 && [13, 14, 24, 25, 35, 36, 46, 47].includes(y))) return 5;
+  return dir;
 }

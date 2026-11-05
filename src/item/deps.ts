@@ -40,6 +40,12 @@ export function trait(ctx: BorgContext, bi: BI): number {
   return ctx.world.self.trait[bi] ?? 0;
 }
 
+/** Permanent glow lights the player's grid without a lamp (borg-magic.c:430). */
+export function noLight(ctx: BorgContext): boolean {
+  const { x, y } = ctx.view.player().grid;
+  return trait(ctx, BI.LIGHT) <= 0 && !ctx.view.cell(x, y)?.glow;
+}
+
 /** The optional knowledge/level/danger seams (see module header). */
 export interface ItemDeps {
   /** Danger at the borg's grid this think (borg_danger); default 0. */

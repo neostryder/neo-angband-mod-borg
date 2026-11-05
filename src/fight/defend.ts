@@ -55,6 +55,7 @@ import {
   borgAimWand,
 } from "../item/item-use.js";
 import { borgSlot } from "../item/deps.js";
+import { borgLightBeam, borgLightBeamOkay } from "../item/light.js";
 import { getFightState, idiv, type FightState } from "./state.js";
 import { BA } from "./bf.js";
 import { borgLaunchBolt } from "./attack.js";
@@ -741,12 +742,10 @@ function auxLbeam(ctx: BorgContext, fs: FightState, p1: number): number {
   if (f(y, x - 1) && f(y, x + 1) && !f(y - 1, x) && !f(y + 1, x)) hallway = true;
   if (!hallway) return 0;
   if (fs.simulate && p1 > idiv(av(ctx) * 3, 4)) return 0;
-  /* borg_light_beam maps to the Call Light / Spear-of-Light beam; delegate to
-   * the item-layer light-beam command builder is out of scope here, so cast
-   * SPEAR_OF_LIGHT as a lit beam (faithful to borg_light_beam's spell path). */
-  if (!borgSpellOkayFail(ctx, Spell.SPEAR_OF_LIGHT, 25) && !borgSpellOkayFail(ctx, Spell.CALL_LIGHT, 25)) return 0;
+  /* Simulation and execution share the corridor beam checks (borg-fight-defend.c:2802-2810). */
+  if (!borgLightBeamOkay(ctx)) return 0;
   if (fs.simulate) return 10;
-  fs.pending = borgSpell(ctx, Spell.SPEAR_OF_LIGHT) || borgSpell(ctx, Spell.CALL_LIGHT);
+  fs.pending = borgLightBeam(ctx);
   return fs.pending ? 10 : 0;
 }
 

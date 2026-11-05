@@ -12,7 +12,7 @@
  * the class-ordered heal/defend attempt, the restock check, the *** Stairs ***
  * section, starvation relief, the escape attempt, *** Back away ***, and the
  * final emergency ez-heal. What is left to later stages of the think ladder is
- * the cure ladder from caution.c:1846 and the food/light maintenance flows,
+ * the cure ladder from caution.c:1846 and the food maintenance flows,
  * which belong to the item and flow subsystems that own those commands.
  *
  * Back away is the one that matters most in ordinary play and it is the easiest
@@ -54,6 +54,7 @@ import {
   borgActivateFailure,
 } from "../item/item-use.js";
 import { borgSlot } from "../item/deps.js";
+import { borgMaintainLight, currentLight, BorgNeed } from "../item/light.js";
 import { getFightState, idiv } from "./state.js";
 import { borgSurrounded, borgEscape, borgFreedom } from "./escape.js";
 import { borgDefend } from "./defend.js";
@@ -388,7 +389,7 @@ export function borgCaution(
 
   /* Nasty-situation flags (caution.c:807). */
   let nasty = false;
-  if (!trait(ctx, BI.LIGHT) && g.lightTimeout < 250) nasty = true;
+  if (!trait(ctx, BI.LIGHT) && (currentLight(ctx)?.timeout ?? 0) < 250) nasty = true;
   if (trait(ctx, BI.ISWEAK)) nasty = true;
   if (trait(ctx, BI.ISBLIND)) nasty = true;
   if (trait(ctx, BI.ISCONFUSED)) nasty = true;
@@ -561,6 +562,13 @@ export function borgCaution(
     }
   }
 
+  /* Fuel maintenance precedes starvation relief (borg-caution.c:1211-1227). */
+  if (!trait(ctx, BI.LIGHT)) {
+    const light = borgMaintainLight(ctx);
+    if (light.need === BorgNeed.MET_NEED && light.cmd) return light.cmd;
+    if (light.need === BorgNeed.UNMET_NEED && trait(ctx, BI.CDEPTH)) self.goal.leaving = true;
+  }
+
   /* Prevent starvation (caution.c:1230): eat / cast / restore-mana. */
   if (trait(ctx, BI.ISWEAK)) {
     const c = firstCmd(
@@ -613,7 +621,7 @@ export function borgCaution(
   }
 
   /* Remaining C tail (the cure ladder from caution.c:1846 on, and the
-   * food/light maintenance flows) emits item and flow commands whose owning
+   * food maintenance flows) emits item and flow commands whose owning
    * subsystems sit later in the ladder; yield to it. */
   return null;
 }

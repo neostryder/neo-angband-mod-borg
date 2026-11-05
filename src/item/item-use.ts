@@ -17,6 +17,7 @@ import { TV, SVAL } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
 import {
   trait,
+  noLight,
   borgSlot,
   deviceFail,
   itemLevel,
@@ -123,7 +124,7 @@ export function borgReadScroll(
   sval: number,
   d?: ItemDeps,
 ): AgentCommand | null {
-  if (trait(ctx, BI.LIGHT) <= 0) return null; /* no_light */
+  if (noLight(ctx)) return null; /* no_light */
   if (
     trait(ctx, BI.ISBLIND) ||
     trait(ctx, BI.ISCONFUSED) ||
@@ -148,7 +149,7 @@ export function borgReadUnknown(
     n = item;
   }
   if (!n) return null;
-  if (trait(ctx, BI.LIGHT) <= 0) return null;
+  if (noLight(ctx)) return null;
   if (trait(ctx, BI.ISBLIND) || trait(ctx, BI.ISCONFUSED)) return null;
   return ctx.act.read(n.handle);
 }

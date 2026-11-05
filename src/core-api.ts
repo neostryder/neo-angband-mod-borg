@@ -80,6 +80,8 @@ export let MON_SPELL_ENTRIES!: typeof Core.MON_SPELL_ENTRIES;
  * API 2: a host-interpreted declaration (a named rest mode in the command args).
  */
 export let REST_COMPLETE!: number;
+/** HP/SP recovery mode for glowing-grid rest (borg-think-dungeon-util.c:245). */
+export let REST_ALL_POINTS!: number;
 
 let bound = false;
 
@@ -94,6 +96,7 @@ export function bindCore(core: typeof Core): void {
   MON_RACE_FLAG_ENTRIES = core.MON_RACE_FLAG_ENTRIES;
   MON_SPELL_ENTRIES = core.MON_SPELL_ENTRIES;
   REST_COMPLETE = core.REST_COMPLETE;
+  REST_ALL_POINTS = core.REST_ALL_POINTS;
   bound = true;
 }
 
