@@ -7,6 +7,8 @@
  * set for borg_flow_take (flow-to-item).
  */
 
+import { GOAL_TAKE, type BorgWorld } from "./model.js";
+
 /** Estimated floor-object record (struct borg_take). */
 export interface BorgTake {
   /** Object kind index (k_idx), 0 for none. */
@@ -48,6 +50,8 @@ export function makeBorgTake(): BorgTake {
  * means "object present"), matching borg_takes.
  */
 export class BorgTakes {
+  constructor(private readonly world?: BorgWorld) {}
+
   private readonly list: BorgTake[] = [makeBorgTake()];
   /** borg_takes_cnt: highest allocated index + 1. */
   count = 1;
@@ -77,11 +81,20 @@ export class BorgTakes {
 
   /** Clear the record at index i (borg_delete_take). */
   delete(i: number): void {
-    if (i >= 1 && i < this.list.length) this.list[i] = makeBorgTake();
+    if (!this.has(i)) return;
+    const take = this.list[i]!;
+    if (this.world) {
+      /* borg-flow-take.c:105-118 clears the grid and every take goal. */
+      this.world.map.at(take.pos.x, take.pos.y).take = 0;
+      if (this.world.self.goal.type === GOAL_TAKE) this.world.self.goal.type = 0;
+    }
+    this.list[i] = makeBorgTake();
   }
 
-  /** Reset the whole list on level change. */
-  wipe(): void {
+  /** Reset tracking slots; level changes zero records (borg-update.c:2192). */
+  wipe(deleteRecords = true): void {
+    /* borg-think-dungeon.c:1315-1321 deletes records before resetting slots. */
+    if (deleteRecords) for (const [i] of this.entries()) this.delete(i);
     this.list.length = 1;
     this.list[0] = makeBorgTake();
     this.count = 1;

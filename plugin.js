@@ -214,6 +214,10 @@ function makeBorgKill() {
   };
 }
 var BorgKills = class {
+  constructor(world) {
+    this.world = world;
+  }
+  world;
   list = [makeBorgKill()];
   /** borg_kills_cnt: highest allocated index + 1. */
   count = 1;
@@ -221,9 +225,16 @@ var BorgKills = class {
   next = 1;
   /** Index of a known summoner on the level, 0 for none. */
   summoner = 0;
-  /** The record at index i (i >= 1). */
+  /**
+   * The record at index i (i >= 1). The C's borg_kills is a fixed array, so
+   * &borg_kills[i] is always a record and a wiped or never-used slot reads
+   * r_idx == 0 (borg-flow.c:738-742 abandons the step on exactly that). This
+   * list grows and wipe() truncates it, so a slot it does not hold reads as
+   * an empty record - a fresh one, not stored, so nothing written through it
+   * survives.
+   */
   at(i) {
-    return this.list[i];
+    return this.list[i] ?? makeBorgKill();
   }
   /** True when index i holds a live record. */
   has(i) {
@@ -256,11 +267,21 @@ var BorgKills = class {
   delete(i, stamp) {
     if (i < 1 || i >= this.list.length) return;
     const kill = this.list[i];
+    if (!kill.rIdx) return;
+    const world = this.world;
+    if (world) {
+      const flow = world.flowTarget;
+      if (world.self.goal.type === GOAL_KILL && flow?.flowX[0] === kill.pos.x && flow.flowY[0] === kill.pos.y)
+        world.self.goal.type = 0;
+      world.map.at(kill.pos.x, kill.pos.y).kill = 0;
+    }
+    stamp ??= world;
     if (stamp && kill.isMultiplier) stamp.self.whenLastKillMult = stamp.clock;
     this.list[i] = makeBorgKill();
   }
-  /** Reset the whole list on level change. */
-  wipe() {
+  /** Reset tracking slots; level changes zero records (borg-update.c:2221). */
+  wipe(deleteRecords = true) {
+    if (deleteRecords) for (const [i] of this.entries()) this.delete(i);
     this.list.length = 1;
     this.list[0] = makeBorgKill();
     this.count = 1;
@@ -289,6 +310,10 @@ function makeBorgTake() {
   };
 }
 var BorgTakes = class {
+  constructor(world) {
+    this.world = world;
+  }
+  world;
   list = [makeBorgTake()];
   /** borg_takes_cnt: highest allocated index + 1. */
   count = 1;
@@ -314,10 +339,17 @@ var BorgTakes = class {
   }
   /** Clear the record at index i (borg_delete_take). */
   delete(i) {
-    if (i >= 1 && i < this.list.length) this.list[i] = makeBorgTake();
+    if (!this.has(i)) return;
+    const take = this.list[i];
+    if (this.world) {
+      this.world.map.at(take.pos.x, take.pos.y).take = 0;
+      if (this.world.self.goal.type === GOAL_TAKE) this.world.self.goal.type = 0;
+    }
+    this.list[i] = makeBorgTake();
   }
-  /** Reset the whole list on level change. */
-  wipe() {
+  /** Reset tracking slots; level changes zero records (borg-update.c:2192). */
+  wipe(deleteRecords = true) {
+    if (deleteRecords) for (const [i] of this.entries()) this.delete(i);
     this.list.length = 1;
     this.list[0] = makeBorgTake();
     this.count = 1;
@@ -505,8 +537,10 @@ function makeLevelFacts() {
 }
 var BorgWorld = class {
   map = new BorgMap();
-  kills = new BorgKills();
-  takes = new BorgTakes();
+  kills = new BorgKills(this);
+  takes = new BorgTakes(this);
+  /** borg-flow-kill.c:423-424 reads the flow queue when deleting a target. */
+  flowTarget;
   /** borg_detect_wall/trap/door/evil/obj (borg-update.c:82-86). See world/panel.ts. */
   detect = new BorgDetectGrid();
   self = makeBorgSelf();
@@ -537,8 +571,8 @@ var BorgWorld = class {
    */
   wipeLevel(depth) {
     this.map.wipe();
-    this.kills.wipe();
-    this.takes.wipe();
+    this.kills.wipe(false);
+    this.takes.wipe(false);
     this.facts = makeLevelFacts();
     const g = this.self.goal;
     const rising = g.rising;
@@ -4778,6 +4812,7 @@ function borgFlowTakeScum(ctx, flow, viewable, nearness) {
 // src/flow/flow-kill.ts
 function borgFlowKill(ctx, flow, viewable, nearness) {
   const w = ctx.world;
+  w.flowTarget = flow;
   if (!w.kills.count || w.kills.count <= 1) return null;
   if (trait(w, 105 /* CDEPTH */) === 0 && trait(w, 35 /* CLEVEL */) < 20) return null;
   if ((trait(w, 25 /* CLASS */) === 1 || trait(w, 25 /* CLASS */) === 4) && trait(w, 35 /* CLEVEL */) < (trait(w, 105 /* CDEPTH */) ? 35 : 25))
@@ -4861,6 +4896,7 @@ function borgFlowKill(ctx, flow, viewable, nearness) {
 }
 function borgFlowKillAim(ctx, flow, viewable) {
   const w = ctx.world;
+  w.flowTarget = flow;
   if (!w.kills.count || w.kills.count <= 1) return null;
   if (w.self.timeThisPanel > 500) return null;
   if (trait(w, 109 /* ISHUNGRY */) || trait(w, 108 /* ISWEAK */) || trait(w, 39 /* FOOD */) === 0) return null;
@@ -4930,6 +4966,7 @@ function scorePattern(ctx, oy, ox, arr, ay, axArr) {
 }
 function borgFlowKillCorridor(ctx, flow) {
   const w = ctx.world;
+  w.flowTarget = flow;
   flow.borgDigging = false;
   if (!w.kills.count || w.kills.count <= 1) return null;
   const summoner = w.kills.summoner;
@@ -5163,6 +5200,7 @@ function borgFollowKill(ctx, flow, i) {
 }
 function borgFollowMissingKills(ctx, flow) {
   const w = ctx.world;
+  w.flowTarget = flow;
   if (trait(w, 112 /* ISBLIND */) || trait(w, 120 /* ISIMAGE */)) return;
   for (const [i, kill] of w.kills.entries()) {
     if (kill.when === w.clock) continue;

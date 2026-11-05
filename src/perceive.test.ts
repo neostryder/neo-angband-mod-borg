@@ -8,13 +8,22 @@
 
 import { describe, expect, it } from "vitest";
 import { FEAT } from "@rpgm-tools/neo-angband-core";
-import { BorgWorld } from "./world/model.js";
+import { BorgWorld, GOAL_KILL, GOAL_TAKE } from "./world/model.js";
+import { createBorg } from "./controller.js";
 import { perceive, makePerceiveMemo, BORG_EXPIRE_TURNS } from "./perceive.js";
 import { borgReactMessages } from "./perceive-messages.js";
 import { borgNearMonsterType } from "./perceive-facts.js";
 import { borgNotice, BI } from "./trait/index.js";
 import { getFightState } from "./fight/index.js";
-import { borgFollowMissingKills, createFlowState } from "./flow/index.js";
+import {
+  borgFollowMissingKills,
+  borgFlowClear,
+  borgFlowCommit,
+  borgFlowEnqueueGrid,
+  borgFlowSpread,
+  borgPlayStep,
+  createFlowState,
+} from "./flow/index.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { makeBorgRng } from "./rng.js";
 import { borgView } from "./core-api.js";
@@ -37,6 +46,139 @@ function makeCtx(scenario: Parameters<typeof makeScenarioView>[0]): {
   perceive(world, view, makePerceiveMemo());
   return { ctx, world };
 }
+
+describe("tracking deletion cleanup", () => {
+  function tracked() {
+    const world = new BorgWorld();
+    const memo = makePerceiveMemo();
+    const view = makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      monsters: [{ id: 9, grid: { x: 8, y: 5 }, raceFlags: ["MULTIPLY"] }],
+      floor: { "9,5": [{ tval: 5 } as never] },
+    });
+    const ctx: BorgContext = { world, view, act: makeFakeActions(), rng: makeBorgRng() };
+    borgNotice(ctx);
+    perceive(world, view, memo);
+    const flow = createFlowState();
+    borgFollowMissingKills(ctx, flow);
+    function pursue(type: number, x: number) {
+      borgFlowClear(flow);
+      borgFlowEnqueueGrid(ctx, flow, 5, x);
+      borgFlowSpread(ctx, flow, 20, true, false, false, -1, false);
+      expect(borgFlowCommit(ctx, flow, type)).toBe(true);
+    }
+    expect(world.map.at(8, 5).kill).toBeGreaterThan(0);
+    expect(world.map.at(9, 5).take).toBeGreaterThan(0);
+    return { ctx, world, memo, flow, pursue };
+  }
+
+  it.each(["expiry", "death", "blink", "missing"])(
+    "clears a monster grid and its pursuit goal on %s",
+    (path) => {
+      const { ctx, world, memo, flow, pursue } = tracked();
+      pursue(GOAL_KILL, 8);
+      world.clock = path === "expiry" ? BORG_EXPIRE_TURNS : 1;
+      const view = makeScenarioView({
+        player: { grid: { x: 5, y: 5 }, depth: 3 },
+        cells: { "8,5": { glow: true } },
+        messages:
+          path === "death" ? ["The monster dies."] :
+          path === "blink" ? ["The monster blinks."] : [],
+      });
+      perceive(world, view, memo);
+      if (path === "missing") borgFollowMissingKills({ ...ctx, view }, flow);
+      expect([...world.kills.entries()]).toHaveLength(0);
+      expect(world.map.at(8, 5).kill).toBe(0);
+      expect(world.self.goal.type).toBe(0);
+      expect(world.self.whenLastKillMult).toBe(world.clock);
+    },
+  );
+
+  it("keeps a kill goal when another monster expires", () => {
+    const { world, memo, pursue } = tracked();
+    world.clock = 100;
+    perceive(world, makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      monsters: [{ id: 10, grid: { x: 10, y: 5 } }],
+    }), memo);
+    pursue(GOAL_KILL, 10);
+    world.clock = BORG_EXPIRE_TURNS;
+    perceive(world, makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      monsters: [{ id: 10, grid: { x: 10, y: 5 } }],
+    }), memo);
+    expect(world.map.at(8, 5).kill).toBe(0);
+    expect(world.map.at(10, 5).kill).toBeGreaterThan(0);
+    expect(world.self.goal.type).toBe(GOAL_KILL);
+  });
+
+  it.each(["expiry", "pickup"])("clears an object grid and take goal on %s", (path) => {
+    const { world, memo, pursue } = tracked();
+    pursue(GOAL_TAKE, 9);
+    world.clock = path === "expiry" ? BORG_EXPIRE_TURNS : 1;
+    perceive(world, makeScenarioView({
+      player: { grid: { x: path === "pickup" ? 9 : 5, y: 5 }, depth: 3 },
+    }), memo);
+    expect([...world.takes.entries()]).toHaveLength(0);
+    expect(world.map.at(9, 5).take).toBe(0);
+    expect(world.self.goal.type).toBe(0);
+  });
+
+  it("clears a take goal when a different object expires", () => {
+    const { world, memo, pursue } = tracked();
+    world.clock = 100;
+    const view = makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      floor: { "10,5": [{ tval: 5 } as never] },
+    });
+    perceive(world, view, memo);
+    pursue(GOAL_TAKE, 10);
+    world.clock = BORG_EXPIRE_TURNS;
+    perceive(world, view, memo);
+    expect(world.map.at(9, 5).take).toBe(0);
+    expect(world.map.at(10, 5).take).toBeGreaterThan(0);
+    expect(world.self.goal.type).toBe(0);
+  });
+
+  it("zeroes level records and preserves the breeder timestamp on arrival", () => {
+    const { world, memo, pursue } = tracked();
+    pursue(GOAL_KILL, 8);
+    expect(world.self.whenLastKillMult).toBe(0);
+    world.clock = 100;
+    perceive(world, makeScenarioView({ player: { depth: 4 } }), memo);
+    expect([...world.kills.entries()]).toHaveLength(0);
+    expect([...world.takes.entries()]).toHaveLength(0);
+    expect(world.map.at(8, 5).kill).toBe(0);
+    expect(world.map.at(9, 5).take).toBe(0);
+    expect(world.self.goal.type).toBe(0);
+    expect(world.self.whenLastKillMult).toBe(0);
+  });
+
+  it("purges perceived records through the controller and permits a step", () => {
+    const { world, controller } = createBorg();
+    const view = makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      monsters: [{ grid: { x: 6, y: 5 }, raceFlags: ["MULTIPLY"] }],
+      floor: { "7,5": [{ tval: 5 } as never] },
+    });
+    const act = makeFakeActions();
+    for (let turn = 1; turn <= 499; turn++) controller(view, act);
+    expect(world.self.timeThisPanel).toBe(499);
+    expect(world.map.at(6, 5).kill).toBeGreaterThan(0);
+    expect(world.map.at(7, 5).take).toBeGreaterThan(0);
+    for (let turn = 500; turn <= 503; turn++) {
+      expect(controller(view, act)).not.toBeNull();
+      expect(world.self.timeThisPanel).toBe(turn);
+      expect([...world.kills.entries()]).toHaveLength(0);
+      expect([...world.takes.entries()]).toHaveLength(0);
+      expect(world.map.at(6, 5).kill).toBe(0);
+      expect(world.map.at(7, 5).take).toBe(0);
+      expect(world.self.whenLastKillMult).toBe(world.clock);
+    }
+    const ctx = { world, view: borgView(view), act, rng: makeBorgRng() };
+    expect(borgPlayStep(ctx, createFlowState(), 5, 6)).toEqual({ code: "walk", dir: 6 });
+  }, 30000);
+});
 
 describe("staleness and expiry", () => {
   it("keeps a monster after it leaves view, then expires it at 2000 turns", () => {

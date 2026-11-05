@@ -247,8 +247,10 @@ export function makeLevelFacts(): LevelFacts {
  */
 export class BorgWorld {
   readonly map = new BorgMap();
-  readonly kills = new BorgKills();
-  readonly takes = new BorgTakes();
+  readonly kills = new BorgKills(this);
+  readonly takes = new BorgTakes(this);
+  /** borg-flow-kill.c:423-424 reads the flow queue when deleting a target. */
+  flowTarget?: { readonly flowX: ArrayLike<number>; readonly flowY: ArrayLike<number> };
   /** borg_detect_wall/trap/door/evil/obj (borg-update.c:82-86). See world/panel.ts. */
   readonly detect = new BorgDetectGrid();
   readonly self = makeBorgSelf();
@@ -282,8 +284,8 @@ export class BorgWorld {
    */
   wipeLevel(depth: number): void {
     this.map.wipe();
-    this.kills.wipe();
-    this.takes.wipe();
+    this.kills.wipe(false);
+    this.takes.wipe(false);
     this.facts = makeLevelFacts();
 
     const g = this.self.goal;

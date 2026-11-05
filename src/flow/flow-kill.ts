@@ -54,6 +54,7 @@ export function borgFlowKill(
   nearness: number,
 ): AgentCommand | null {
   const w = ctx.world;
+  w.flowTarget = flow;
 
   if (!w.kills.count || w.kills.count <= 1) return null;
 
@@ -192,6 +193,7 @@ export function borgFlowKill(
  */
 export function borgFlowKillAim(ctx: BorgContext, flow: FlowState, viewable: boolean): AgentCommand | null {
   const w = ctx.world;
+  w.flowTarget = flow;
 
   if (!w.kills.count || w.kills.count <= 1) return null;
   if (w.self.timeThisPanel > 500) return null;
@@ -318,6 +320,7 @@ function scorePattern(
  */
 export function borgFlowKillCorridor(ctx: BorgContext, flow: FlowState): AgentCommand | null {
   const w = ctx.world;
+  w.flowTarget = flow;
 
   flow.borgDigging = false;
 
@@ -677,6 +680,7 @@ function borgFollowKill(ctx: BorgContext, flow: FlowState, i: number): void {
  */
 export function borgFollowMissingKills(ctx: BorgContext, flow: FlowState): void {
   const w = ctx.world;
+  w.flowTarget = flow;
 
   /* Blind or hallucinating: the C skips the whole pass (borg-update.c:2920). */
   if (trait(w, BI.ISBLIND) || trait(w, BI.ISIMAGE)) return;

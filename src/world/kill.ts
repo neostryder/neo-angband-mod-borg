@@ -9,6 +9,8 @@
  * behaviorally load-bearing and preserved here.
  */
 
+import { GOAL_KILL, type BorgWorld } from "./model.js";
+
 /** Estimated monster record (struct borg_kill). Faithful field-for-field. */
 export interface BorgKill {
   /** Race index (r_idx). */
@@ -105,6 +107,8 @@ export function makeBorgKill(): BorgKill {
  * subsystems can use nonzero grid.kill as "present".
  */
 export class BorgKills {
+  constructor(private readonly world?: BorgWorld) {}
+
   private readonly list: BorgKill[] = [makeBorgKill()];
   /** borg_kills_cnt: highest allocated index + 1. */
   count = 1;
@@ -158,12 +162,28 @@ export class BorgKills {
   delete(i: number, stamp?: { self: { whenLastKillMult: number }; clock: number }): void {
     if (i < 1 || i >= this.list.length) return;
     const kill = this.list[i]!;
+    if (!kill.rIdx) return;
+    const world = this.world;
+    if (world) {
+      /* borg-flow-kill.c:422-428 compares the flow queue's first grid. */
+      const flow = world.flowTarget;
+      if (
+        world.self.goal.type === GOAL_KILL &&
+        flow?.flowX[0] === kill.pos.x &&
+        flow.flowY[0] === kill.pos.y
+      )
+        world.self.goal.type = 0;
+      world.map.at(kill.pos.x, kill.pos.y).kill = 0;
+    }
+    stamp ??= world;
     if (stamp && kill.isMultiplier) stamp.self.whenLastKillMult = stamp.clock;
     this.list[i] = makeBorgKill();
   }
 
-  /** Reset the whole list on level change. */
-  wipe(): void {
+  /** Reset tracking slots; level changes zero records (borg-update.c:2221). */
+  wipe(deleteRecords = true): void {
+    /* borg-think-dungeon.c:1323-1329 deletes records before resetting slots. */
+    if (deleteRecords) for (const [i] of this.entries()) this.delete(i);
     this.list.length = 1;
     this.list[0] = makeBorgKill();
     this.count = 1;
