@@ -76,6 +76,8 @@ export interface CoreShopLookup {
 
 /** What the host supplies to build real resolvers. */
 export interface CoreResolverInput {
+  bookKind?: BorgContext["bookKind"];
+  spellEffect?: BorgContext["spellEffect"];
   /** The bound monster-race registry (booted.registries...); indexed by ridx. Absent when `raceRecord` answers instead. */
   races?: readonly MonsterRace[];
   /**
@@ -258,6 +260,8 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
 
   return {
     resolveMonsterFacts,
+    bookKind: input.bookKind,
+    spellEffect: input.spellEffect,
     resolveActivation,
     activateHandle,
     inShop,

@@ -124,7 +124,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
-    const ctx: BorgContext = { world, view, act, rng };
+    const ctx: BorgContext = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect };
     const recordStep = !retry;
     retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };

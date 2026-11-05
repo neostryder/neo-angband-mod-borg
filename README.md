@@ -110,7 +110,7 @@ flowchart TD
   H -.->|"Clock at least 30000"| Y
 ```
 
-*Source of truth: `src/controller.ts`, `src/think.ts`, and `src/think-ladder.ts`. Several rungs are still unported, including destroy-valueless, play-magic, and ring swaps.*
+*Source of truth: `src/controller.ts`, `src/think.ts`, and `src/think-ladder.ts`. The magic rungs study spells from carried books and test untried spells in town. Several rungs remain unported, including destroy-valueless and ring swaps.*
 
 The port in `src/` and the mod you install are not quite the same thing. The installed mod depends on `plugin.ts`, which builds the Borg from resolvers the game supplies, and for a long time most of those did not exist.
 

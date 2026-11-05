@@ -20,6 +20,10 @@ were not retagged.
 
 ## [Unreleased]
 
+### Fixed
+
+- [Visible] The Borg recognizes shared class books by their registered kind when studying and casting. It answers the Banishment and Dimension Door test prompts and targets itself for aimed, random and teleport-to test effects.
+
 ## 1.4.0-beta.2 - 2026-10-30
 
 ### Changed

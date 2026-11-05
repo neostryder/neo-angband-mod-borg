@@ -11,6 +11,7 @@
 import type { JsonRecord, KnownPlayer, ModApi2 } from "@rpgm-tools/neo-angband-mod-sdk";
 import type { GameConstants } from "@rpgm-tools/neo-angband-core";
 import { RSF } from "../core-api.js";
+import type { BorgContext } from "../context.js";
 
 type Content = Pick<ModApi2, "content">;
 
@@ -86,6 +87,47 @@ export async function spellMessages(api: Content): Promise<SpellMessages[]> {
 export async function kindCosts(api: Content): Promise<readonly number[]> {
   const records = (await valueOf(api.content.records("object"))) ?? [];
   return records.map((record) => (typeof record["cost"] === "number" ? record["cost"] : 0));
+}
+
+/** Book kinds follow global registration order; shared names reuse a kind (borg-magic.c:689-694). */
+export async function magicRecords(
+  api: Content,
+  effects: readonly { name: string; aim: boolean }[],
+): Promise<{ bookKind: NonNullable<BorgContext["bookKind"]>; spellEffect: NonNullable<BorgContext["spellEffect"]> }> {
+  const [objects, classes] = await Promise.all([valueOf(api.content.boundRecords("object")), valueOf(api.content.records("class"))]);
+  const kinds = new Map<string, { tval: number; sval: number }>();
+  const counts = new Map<number, number>();
+  const spells = new Map<string, { name: string; aim: boolean }>();
+  const effectAim = new Map(effects.map((effect) => [effect.name, effect.aim]));
+  /* Bound kinds include class books and artifact bases. Each tval's ordinal is
+   * its sval, as assigned by the engine's object and book registration. */
+  for (const object of [...(objects ?? [])].sort((a, b) => a.index - b.index)) {
+    const tval = object.tval;
+    if (tval === undefined) continue;
+    const sval = (counts.get(tval) ?? 0) + 1;
+    counts.set(tval, sval);
+    kinds.set(`${String(tval)}:${object.name}`, { tval, sval });
+  }
+  for (const cls of classes ?? []) {
+    let sidx = 0;
+    for (const book of Array.isArray(cls["book"]) ? cls["book"] : []) {
+      if (book === null || typeof book !== "object" || Array.isArray(book)) continue;
+      for (const spell of Array.isArray(book["spell"]) ? book["spell"] : []) {
+        if (spell === null || typeof spell !== "object" || Array.isArray(spell)) continue;
+        /* The C stores the first effect, including RANDOM (borg-magic.c:759). */
+        const effect = Array.isArray(spell["effect"]) ? spell["effect"][0] : null;
+        if (effect !== null && typeof effect === "object" && !Array.isArray(effect) && typeof effect["eff"] === "string") {
+          const name = effect["eff"];
+          spells.set(`${String(cls["name"])}:${String(sidx)}`, { name, aim: effectAim.get(name) ?? false });
+        }
+        sidx++;
+      }
+    }
+  }
+  return {
+    bookKind: (tval, name) => kinds.get(`${String(tval)}:${name}`) ?? null,
+    spellEffect: (cls, sidx) => spells.get(`${cls}:${String(sidx)}`) ?? null,
+  };
 }
 
 /** The constants the game reads from its constants records; every other one keeps its built-in value. */

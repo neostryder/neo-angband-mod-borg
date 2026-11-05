@@ -435,23 +435,25 @@ export function borgSpellStatus(ctx: BorgContext, s: SpellView): number {
 
 /**
  * borg.book_idx[bidx] >= 0: the borg carries the book that holds this spell.
- * The frozen ItemView carries the book's tval and (via file order) its sval; the
- * sval of the bidx-th book equals its 1-based position among same-tval books in
- * spellbooks() (matching object.txt / core sval assignment). Checks the pack.
+ * The class book's registered tval/sval identifies its pack slot
+ * (borg-magic.c:689-694), including books shared between classes.
  */
 export function borgBookPossessed(ctx: BorgContext, bidx: number): boolean {
-  const books = ctx.view.spellbooks();
-  const book = books[bidx];
-  if (!book) return false;
-  let svalPos = 0;
-  for (let i = 0; i <= bidx; i++) {
-    if (books[i] && books[i]!.tval === book.tval) svalPos++;
-  }
+  return borgBookHandle(ctx, bidx) !== null;
+}
+
+/** The carried book's handle, shared by legality and study (borg-magic-play.c:151-152). */
+export function borgBookHandle(ctx: BorgContext, bidx: number): number | null {
+  const book = ctx.view.spellbooks()[bidx];
+  if (!book) return null;
+  const kind = ctx.bookKind?.(book.tval, book.name);
+  if (!kind) return null;
+  let handle: number | null = null;
   for (const item of ctx.view.inventory()) {
     if (item.number <= 0) continue;
-    if (item.tval === book.tval && item.sval === svalPos) return true;
+    if (item.tval === kind.tval && item.sval === kind.sval) handle = item.handle;
   }
-  return false;
+  return handle;
 }
 
 /** borg_get_spell_power(spell): sp cost, or -1 (magic.c:362). */

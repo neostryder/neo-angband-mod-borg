@@ -128,6 +128,7 @@ var AUTO_MAX_X = 198;
 var AUTO_MAX_Y = 66;
 var BORG_MARK = 1;
 var BORG_GLOW = 2;
+var BORG_DARK = 4;
 var BORG_LIGHT = 16;
 var BORG_VIEW = 32;
 function makeBorgGrid() {
@@ -4076,18 +4077,19 @@ function borgSpellStatus(ctx, s) {
   return BORG_MAGIC_KNOW;
 }
 function borgBookPossessed(ctx, bidx) {
-  const books = ctx.view.spellbooks();
-  const book = books[bidx];
-  if (!book) return false;
-  let svalPos = 0;
-  for (let i = 0; i <= bidx; i++) {
-    if (books[i] && books[i].tval === book.tval) svalPos++;
-  }
+  return borgBookHandle(ctx, bidx) !== null;
+}
+function borgBookHandle(ctx, bidx) {
+  const book = ctx.view.spellbooks()[bidx];
+  if (!book) return null;
+  const kind = ctx.bookKind?.(book.tval, book.name);
+  if (!kind) return null;
+  let handle = null;
   for (const item of ctx.view.inventory()) {
     if (item.number <= 0) continue;
-    if (item.tval === book.tval && item.sval === svalPos) return true;
+    if (item.tval === kind.tval && item.sval === kind.sval) handle = item.handle;
   }
-  return false;
+  return handle;
 }
 function borgGetSpellPower(ctx, spell) {
   const sidx = borgGetSpellNumber(ctx, spell);
@@ -6352,6 +6354,7 @@ function borgNoticePlayer(c) {
   if (p.status.paralyzed > 50) t[119 /* ISPARALYZED */] = 1;
   if ((p.status.image ?? 0) > 0) t[120 /* ISIMAGE */] = 1;
   if ((p.status.amnesia ?? 0) > 0) t[121 /* ISFORGET */] = 1;
+  t[123 /* ISSTUDY */] = p.learnableSpells ? 1 : 0;
   const drained = c.R.frame.statDrained;
   for (let i = 0; i < STAT_MAX; i++) {
     t[10 /* CSTR */ + i] = p.stats[i] ?? 10;
@@ -14394,6 +14397,83 @@ function borgNearMonsterType(ctx, dist4) {
   danger2.fightingUnique = fight.fightingUnique > 0;
 }
 
+// src/item/magic-play.ts
+var NOT_TESTED_BY_NAME = /* @__PURE__ */ new Set([
+  40 /* LIGHTNING_STRIKE */,
+  89 /* TAP_UNLIFE */,
+  17 /* TAP_MAGICAL_ENERGY */,
+  68 /* REMOVE_CURSE */,
+  47 /* TREMOR */,
+  81 /* WORD_OF_DESTRUCTION */,
+  101 /* GRONDS_BLOW */,
+  116 /* DECOY */,
+  78 /* GLYPH_OF_WARDING */,
+  110 /* SINGLE_COMBAT */,
+  95 /* VAMPIRE_STRIKE */,
+  109 /* COMMAND */,
+  108 /* CURSE */,
+  131 /* FORCEFUL_BLOW */,
+  124 /* MAIM_FOE */
+]);
+var NOT_TESTED_BY_EFFECT = /* @__PURE__ */ new Set([
+  "BRAND_BOLTS",
+  "CREATE_ARROWS",
+  "BRAND_AMMO",
+  "ENCHANT",
+  "IDENTIFY",
+  "RECHARGE"
+]);
+function borgCanPlaySpell(spell, effect) {
+  return !NOT_TESTED_BY_NAME.has(spell) && !NOT_TESTED_BY_EFFECT.has(effect);
+}
+function borgPlayMagic(ctx, bored) {
+  const ratings = ratingsForClass(classOf(ctx));
+  if (ratings === null) return null;
+  if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) return null;
+  if (!trait3(ctx, 26 /* LIGHT */)) return null;
+  const w = ctx.world;
+  if (w.map.inBounds(w.self.c.x, w.self.c.y) && w.map.at(w.self.c.x, w.self.c.y).info === BORG_DARK) return null;
+  const views = /* @__PURE__ */ new Map();
+  for (const book of ctx.view.spellbooks()) for (const s of book.spells) views.set(s.sidx, s);
+  let bestRating = -1;
+  let best = -1;
+  for (let sidx = ratings.length - 1; sidx >= 0; sidx--) {
+    const view = views.get(sidx);
+    if (view === void 0 || !borgBookPossessed(ctx, view.bidx)) continue;
+    if (borgSpellStatus(ctx, view) !== BORG_MAGIC_OKAY) continue;
+    const r = ratings[sidx].rating;
+    if (!bored && r <= 50) continue;
+    if (r <= 0) continue;
+    if (r <= bestRating) continue;
+    bestRating = r;
+    best = sidx;
+  }
+  if (trait3(ctx, 123 /* ISSTUDY */) && bestRating > 0 && best >= 0) {
+    const handle = borgBookHandle(ctx, views.get(best).bidx);
+    if (handle !== null) return ctx.act.raw("study", { handle, spell: best });
+  }
+  if (trait3(ctx, 105 /* CDEPTH */)) return null;
+  if (!bored) return null;
+  for (let sidx = ratings.length - 1; sidx >= 0; sidx--) {
+    const view = views.get(sidx);
+    if (view === void 0 || !borgBookPossessed(ctx, view.bidx)) continue;
+    if (borgSpellStatus(ctx, view) !== BORG_MAGIC_TEST) continue;
+    const spell = ratings[sidx].spell;
+    const effect = ctx.spellEffect?.(ctx.view.player().cls, sidx);
+    if (!effect || !borgCanPlaySpell(spell, effect.name)) continue;
+    const cmd = borgSpell(ctx, spell);
+    if (cmd !== null) {
+      if (effect.aim || effect.name === "RANDOM" || effect.name === "TELEPORT_TO") {
+        ctx.act.setTargetLocation(w.self.c.x, w.self.c.y);
+      }
+      if (effect.name === "BANISH") return ctx.act.raw("cast", { spell: sidx, tgtsymbol: "h" });
+      if (effect.name === "TELEPORT_TO") return ctx.act.raw("cast", { spell: sidx, tgtdir: 5 });
+      return cmd;
+    }
+  }
+  return null;
+}
+
 // src/think-ladder.ts
 function borgPickUpHere(ctx, session) {
   const w = ctx.world;
@@ -14680,6 +14760,10 @@ function borgThinkDungeon(ctx, session) {
     const cmd = borgLeaveLevel(ctx, session, false);
     if (cmd) return cmd;
   }
+  {
+    const cmd = borgPlayMagic(ctx, false);
+    if (cmd) return cmd;
+  }
   if (borgWieldIsDigger(ctx) || !borgHasWeapon(ctx)) {
     const cmd = borgWearStuff(ctx, itemDeps);
     if (cmd) return cmd;
@@ -14936,6 +15020,10 @@ function borgThinkDungeon(ctx, session) {
   if (borgChooseShop(ctx, buildStoreDeps(session))) {
     const shop = flow.toShop(ctx, g.shop);
     if (shop) return shop;
+  }
+  if (!ctx.world.self.goal.fleeing) {
+    const cmd = borgPlayMagic(ctx, true);
+    if (cmd) return cmd;
   }
   {
     const cmd = flow.spastic(ctx, false);
@@ -15875,7 +15963,7 @@ function createBorg(opts = {}) {
   let retry = false;
   let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
   const controller = hostController((view, act) => {
-    const ctx = { world, view, act, rng };
+    const ctx = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect };
     const recordStep = !retry;
     retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup };
@@ -16016,6 +16104,8 @@ function makeCoreResolvers(input) {
   };
   return {
     resolveMonsterFacts,
+    bookKind: input.bookKind,
+    spellEffect: input.spellEffect,
     resolveActivation,
     activateHandle: activateHandle2,
     inShop,
@@ -16229,6 +16319,39 @@ async function spellMessages(api) {
 async function kindCosts(api) {
   const records = await valueOf2(api.content.records("object")) ?? [];
   return records.map((record) => typeof record["cost"] === "number" ? record["cost"] : 0);
+}
+async function magicRecords(api, effects) {
+  const [objects, classes] = await Promise.all([valueOf2(api.content.boundRecords("object")), valueOf2(api.content.records("class"))]);
+  const kinds = /* @__PURE__ */ new Map();
+  const counts = /* @__PURE__ */ new Map();
+  const spells = /* @__PURE__ */ new Map();
+  const effectAim = new Map(effects.map((effect) => [effect.name, effect.aim]));
+  for (const object of [...objects ?? []].sort((a, b) => a.index - b.index)) {
+    const tval = object.tval;
+    if (tval === void 0) continue;
+    const sval = (counts.get(tval) ?? 0) + 1;
+    counts.set(tval, sval);
+    kinds.set(`${String(tval)}:${object.name}`, { tval, sval });
+  }
+  for (const cls of classes ?? []) {
+    let sidx = 0;
+    for (const book of Array.isArray(cls["book"]) ? cls["book"] : []) {
+      if (book === null || typeof book !== "object" || Array.isArray(book)) continue;
+      for (const spell of Array.isArray(book["spell"]) ? book["spell"] : []) {
+        if (spell === null || typeof spell !== "object" || Array.isArray(spell)) continue;
+        const effect = Array.isArray(spell["effect"]) ? spell["effect"][0] : null;
+        if (effect !== null && typeof effect === "object" && !Array.isArray(effect) && typeof effect["eff"] === "string") {
+          const name = effect["eff"];
+          spells.set(`${String(cls["name"])}:${String(sidx)}`, { name, aim: effectAim.get(name) ?? false });
+        }
+        sidx++;
+      }
+    }
+  }
+  return {
+    bookKind: (tval, name) => kinds.get(`${String(tval)}:${name}`) ?? null,
+    spellEffect: (cls, sidx) => spells.get(`${cls}:${String(sidx)}`) ?? null
+  };
 }
 var DEFAULT_CONSTANTS = {
   moveEnergy: 100,
@@ -16547,6 +16670,7 @@ function createBridge(mod2) {
   let facts = NO_FACTS;
   let blows = [];
   let spells = [];
+  let magic = null;
   const objects = {
     lookupKind: (tval, sval) => {
       const activation = activations.kind(tval, sval);
@@ -16567,6 +16691,7 @@ function createBridge(mod2) {
       statics = { constants, floors, trapKinds: traps, kindCosts: costs };
       blows = actions;
       spells = messages;
+      magic = await magicRecords(mod2, engine.core.EFFECT_ENTRIES);
       feed = await watchMessages(mod2);
     },
     async readWorld() {
@@ -16591,7 +16716,8 @@ function createBridge(mod2) {
         shopnum: () => facts.shopnum,
         kindCost: (tval, sval) => facts.kinds.get(`${String(tval)}:${String(sval)}`) ?? null,
         blowMethods: blows.map((message) => ({ messages: [message] })),
-        monsterSpells: spells
+        monsterSpells: spells,
+        ...magic
       };
     },
     async dispose() {

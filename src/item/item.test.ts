@@ -103,7 +103,7 @@ function makeCtx(
   for (const [k, v] of Object.entries(traits)) {
     world.self.trait[BI[k as keyof typeof BI]] = v;
   }
-  return { world, view, act: makeFakeActions(), rng: makeBorgRng() };
+  return { world, view, act: makeFakeActions(), rng: makeBorgRng(), bookKind: (tval) => ({ tval, sval: 1 }) };
 }
 
 /** A Mage spellbook (book 0) holding Magic Missile at sidx 0. */

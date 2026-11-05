@@ -208,6 +208,7 @@ export function fakeGame(options: FakeGameOptions = {}): FakeGame {
       },
     },
     content: {
+      boundRecords: (): ReturnType<ModApi2["content"]["boundRecords"]> => ok([]),
       records: (_file: string): ReturnType<ModApi2["content"]["records"]> => ok([] as readonly JsonRecord[]),
       activation: () => ok(null),
     },

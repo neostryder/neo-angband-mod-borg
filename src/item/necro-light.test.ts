@@ -35,6 +35,7 @@ function necromancer(lamp = false, glow = false, zeroFail = true): BorgContext {
   const light = { ...item(TV.LIGHT), flags: ["LIGHT_2"] };
   const ctx: BorgContext = {
     world: new BorgWorld(), act: makeFakeActions(), rng: makeBorgRng(),
+    bookKind: (tval) => ({ tval, sval: 1 }),
     view: { ...base,
       equipment: () => [null, null, null, null, null, lamp ? light : null],
       inventory: () => [item(TV.SHADOW_BOOK)],

@@ -15,7 +15,7 @@ import { bindCore, coreIsBound } from "../core-api.js";
 import type { CoreObjectLookup, CoreResolverInput } from "../resolvers.js";
 import { ActivationBook, LoadoutBook, RaceBook } from "./caches.js";
 import { watchMessages, type MessageFeed } from "./feed.js";
-import { blowActions, gameConstants, gradeFloors, kindCosts, spellMessages, trapKinds } from "./records.js";
+import { blowActions, gameConstants, gradeFloors, kindCosts, magicRecords, spellMessages, trapKinds } from "./records.js";
 import { borgTruth, type BorgTruth } from "./truth.js";
 import { readWorld, simulationView, type Statics, type World, type WorldFacts } from "./world.js";
 
@@ -54,6 +54,7 @@ export function createBridge(mod: ModApi2): Bridge {
   let facts: WorldFacts = NO_FACTS;
   let blows: string[] = [];
   let spells: Awaited<ReturnType<typeof spellMessages>> = [];
+  let magic: Awaited<ReturnType<typeof magicRecords>> | null = null;
 
   /** The slice of the object registry the activation seam reads, answered from the caches. */
   const objects: CoreObjectLookup = {
@@ -78,6 +79,7 @@ export function createBridge(mod: ModApi2): Bridge {
       statics = { constants, floors, trapKinds: traps, kindCosts: costs };
       blows = actions;
       spells = messages;
+      magic = await magicRecords(mod, engine.core.EFFECT_ENTRIES);
       feed = await watchMessages(mod);
     },
 
@@ -106,6 +108,7 @@ export function createBridge(mod: ModApi2): Bridge {
         kindCost: (tval, sval) => facts.kinds.get(`${String(tval)}:${String(sval)}`) ?? null,
         blowMethods: blows.map((message) => ({ messages: [message] })),
         monsterSpells: spells,
+        ...magic,
       };
     },
 

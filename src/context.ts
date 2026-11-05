@@ -19,4 +19,8 @@ export interface BorgContext {
   act: BorgActions;
   /** Borg's private simulation RNG (never the game RNG). */
   rng: Rng;
+  /** Registered book identity (borg-magic.c:689-694). */
+  bookKind?: ((tval: number, name: string) => { tval: number; sval: number } | null) | undefined;
+  /** The spell's first effect (borg-magic.c:759). */
+  spellEffect?: ((cls: string, sidx: number) => { name: string; aim: boolean } | null) | undefined;
 }

@@ -72,6 +72,8 @@ import { borgTarget } from "./fight/index.js";
  * to the faithful conservative behavior documented on the field.
  */
 export interface BorgResolvers {
+  bookKind?: BorgContext["bookKind"];
+  spellEffect?: BorgContext["spellEffect"];
   /**
    * Resolve a tracked kill index to its full MonsterFacts (r_info blow[]/freq/
    * spell_power/...). Default: MonsterView-derived facts with zero blows/freq
