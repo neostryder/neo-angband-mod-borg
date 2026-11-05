@@ -15229,6 +15229,12 @@ function simulationBaseline(session, ctx, resolve) {
   BASELINES.set(session, { ctx, base });
   return base;
 }
+function analyzedItemValue(session, item) {
+  if (isCursed(item)) return perItemValue(item);
+  if (!item.aware) return guessedValue(item);
+  if (!isIdent(item)) return session.resolvers.kindCost?.(item.tval, item.sval)?.cost ?? perItemValue(item);
+  return perItemValue(item);
+}
 function buildItemDeps(session) {
   const c = session.ctx;
   if (!c) throw new Error("buildItemDeps outside a think");
@@ -15245,12 +15251,7 @@ function buildItemDeps(session) {
     worthId: borgItemWorthId,
     randomPower: hasRandomPower,
     /* borg-item-analyze.c:611-622 selects kind cost for aware, unknown gear. */
-    itemValue: (item) => {
-      if (isCursed(item)) return perItemValue(item);
-      if (!item.aware) return guessedValue(item);
-      if (!isIdent(item)) return res.kindCost?.(item.tval, item.sval)?.cost ?? perItemValue(item);
-      return perItemValue(item);
-    },
+    itemValue: (item) => analyzedItemValue(session, item),
     avoidance: w.self.trait[27 /* CURHP */] ?? 0,
     /* borg_check_rest(borg.c.y, borg.c.x): the real gate, not a constant. Every
      * rest in borg-recover.c is behind it, so a hardcoded `true` is the Borg
@@ -15322,11 +15323,21 @@ function storeCfg() {
 function buildStoreDeps(session) {
   const res = session.resolvers;
   const began = session.flow.state.borgBegan;
-  if (!res.loadoutPower) return { mem: session.storeMem, began, ...storeCfg() };
-  return {
+  const common = {
     mem: session.storeMem,
     began,
     ...storeCfg(),
+    isAware,
+    isIdent,
+    needsIdent,
+    noteNeedsId: needsIdent,
+    worthId: borgItemWorthId,
+    isOneRing,
+    itemValue: (item) => analyzedItemValue(session, item)
+  };
+  if (!res.loadoutPower) return common;
+  return {
+    ...common,
     /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
      * would WIELD is worn; anything else joins the pack. Both cost their weight,
      * which is what makes plate armour read as the speed loss it is. */

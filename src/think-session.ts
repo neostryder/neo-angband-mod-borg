@@ -44,7 +44,7 @@ import {
 } from "./danger/index.js";
 import type { Flow, FlowHooks } from "./flow/index.js";
 import type { WearDeps, SpaceDeps, RechargeDeps, JunkDeps } from "./item/index.js";
-import { guessedValue, hasRandomPower, isCursed, isIdent, needsIdent, perItemValue } from "./item/deps.js";
+import { guessedValue, hasRandomPower, isAware, isCursed, isIdent, isOneRing, needsIdent, perItemValue } from "./item/deps.js";
 import { borgItemWorthId } from "./item/item-wear.js";
 import { borgCheckRest, createFlow } from "./flow/index.js";
 import { BI } from "./trait/index.js";
@@ -333,6 +333,15 @@ function simulationBaseline(
   return base;
 }
 
+/** FORK: B81 shares borg-item-analyze.c:611-622 with the store consumers;
+ * a store must see the same C per-item value as the inventory decisions. */
+function analyzedItemValue(session: ThinkSession, item: ItemView): number {
+  if (isCursed(item)) return perItemValue(item);
+  if (!item.aware) return guessedValue(item);
+  if (!isIdent(item)) return session.resolvers.kindCost?.(item.tval, item.sval)?.cost ?? perItemValue(item);
+  return perItemValue(item);
+}
+
 /**
  * Build the item/consumable deps for this think from ctx + danger state.
  *
@@ -358,12 +367,7 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
     worthId: borgItemWorthId,
     randomPower: hasRandomPower,
     /* borg-item-analyze.c:611-622 selects kind cost for aware, unknown gear. */
-    itemValue: (item) => {
-      if (isCursed(item)) return perItemValue(item);
-      if (!item.aware) return guessedValue(item);
-      if (!isIdent(item)) return res.kindCost?.(item.tval, item.sval)?.cost ?? perItemValue(item);
-      return perItemValue(item);
-    },
+    itemValue: (item) => analyzedItemValue(session, item),
     avoidance: w.self.trait[BI.CURHP] ?? 0,
     /* borg_check_rest(borg.c.y, borg.c.x): the real gate, not a constant. Every
      * rest in borg-recover.c is behind it, so a hardcoded `true` is the Borg
@@ -452,11 +456,24 @@ function storeCfg(): Pick<StoreDeps, "worshipsGold" | "selfScum" | "usesSwaps"> 
 export function buildStoreDeps(session: ThinkSession): StoreDeps {
   const res = session.resolvers;
   const began = session.flow.state.borgBegan;
-  if (!res.loadoutPower) return { mem: session.storeMem, began, ...storeCfg() };
-  return {
+  /* FORK: B81 restores the analyzed knowledge/value read by C store/home
+   * consumers (borg-store-sell.c:824-920, borg-home-notice.c:495-499).
+   * Keep these hooks even when no loadout evaluator is installed. */
+  const common: StoreDeps = {
     mem: session.storeMem,
     began,
     ...storeCfg(),
+    isAware,
+    isIdent,
+    needsIdent,
+    noteNeedsId: needsIdent,
+    worthId: borgItemWorthId,
+    isOneRing,
+    itemValue: (item) => analyzedItemValue(session, item),
+  };
+  if (!res.loadoutPower) return common;
+  return {
+    ...common,
     /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
      * would WIELD is worn; anything else joins the pack. Both cost their weight,
      * which is what makes plate armour read as the speed loss it is. */
