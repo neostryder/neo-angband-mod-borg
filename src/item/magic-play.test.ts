@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import type { AgentCommand, AgentView, ItemView, SpellbookView, SpellView } from "@rpgm-tools/neo-angband-core";
 import * as Core from "@rpgm-tools/neo-angband-core";
 import type { JsonRecord, KnownWorldData } from "@rpgm-tools/neo-angband-mod-sdk";
@@ -98,7 +99,7 @@ describe("borg_play_magic: test", () => {
   });
 });
 
-/** The game's checkout holding the content pack (the play tests' convention); null skips the data check. */
+/** FORK: B114 requires class data: explicit/sibling checkout or the declared content package. */
 function classJson(): string | null {
   const roots = [process.env["NEO_ANGBAND_REPO"], fileURLToPath(new URL("../../../neo-angband/", import.meta.url))].filter(
     (r): r is string => typeof r === "string" && r.length > 0,
@@ -107,7 +108,14 @@ function classJson(): string | null {
     const file = join(root, "packages", "content", "pack", "class.json");
     if (existsSync(file)) return file;
   }
-  return null;
+  try {
+    return createRequire(import.meta.url).resolve("@rpgm-tools/neo-angband-content/pack/class.json");
+  } catch {
+    const message = "Spell progression tests require @rpgm-tools/neo-angband-content or NEO_ANGBAND_REPO with a built content pack.";
+    if (process.env["CI"]) throw new Error(message);
+    process.stderr.write(message + " Skipping class-data and progression cases locally.\n");
+    return null;
+  }
 }
 const CLASS_JSON = classJson();
 

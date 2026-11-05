@@ -32,6 +32,7 @@
     "verify": "pnpm typecheck && pnpm test && pnpm check"
   },
   "devDependencies": {
+    "@rpgm-tools/neo-angband-content": "1.23.0-beta.1",
     "@rpgm-tools/neo-angband-core": "1.23.0-beta.1",
     "@rpgm-tools/neo-angband-mod-sdk": "1.23.0-beta.1",
     "@types/node": "^22.20.1",
