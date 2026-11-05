@@ -100,7 +100,7 @@ describe("the bridge", () => {
     expect(seams.kindCost?.(75, 1)).toBeNull();
   });
 
-  it("adapts published item costs, dice, ego powers and negative flags to C inventory values", async () => {
+  it("adapts published item costs, books, activations, dice, ego powers and negative flags to C inventory values", async () => {
     const game = fakeGame({ engine: { api: "1", core: Core, state: { actor: { player: { noscore: 0 } } } } });
     const item = (over: Partial<KnownItem>): KnownItem => ({
       handle: 1, kindKey: "kind:0", baseName: "sword", carried: true, aware: true,
@@ -124,6 +124,9 @@ describe("the bridge", () => {
       item({ handle: 11, kindKey: "kind:1" }),
       item({ handle: 12, kindKey: "kind:99" }),
       item({ handle: 13, ego: true, egoName: "of Doubt" }),
+      ...[TV.MAGIC_BOOK, TV.PRAYER_BOOK, TV.NATURE_BOOK, TV.SHADOW_BOOK, TV.OTHER_BOOK].map((tval, index) =>
+        item({ handle: 14 + index, tval })),
+      item({ handle: 19, activation: true }),
     ];
     const known = { ...knownWorld(game.view), inventory };
     game.mod.view.world = () => Promise.resolve({ ok: true, value: known });
@@ -144,7 +147,8 @@ describe("the bridge", () => {
     await bridge.prime();
     const world = (await bridge.readWorld())!;
     const items = world.view.inventory();
-    expect(items.map((entry) => perItemValue(entry))).toEqual([1500, 100, 150, 2000, 100, 0, 10000, 145, 400, 60300, 0, 24999, 24999]);
+    expect(items.map((entry) => perItemValue(entry))).toEqual([1500, 100, 150, 2000, 100, 0, 10000, 145, 400, 60300, 0, 24999, 24999,
+      100, 100, 100, 100, 100, 1500]);
     expect(isIdent(items[1]!)).toBe(false);
     expect(hasRandomPower(items[3]!)).toBe(false);
     expect(hasRandomPower(items[4]!)).toBe(true);
