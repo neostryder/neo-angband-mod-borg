@@ -43,7 +43,7 @@ import {
   getDangerState,
 } from "./danger/index.js";
 import type { Flow, FlowHooks } from "./flow/index.js";
-import type { WearDeps, SpaceDeps, RechargeDeps } from "./item/index.js";
+import type { WearDeps, SpaceDeps, RechargeDeps, JunkDeps } from "./item/index.js";
 import { guessedValue, hasRandomPower, isCursed, isIdent, needsIdent, perItemValue } from "./item/deps.js";
 import { borgItemWorthId } from "./item/item-wear.js";
 import { borgCheckRest, createFlow } from "./flow/index.js";
@@ -338,7 +338,7 @@ function simulationBaseline(
  * invisible to every call site, which is the shape of the bug this whole file is
  * closing rather than one to add.
  */
-export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & RechargeDeps {
+export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & RechargeDeps & JunkDeps {
   const c = session.ctx;
   if (!c) throw new Error("buildItemDeps outside a think");
   const w = c.world;
@@ -393,6 +393,15 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
             const score = res.loadoutPower!(c, { wieldAt });
             const base = simulationBaseline(session, c, res.loadoutPower!);
             return score === null || base === null ? null : w.self.power + score - base;
+          },
+          /* borg-junk.c:1319-1357 keeps the item in the pack during removal. */
+          simRemove: (item: ItemView) => {
+            const slot = c.view.equipment().findIndex((worn) => worn?.handle === item.handle);
+            if (slot < 0) return false;
+            const score = res.loadoutPower!(c, { remove: [slot] });
+            if (score === null) return false;
+            const base = simulationBaseline(session, c, res.loadoutPower!);
+            return base !== null && score >= base;
           },
           /* borg-junk.c:659-668,1047-1057 scores the reduced inventory. */
           dropEval: (item: ItemView, quantity: number) => {

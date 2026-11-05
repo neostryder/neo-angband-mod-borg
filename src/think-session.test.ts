@@ -18,7 +18,7 @@ import { makeBorgRng } from "./rng.js";
 import type { BorgContext } from "./context.js";
 import { BI } from "./trait/trait-index.js";
 import { TV } from "./item/svals.js";
-import { borgWearStuff } from "./item/index.js";
+import { borgWearStuff, borgRemoveStuff } from "./item/index.js";
 import { buildItemDeps, buildStoreDeps, buildThinkSession } from "./think-session.js";
 import type { BorgResolvers } from "./think-session.js";
 import type { BorgLoadoutChange } from "./trait/simulate.js";
@@ -174,6 +174,59 @@ describe("the loadout seam reaches the wear decision", () => {
     /* And with no seam, the same scenario emits nothing. */
     const bare = primed({}, [candidate], 1000);
     expect(borgWearStuff(bare.ctx, buildItemDeps(bare.session))).toBeNull();
+  });
+});
+
+describe("equipment removal (borg-junk.c:1259-1397)", () => {
+  function removal(gear: ItemView[], score: number | null = 1000) {
+    const record = recorder(score);
+    const setup = primed(record.resolvers);
+    setup.ctx.view = { ...setup.ctx.view, equipment: () => gear };
+    return { ...setup, seen: record.seen };
+  }
+
+  it("keeps cursed gear when removing it lowers power or the answer is unavailable", () => {
+    for (const score of [999, null]) {
+      const { ctx, session } = removal([item({ curses: ["slowness"] })], score);
+      expect(borgRemoveStuff(ctx, buildItemDeps(session))).toBeNull();
+    }
+  });
+
+  it("removes the last qualifying slot and counts the action", () => {
+    const { ctx, session, seen } = removal([item({ handle: 40 }), item({ handle: 41 })]);
+    expect(borgRemoveStuff(ctx, buildItemDeps(session))).toMatchObject({ code: "takeoff", args: { handle: 41 } });
+    expect(candidates(seen)).toEqual([{ remove: [0] }, { remove: [1] }]);
+    expect(ctx.world.self.timeThisPanel).toBe(1);
+  });
+
+  it.each(["full", "hungry", "weak", "level", "panel"])("respects the %s guard", (guard) => {
+    const { ctx, session, seen } = removal([item({ curses: ["slowness"] })]);
+    if (guard === "full") ctx.view = { ...ctx.view, inventory: () => Array.from({ length: 23 }, (_, handle) => item({ handle })) };
+    if (guard === "hungry") ctx.world.self.trait[BI.ISHUNGRY] = 1;
+    if (guard === "weak") ctx.world.self.trait[BI.ISWEAK] = 1;
+    if (guard === "level") ctx.world.clock = 2001;
+    if (guard === "panel") ctx.world.self.timeThisPanel = 151;
+    expect(borgRemoveStuff(ctx, buildItemDeps(session))).toBeNull();
+    expect(seen).toEqual([]);
+  });
+
+  it.each([
+    { aware: false },
+    { inscription: "??" },
+    { artifact: true, artifactName: "'The One Ring'", curses: ["slowness"] },
+  ])("keeps protected equipment %j", (over) => {
+    const { ctx, session, seen } = removal([item(over)]);
+    expect(borgRemoveStuff(ctx, buildItemDeps(session))).toBeNull();
+    expect(seen).toEqual([]);
+  });
+
+  it("allows unknown runes on cursed gear at the exact time limits", () => {
+    const { ctx, session } = removal([item({ inscription: "??", curses: ["slowness"] })]);
+    ctx.world.clock = 2100;
+    session.flow.state.borgBegan = 100;
+    ctx.world.self.timeThisPanel = 150;
+    expect(borgRemoveStuff(ctx, buildItemDeps(session))?.code).toBe("takeoff");
+    expect(ctx.world.self.timeThisPanel).toBe(151);
   });
 });
 

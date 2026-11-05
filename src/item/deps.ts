@@ -31,6 +31,10 @@ export function isCursed(item: ItemView): boolean {
   return (item as AnalyzedItem).borgAnalysis?.cursed ?? item.curses.length > 0;
 }
 
+export function isOneRing(item: ItemView): boolean {
+  return (item as AnalyzedItem).borgAnalysis?.oneRing ?? item.artifactName === "'The One Ring'";
+}
+
 export function hasRandomPower(item: ItemView): boolean {
   return (item as AnalyzedItem).borgAnalysis?.randomPower ?? true;
 }
@@ -126,7 +130,7 @@ export function needsIdent(item: ItemView, d?: ItemDeps): boolean {
  */
 export function perItemValue(item: ItemView): number {
   const facts = (item as AnalyzedItem).borgAnalysis;
-  if (isCursed(item) && !(facts?.oneRing ?? item.artifactName === "'The One Ring'")) return 0;
+  if (isCursed(item) && !isOneRing(item)) return 0;
   if (!item.aware) return guessedValue(item);
   const fallback = item.number > 0 ? Math.trunc((item.value ?? 0) / item.number) : 0;
   if (facts?.cost == null) return fallback;

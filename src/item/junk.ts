@@ -17,7 +17,7 @@ import { BI } from "../trait/trait-index.js";
 import { CLASS_WARRIOR } from "../trait/trait-index.js";
 import { TV, SVAL } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
-import { trait, danger } from "./deps.js";
+import { trait, danger, clockOf, isAware, isCursed, isOneRing, needsIdent } from "./deps.js";
 
 /** Options controlling the junk pass. */
 export interface JunkDeps extends ItemDeps {
@@ -32,6 +32,10 @@ export interface JunkDeps extends ItemDeps {
   simDrop?: (item: ItemView) => boolean;
   /** borg_remove_stuff's sim: removing this equipped item keeps power. */
   simRemove?: (item: ItemView) => boolean;
+  /** A pack slot is free for the removed equipment. */
+  hasHole?: boolean;
+  /** Arrival clock for the C's level time guard. */
+  began?: number;
 }
 
 /** True when the item's value is knowable from the seams/view. */
@@ -197,24 +201,27 @@ function isProtectedConsumable(
 
 /**
  * borg_remove_stuff (junk.c:1259): take off an equipped item whose removal does
- * not lower power (dead weight / a curse). The C confirms with a power sim; here
- * the simRemove seam does, defaulting to "remove a cursed, non-one-ring item".
- * Hunger/weak and the sit-forever time guards from the C are preserved (the time
- * guards are P8.6 concerns and omitted).
+ * not lower power (dead weight / a curse). Without a simulation no removal is
+ * justified. The last qualifying equipment slot wins, as in the C.
  */
 export function borgRemoveStuff(
   ctx: BorgContext,
   d?: JunkDeps,
 ): AgentCommand | null {
+  if (d?.hasHole === false) return null;
   if (trait(ctx, BI.ISHUNGRY) || trait(ctx, BI.ISWEAK)) return null;
+  if (clockOf(ctx, d) - (d?.began ?? 0) > 2000) return null;
+  if (ctx.world.self.timeThisPanel > 150) return null;
 
+  let best: ItemView | null = null;
   for (const item of ctx.view.equipment()) {
     if (!item || item.number <= 0) continue;
-    const remove = d?.simRemove
-      ? d.simRemove(item)
-      : item.curses.length > 0; /* default: shed a cursed item */
-    if (!remove) continue;
-    return ctx.act.takeoff(item.handle);
+    if (!isAware(item, d)) continue;
+    if (needsIdent(item, d) && !isCursed(item)) continue;
+    if (isOneRing(item)) continue;
+    if (d?.simRemove?.(item)) best = item;
   }
-  return null;
+  if (!best) return null;
+  ctx.world.self.timeThisPanel++;
+  return ctx.act.takeoff(best.handle);
 }
