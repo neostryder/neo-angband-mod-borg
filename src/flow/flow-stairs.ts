@@ -3,7 +3,7 @@
  * (borg_flow_cost_stair, borg_flow_stair_less/more/both).
  *
  * ADAPTATION. Upstream, borg_update fills track_less / track_more as the borg
- * sees stairs. Perception (perceive.ts) does not track stairs yet (P8.6), so
+ * sees stairs. Perception (perceive.ts) does not track stairs, so
  * syncStairsFromMap rebuilds the two tracks from the borg's own remembered map
  * (FEAT_LESS / FEAT_MORE grids) before each stair flow. This is the same data
  * the C borg would hold; only the moment of collection differs.

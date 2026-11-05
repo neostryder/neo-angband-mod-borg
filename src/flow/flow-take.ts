@@ -9,7 +9,7 @@
  * - The gold-scumming book/ammo-kind cheats need k_info; they are gated by the
  *   same GOLD >= 500000 guard as upstream (default gold 0 -> inactive) and left
  *   out. The lunal-mode take variant (heavily inventory/quiver dependent) is a
- *   P8.5 follow-up and is not ported here.
+ *   not ported here.
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";

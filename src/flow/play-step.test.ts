@@ -235,3 +235,20 @@ describe("borg_play_step door random draws (borg-flow.c:941-966)", () => {
     expect(draw.mock.calls).toEqual([[100], [100]]);
   });
 });
+
+describe("borg_play_step Maggot guard (borg-flow.c:749-751)", () => {
+  /* Only a unique, in town, below character level 5 is left alone; every other
+   * adjacent monster on the route is attacked. */
+  it.each([
+    [true, 0, 3, null],
+    [true, 0, 5, "walk"],
+    [true, 2, 3, "walk"],
+    [false, 0, 3, "walk"],
+  ] as const)("with unique %s at depth %i and level %i", (unique, depth, level, code) => {
+    const { play } = step({
+      player: { depth, level },
+      monsters: [{ race: "Grip", raceFlags: unique ? ["UNIQUE"] : [], grid: { x: 11, y: 10 } }],
+    });
+    expect(play()?.code ?? null).toBe(code);
+  });
+});

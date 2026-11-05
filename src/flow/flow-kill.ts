@@ -7,8 +7,8 @@
  *
  * ADAPTATIONS
  * - Monster race-flag tests (RF_UNIQUE / RF_MULTIPLY / RF_NEVER_MOVE /
- *   RF_GROUP_AI / RF_PASS_WALL / RF_KILL_WALL) use FlowHooks.monsterHasFlag
- *   (default false) until the monster-race model lands (P8.6).
+ *   RF_GROUP_AI / RF_PASS_WALL / RF_KILL_WALL) use FlowHooks.monsterHasFlag,
+ *   which the session answers from the monster race records (think-session.ts).
  * - Danger uses FlowHooks.danger; the distance-attack / dig-magic / line-of-sight
  *   dependencies use FlowHooks.hasDistanceAttack / canDigMagic / los.
  * - In the corridor's "summoner out of LOS" branch, borg_detect_wall panel data

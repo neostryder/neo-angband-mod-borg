@@ -3683,7 +3683,7 @@ function borgPlayStep(ctx, flow, y2, x2) {
     const kill = w.kills.at(ag.kill);
     if (kill.rIdx === 0) return null;
     if (trait(w, 113 /* ISAFRAID */) || trait(w, 186 /* CRSFEAR */)) return null;
-    if (trait(w, 105 /* CDEPTH */) === 0 && trait(w, 35 /* CLEVEL */) < 5) {
+    if (flow.hooks.monsterHasFlag(w, ag.kill, "UNIQUE") && trait(w, 105 /* CDEPTH */) === 0 && trait(w, 35 /* CLEVEL */) < 5) {
       return null;
     }
     return act.melee(dir);

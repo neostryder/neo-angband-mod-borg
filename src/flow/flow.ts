@@ -148,7 +148,8 @@ export interface FlowHooks {
   /**
    * rf_has(r_info[kill->r_idx].flags, RF_<flag>): does a tracked monster's race
    * carry a flag ("UNIQUE", "MULTIPLY", "NEVER_MOVE", "GROUP_AI", "PASS_WALL",
-   * "KILL_WALL"). Needs the monster-race model (P8.6); defaults to false.
+   * "KILL_WALL"). The session answers from the monster race records
+   * (think-session.ts); the bare-flow default is false.
    */
   monsterHasFlag: (world: BorgWorld, killIndex: number, flag: string) => boolean;
   /**
@@ -699,9 +700,13 @@ export function borgPlayStep(
     const kill = w.kills.at(ag.kill);
     if (kill.rIdx === 0) return null;
     if (trait(w, BI.ISAFRAID) || trait(w, BI.CRSFEAR)) return null;
-    /* Ignore town uniques until level 5 (Maggot) -- kept via known level */
-    if (trait(w, BI.CDEPTH) === 0 && trait(w, BI.CLEVEL) < 5) {
-      /* RF_UNIQUE detection is refined in P8.6; skip walking into it */
+    /* Ignore Maggot until later (borg-flow.c:749-751): only a unique, in town,
+     * below character level 5. */
+    if (
+      flow.hooks.monsterHasFlag(w, ag.kill, "UNIQUE") &&
+      trait(w, BI.CDEPTH) === 0 &&
+      trait(w, BI.CLEVEL) < 5
+    ) {
       return null;
     }
     return act.melee(dir);
