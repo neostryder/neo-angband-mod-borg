@@ -276,6 +276,14 @@ The suite runs the port **and** drives the built `plugin.js`, which is a differe
 artefact: the engine arrives through ESM live bindings, and whether those survive
 bundling is a separate question from whether they work in TypeScript.
 
+`src/wiring.test.ts` uses the TypeScript compiler API to compare production reads
+and writes of BI traits and scalar fields on `LevelFacts`, `world.self`, and
+`world.self.goal`. Factory defaults and blanket trait zeroing do not count as
+writers. `src/wiring-allowlist.ts` records the current gaps with reasons and C
+sites. A new unwritten read fails the test, as does an entry that gains a writer
+or loses its readers. Run it alone with `pnpm exec vitest run src/wiring.test.ts`.
+This checks assignment presence, so it cannot prove a writer runs before a read.
+
 To develop against an unreleased engine:
 
     NEO_ANGBAND_LOCAL_CORE=1 pnpm test
