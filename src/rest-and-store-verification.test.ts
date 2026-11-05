@@ -36,7 +36,9 @@ import { describe, expect, it } from "vitest";
 import {
   ContentIdResolver,
   FEAT,
+  TV,
   LOOP_STATUS,
+  createAgentView,
   installController,
   runGameLoop,
   startGame,
@@ -44,6 +46,15 @@ import {
 import type { GamePack, GameState } from "@rpgm-tools/neo-angband-core";
 import { createBorg } from "./controller.js";
 import { makeCoreResolvers } from "./resolvers.js";
+import { makeScenarioView, makeFakeActions } from "./harness.js";
+import { knownWorld } from "./harness-api2.js";
+import { playerView } from "./api2/world.js";
+import { borgNotice, BI } from "./trait/index.js";
+import { playerHas } from "./trait/player-flags.js";
+import { buildItemDeps, getThinkSession, primeSession } from "./think-session.js";
+import { perceive, makePerceiveMemo } from "./perceive.js";
+import { syncStairsFromMap } from "./flow/flow-stairs.js";
+import { borgThinkDungeon } from "./think-ladder.js";
 
 /** The game's checkout, holding the content pack a real boot needs. */
 function packRoot(): string | null {
@@ -210,6 +221,52 @@ const suite = PACK_DIR ? describe : describe.skip;
 
 suite("the Borg's ladder reaches rest and the store", () => {
   const pack = PACK_DIR ? loadPack(PACK_DIR) : null;
+
+  it.each([false, true])("uses class flags for SP recovery with stairs=%s", (onStairs) => {
+    for (const cls of ["Blackguard", "Mage"]) {
+      const { game, state, borg } = makeGame(pack!, 1);
+      const player = state.actor.player;
+      player.cls = game.players.classes.find((c) => c.name === cls)!;
+      player.mhp = player.chp = 60;
+      player.msp = 20;
+      player.csp = 0;
+      state.actor.grid = { x: 10, y: 10 };
+
+      /* The bound class supplies PF_COMBAT_REGEN to the published player view. */
+      const engine = createAgentView(state);
+      const known = knownWorld(engine).player!;
+      const p = playerView(known, new Map());
+      const base = makeScenarioView({
+        player: p,
+        cells: { "10,10": { feat: onStairs ? FEAT.MORE : FEAT.FLOOR } },
+      });
+      /* Empty supplies make borg_check_rest reject the grid (borg-flow-misc.c:1288).
+       * The town stair then reaches borg-think-dungeon.c:1652-1707 directly. */
+      const view = { ...base, inventory: () => onStairs ? [] : engine.inventory().filter((item) => item.tval === TV.FOOD) };
+      const session = getThinkSession(borg.world);
+      const act = makeFakeActions();
+      const ctx = { world: borg.world, view, act, rng: borg.rng };
+      /* The stair rung reads the tracks filled from the perceived map. */
+      if (onStairs) {
+        borg.world.clock = 1000;
+        borgNotice(ctx);
+        perceive(borg.world, view, makePerceiveMemo());
+        primeSession(session, ctx);
+        syncStairsFromMap(ctx, session.flow.state);
+      }
+      const cmd = onStairs ? borgThinkDungeon(ctx, session) : borg.controller(view, act);
+      expect(playerHas(session.ctx!, "COMBAT_REGEN"), cls).toBe(cls === "Blackguard");
+      expect(borg.world.self.trait[BI.CURSP], cls).toBe(0);
+      expect(borg.world.self.trait[BI.MAXSP], cls).toBe(20);
+      expect(cmd, cls).not.toBeNull();
+      expect(cmd?.code === "rest", `${cls}: ${JSON.stringify(cmd)}`).toBe(cls === "Mage");
+      if (onStairs) {
+        expect(buildItemDeps(session).canRest, cls).toBe(false);
+      } else {
+        expect(borg.world.self.trait[BI.FOOD], cls).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
 
   /**
    * Issue #3. A level-one character starts at some fraction of max HP - a

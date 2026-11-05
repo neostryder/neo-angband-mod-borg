@@ -4170,7 +4170,7 @@ function borgSpellOkay(ctx, spell) {
   }
   return true;
 }
-function borgSpellFailRate(ctx, spell, playerHas) {
+function borgSpellFailRate(ctx, spell, playerHas2) {
   const sidx = borgGetSpellNumber(ctx, spell);
   if (sidx < 0) return 100;
   const s = spellViewBySidx(ctx, sidx);
@@ -4180,7 +4180,7 @@ function borgSpellFailRate(ctx, spell, playerHas) {
   chance -= trait3(ctx, 33 /* FAIL1 */);
   if (trait3(ctx, 113 /* ISAFRAID */)) chance += 20;
   let minfail = trait3(ctx, 34 /* FAIL2 */);
-  const zeroFail = playerHas ? playerHas("ZERO_FAIL") : (ctx.view.player().classFlags ?? []).includes("ZERO_FAIL");
+  const zeroFail = playerHas2 ? playerHas2("ZERO_FAIL") : (ctx.view.player().classFlags ?? []).includes("ZERO_FAIL");
   if (!zeroFail) {
     if (minfail < 5) minfail = 5;
   }
@@ -4200,12 +4200,12 @@ function borgOnLitGrid(ctx) {
   if (!ctx.world.map.inBounds(x, y)) return false;
   return (ctx.world.map.at(x, y).info & BORG_LIGHT) !== 0;
 }
-function borgSpellOkayFail(ctx, spell, allowFail, playerHas) {
-  if (borgSpellFailRate(ctx, spell, playerHas) > allowFail) return false;
+function borgSpellOkayFail(ctx, spell, allowFail, playerHas2) {
+  if (borgSpellFailRate(ctx, spell, playerHas2) > allowFail) return false;
   return borgSpellOkay(ctx, spell);
 }
-function borgSpellLegalFail(ctx, spell, allowFail, playerHas) {
-  if (borgSpellFailRate(ctx, spell, playerHas) > allowFail) return false;
+function borgSpellLegalFail(ctx, spell, allowFail, playerHas2) {
+  if (borgSpellFailRate(ctx, spell, playerHas2) > allowFail) return false;
   return borgSpellLegal(ctx, spell);
 }
 function borgSpell(ctx, spell) {
@@ -4214,8 +4214,8 @@ function borgSpell(ctx, spell) {
   if (sidx < 0) return null;
   return ctx.act.cast(sidx);
 }
-function borgSpellFail(ctx, spell, allowFail, playerHas) {
-  if (borgSpellFailRate(ctx, spell, playerHas) > allowFail) return null;
+function borgSpellFail(ctx, spell, allowFail, playerHas2) {
+  if (borgSpellFailRate(ctx, spell, playerHas2) > allowFail) return null;
   return borgSpell(ctx, spell);
 }
 
@@ -4366,6 +4366,12 @@ function borgPrepLeaveLevelSpells(ctx) {
     }
   }
   return null;
+}
+
+// src/trait/player-flags.ts
+function playerHas(ctx, code) {
+  const flags = ctx.view.player().classFlags;
+  return Array.isArray(flags) && flags.includes(code);
 }
 
 // src/item/svals.ts
@@ -4852,6 +4858,7 @@ function borgHappyGridBold(ctx, flow, y, x) {
 }
 function borgCheckRest(ctx, flow, y, x) {
   const w = ctx.world;
+  if (trait(w, 27 /* CURHP */) === trait(w, 28 /* MAXHP */) && playerHas(ctx, "COMBAT_REGEN")) return false;
   if (w.self.whenLastKillMult > w.clock - 4 && w.self.whenLastKillMult <= w.clock)
     return false;
   w.self.whenLastKillMult = 0;
@@ -9558,7 +9565,7 @@ function borgUseThings(ctx, d) {
   }
   return null;
 }
-function borgRecharging(ctx, d, playerHas) {
+function borgRecharging(ctx, d, playerHas2) {
   if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) return null;
   for (const item of ctx.view.inventory()) {
     if (item.number <= 0) continue;
@@ -9566,7 +9573,7 @@ function borgRecharging(ctx, d, playerHas) {
     let charge = false;
     if (item.tval === TV.WAND && item.pval <= 1) charge = true;
     if (item.tval === TV.STAFF) {
-      if (item.pval < 2 && borgSpellOkayFail(ctx, 7 /* RECHARGING */, 96, playerHas) && item.sval < SVAL.staff.power)
+      if (item.pval < 2 && borgSpellOkayFail(ctx, 7 /* RECHARGING */, 96, playerHas2) && item.sval < SVAL.staff.power)
         charge = true;
       if (item.pval <= 1) charge = true;
       if (item.sval === SVAL.staff.teleportation && item.pval < 3 && trait3(ctx, 105 /* CDEPTH */) === 0)
@@ -9574,7 +9581,7 @@ function borgRecharging(ctx, d, playerHas) {
       if (item.number + item.pval >= 4 && item.pval >= 1) charge = false;
     }
     if (!charge) continue;
-    const cmd = borgReadScroll(ctx, SVAL.scroll.recharging, d) || borgSpellFail(ctx, 7 /* RECHARGING */, 96, playerHas) || borgActivateItem(ctx, "act_recharge", d);
+    const cmd = borgReadScroll(ctx, SVAL.scroll.recharging, d) || borgSpellFail(ctx, 7 /* RECHARGING */, 96, playerHas2) || borgActivateItem(ctx, "act_recharge", d);
     if (cmd) return cmd;
     break;
   }
@@ -9646,8 +9653,8 @@ function borgTestStuff(ctx, d) {
 }
 
 // src/item/item-decurse.ts
-function decurseMeans(ctx, d, playerHas) {
-  return hasSlot(ctx, TV.SCROLL, SVAL.scroll.remove_curse, d) || borgEquipsStaffFail(ctx, SVAL.staff.remove_curse, d) || borgSpellOkayFail(ctx, 68 /* REMOVE_CURSE */, 40, playerHas) || hasSlot(ctx, TV.SCROLL, SVAL.scroll.star_remove_curse, d) || borgEquipsItemPresent(ctx, d);
+function decurseMeans(ctx, d, playerHas2) {
+  return hasSlot(ctx, TV.SCROLL, SVAL.scroll.remove_curse, d) || borgEquipsStaffFail(ctx, SVAL.staff.remove_curse, d) || borgSpellOkayFail(ctx, 68 /* REMOVE_CURSE */, 40, playerHas2) || hasSlot(ctx, TV.SCROLL, SVAL.scroll.star_remove_curse, d) || borgEquipsItemPresent(ctx, d);
 }
 function borgEquipsItemPresent(ctx, d) {
   return borgActivateItem(ctx, "act_remove_curse", d) !== null || borgActivateItem(ctx, "act_remove_curse2", d) !== null;
@@ -9655,18 +9662,18 @@ function borgEquipsItemPresent(ctx, d) {
 function decurseCommand(ctx, d) {
   return borgReadScroll(ctx, SVAL.scroll.remove_curse, d) || borgUseStaff(ctx, SVAL.staff.remove_curse, d) || borgSpell(ctx, 68 /* REMOVE_CURSE */) || borgReadScroll(ctx, SVAL.scroll.star_remove_curse, d) || borgActivateItem(ctx, "act_remove_curse", d) || borgActivateItem(ctx, "act_remove_curse2", d);
 }
-function borgDecurseAny(ctx, d, playerHas) {
+function borgDecurseAny(ctx, d, playerHas2) {
   if (!ctx.world.self.trait[159 /* FIRST_CURSED */]) return null;
-  if (!decurseMeans(ctx, d, playerHas)) return null;
+  if (!decurseMeans(ctx, d, playerHas2)) return null;
   return decurseCommand(ctx, d);
 }
 
 // src/item/item-enchant.ts
 var ENCHANT_LIMIT = 12;
-function borgEnchantToA(ctx, d, playerHas) {
+function borgEnchantToA(ctx, d, playerHas2) {
   if (!trait3(ctx, 240 /* NEED_ENCHANT_TO_A */)) return null;
   if (!trait3(ctx, 237 /* AENCH_ARM */) && !trait3(ctx, 238 /* AENCH_SARM */)) return null;
-  const canSpell = borgSpellOkayFail(ctx, 76 /* ENCHANT_ARMOUR */, 65, playerHas) || trait3(ctx, 238 /* AENCH_SARM */) >= 1;
+  const canSpell = borgSpellOkayFail(ctx, 76 /* ENCHANT_ARMOUR */, 65, playerHas2) || trait3(ctx, 238 /* AENCH_SARM */) >= 1;
   let best = null;
   let bestA = 99;
   for (const item of ctx.view.equipment()) {
@@ -9680,24 +9687,24 @@ function borgEnchantToA(ctx, d, playerHas) {
     bestA = a;
   }
   if (!best) return null;
-  return borgReadScroll(ctx, SVAL.scroll.star_enchant_armor, d) || borgReadScroll(ctx, SVAL.scroll.enchant_armor, d) || borgSpellFail(ctx, 76 /* ENCHANT_ARMOUR */, 65, playerHas);
+  return borgReadScroll(ctx, SVAL.scroll.star_enchant_armor, d) || borgReadScroll(ctx, SVAL.scroll.enchant_armor, d) || borgSpellFail(ctx, 76 /* ENCHANT_ARMOUR */, 65, playerHas2);
 }
-function borgEnchantToH(ctx, d, playerHas) {
+function borgEnchantToH(ctx, d, playerHas2) {
   if (!trait3(ctx, 241 /* NEED_ENCHANT_TO_H */)) return null;
   if (!trait3(ctx, 234 /* AENCH_TOH */) && !trait3(ctx, 236 /* AENCH_SWEP */)) return null;
-  const item = pickLeastEnchantedWeapon(ctx, d, playerHas, (it) => it.toH);
+  const item = pickLeastEnchantedWeapon(ctx, d, playerHas2, (it) => it.toH);
   if (!item) return null;
-  return borgReadScroll(ctx, SVAL.scroll.star_enchant_weapon, d) || borgReadScroll(ctx, SVAL.scroll.enchant_weapon_to_hit, d) || borgSpellFail(ctx, 75 /* ENCHANT_WEAPON */, 65, playerHas);
+  return borgReadScroll(ctx, SVAL.scroll.star_enchant_weapon, d) || borgReadScroll(ctx, SVAL.scroll.enchant_weapon_to_hit, d) || borgSpellFail(ctx, 75 /* ENCHANT_WEAPON */, 65, playerHas2);
 }
-function borgEnchantToD(ctx, d, playerHas) {
+function borgEnchantToD(ctx, d, playerHas2) {
   if (!trait3(ctx, 242 /* NEED_ENCHANT_TO_D */)) return null;
   if (!trait3(ctx, 235 /* AENCH_TOD */) && !trait3(ctx, 236 /* AENCH_SWEP */)) return null;
-  const item = pickLeastEnchantedWeapon(ctx, d, playerHas, (it) => it.toD);
+  const item = pickLeastEnchantedWeapon(ctx, d, playerHas2, (it) => it.toD);
   if (!item) return null;
-  return borgReadScroll(ctx, SVAL.scroll.star_enchant_weapon, d) || borgReadScroll(ctx, SVAL.scroll.enchant_weapon_to_dam, d) || borgSpellFail(ctx, 75 /* ENCHANT_WEAPON */, 65, playerHas);
+  return borgReadScroll(ctx, SVAL.scroll.star_enchant_weapon, d) || borgReadScroll(ctx, SVAL.scroll.enchant_weapon_to_dam, d) || borgSpellFail(ctx, 75 /* ENCHANT_WEAPON */, 65, playerHas2);
 }
-function pickLeastEnchantedWeapon(ctx, d, playerHas, bonus) {
-  const canSpell = borgSpellOkayFail(ctx, 75 /* ENCHANT_WEAPON */, 65, playerHas) || trait3(ctx, 236 /* AENCH_SWEP */) >= 1;
+function pickLeastEnchantedWeapon(ctx, d, playerHas2, bonus) {
+  const canSpell = borgSpellOkayFail(ctx, 75 /* ENCHANT_WEAPON */, 65, playerHas2) || trait3(ctx, 236 /* AENCH_SWEP */) >= 1;
   let best = null;
   let bestA = 99;
   for (const item of ctx.view.equipment()) {
@@ -9747,12 +9754,12 @@ function isMeleeWeapon(item) {
       return false;
   }
 }
-function borgEnchanting(ctx, d, playerHas) {
+function borgEnchanting(ctx, d, playerHas2) {
   if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */)) return null;
-  const decurse = borgDecurseAny(ctx, d, playerHas);
+  const decurse = borgDecurseAny(ctx, d, playerHas2);
   if (decurse) return decurse;
   if (trait3(ctx, 105 /* CDEPTH */)) return null;
-  return borgBrandWeapon(ctx, d) || borgEnchantToH(ctx, d, playerHas) || borgEnchantToD(ctx, d, playerHas) || borgEnchantToA(ctx, d, playerHas);
+  return borgBrandWeapon(ctx, d) || borgEnchantToH(ctx, d, playerHas2) || borgEnchantToD(ctx, d, playerHas2) || borgEnchantToA(ctx, d, playerHas2);
 }
 
 // src/item/light.ts
@@ -9837,20 +9844,20 @@ function cornerScan(ctx) {
   }
   return corners;
 }
-function borgCheckLightOnly(ctx, d, playerHas) {
+function borgCheckLightOnly(ctx, d, playerHas2) {
   if (trait3(ctx, 105 /* CDEPTH */) === 0) return null;
   if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 120 /* ISIMAGE */)) return null;
   const borgT = clockOf(ctx, d);
   const self = ctx.world.self;
   if (!self.whenWizardLight || borgT - self.whenWizardLight >= 1e3) {
-    const cmd2 = borgActivateItem(ctx, "act_clairvoyance", d) || borgActivateItem(ctx, "act_enlightenment", d) || borgSpellFail(ctx, 103 /* FUME_OF_MORDOR */, 40, playerHas) || borgSpellFail(ctx, 74 /* CLAIRVOYANCE */, 40, playerHas);
+    const cmd2 = borgActivateItem(ctx, "act_clairvoyance", d) || borgActivateItem(ctx, "act_enlightenment", d) || borgSpellFail(ctx, 103 /* FUME_OF_MORDOR */, 40, playerHas2) || borgSpellFail(ctx, 74 /* CLAIRVOYANCE */, 40, playerHas2);
     if (cmd2) {
       self.whenWizardLight = borgT;
       return cmd2;
     }
   }
   if (trait3(ctx, 25 /* CLASS */) === CLASS_NECROMANCER) {
-    return borgCheckDarkOnly(ctx, d, playerHas);
+    return borgCheckDarkOnly(ctx, d, playerHas2);
   }
   if (self.whenCallLight !== 0 && borgT - self.whenCallLight < 7) return null;
   const lightRadius = trait3(ctx, 26 /* LIGHT */);
@@ -9859,14 +9866,14 @@ function borgCheckLightOnly(ctx, d, playerHas) {
   } else if (lightRadius > 1) {
     if (litFloorScan(ctx, 2) < 11) return null;
   }
-  const cmd = borgActivateItem(ctx, "act_illumination", d) || borgActivateItem(ctx, "act_light", d) || borgZapRod(ctx, SVAL.rod.illumination, d) || borgUseStaff(ctx, SVAL.staff.light, d) || borgReadScroll(ctx, SVAL.scroll.light, d) || borgSpellFail(ctx, 1 /* LIGHT_ROOM */, 40, playerHas) || borgSpellFail(ctx, 57 /* CALL_LIGHT */, 40, playerHas);
+  const cmd = borgActivateItem(ctx, "act_illumination", d) || borgActivateItem(ctx, "act_light", d) || borgZapRod(ctx, SVAL.rod.illumination, d) || borgUseStaff(ctx, SVAL.staff.light, d) || borgReadScroll(ctx, SVAL.scroll.light, d) || borgSpellFail(ctx, 1 /* LIGHT_ROOM */, 40, playerHas2) || borgSpellFail(ctx, 57 /* CALL_LIGHT */, 40, playerHas2);
   if (cmd) {
     self.whenCallLight = borgT;
     return cmd;
   }
   return null;
 }
-function borgCheckDarkOnly(ctx, d, playerHas) {
+function borgCheckDarkOnly(ctx, d, playerHas2) {
   if (trait3(ctx, 25 /* CLASS */) !== CLASS_NECROMANCER) return null;
   const borgT = clockOf(ctx, d);
   const self = ctx.world.self;
@@ -9881,14 +9888,14 @@ function borgCheckDarkOnly(ctx, d, playerHas) {
     }
   }
   if (floors < 11) return null;
-  const cmd = borgSpellFail(ctx, 86 /* CREATE_DARKNESS */, 40, playerHas);
+  const cmd = borgSpellFail(ctx, 86 /* CREATE_DARKNESS */, 40, playerHas2);
   if (cmd) {
     self.whenCallLight = borgT;
     return cmd;
   }
   return null;
 }
-function borgCheckLight(ctx, d, playerHas) {
+function borgCheckLight(ctx, d, playerHas2) {
   const self = ctx.world.self;
   if (trait3(ctx, 36 /* MAXCLEVEL */) > 10 && trait3(ctx, 105 /* CDEPTH */) === 0) return null;
   if (trait3(ctx, 112 /* ISBLIND */) || trait3(ctx, 114 /* ISCONFUSED */) || trait3(ctx, 120 /* ISIMAGE */) || trait3(ctx, 115 /* ISPOISONED */) || trait3(ctx, 116 /* ISCUT */) || trait3(ctx, 108 /* ISWEAK */)) {
@@ -9914,7 +9921,7 @@ function borgCheckLight(ctx, d, playerHas) {
     for (const k of kinds) grid.markQuadrant(k, qy, qx);
   };
   if ((doTrap || doDoor || doEvil) && (!self.whenDetectTraps || borgT - self.whenDetectTraps >= 5 || (!self.whenDetectEvil || borgT - self.whenDetectEvil >= 5) || (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 5)) && inDungeon) {
-    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgZapRod(ctx, SVAL.rod.detection, d) || borgSpellFail(ctx, 39 /* SENSE_SURROUNDINGS */, 40, playerHas);
+    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgZapRod(ctx, SVAL.rod.detection, d) || borgSpellFail(ctx, 39 /* SENSE_SURROUNDINGS */, 40, playerHas2);
     if (cmd) {
       mark(["trap", "door", "evil"]);
       self.whenDetectTraps = borgT;
@@ -9925,7 +9932,7 @@ function borgCheckLight(ctx, d, playerHas) {
     }
   }
   if (doEvil && (!self.whenDetectEvil || borgT - self.whenDetectEvil >= 20)) {
-    const cmd = borgSpellFail(ctx, 58 /* DETECT_EVIL */, 40, playerHas) || borgSpellFail(ctx, 5 /* DETECT_MONSTERS */, 40, playerHas) || borgSpellFail(ctx, 88 /* READ_MINDS */, 40, playerHas) || borgSpellFail(ctx, 118 /* SEEK_BATTLE */, 40, playerHas);
+    const cmd = borgSpellFail(ctx, 58 /* DETECT_EVIL */, 40, playerHas2) || borgSpellFail(ctx, 5 /* DETECT_MONSTERS */, 40, playerHas2) || borgSpellFail(ctx, 88 /* READ_MINDS */, 40, playerHas2) || borgSpellFail(ctx, 118 /* SEEK_BATTLE */, 40, playerHas2);
     if (cmd) {
       mark(["evil"]);
       self.whenDetectEvil = borgT;
@@ -9933,7 +9940,7 @@ function borgCheckLight(ctx, d, playerHas) {
     }
   }
   if ((doTrap || doDoor) && (!self.whenDetectTraps || borgT - self.whenDetectTraps >= 5 || (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 5)) && inDungeon) {
-    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas) || borgSpellFail(ctx, 112 /* DETECT_STAIRS */, 40, playerHas);
+    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas2) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas2) || borgSpellFail(ctx, 112 /* DETECT_STAIRS */, 40, playerHas2);
     if (cmd) {
       mark(["trap", "door"]);
       self.whenDetectTraps = borgT;
@@ -9942,7 +9949,7 @@ function borgCheckLight(ctx, d, playerHas) {
     }
   }
   if (doTrap && (!self.whenDetectTraps || borgT - self.whenDetectTraps >= 7) && inDungeon) {
-    const cmd = borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas);
+    const cmd = borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas2) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas2);
     if (cmd) {
       mark(["trap"]);
       self.whenDetectTraps = borgT;
@@ -9950,7 +9957,7 @@ function borgCheckLight(ctx, d, playerHas) {
     }
   }
   if (doDoor && (!self.whenDetectDoors || borgT - self.whenDetectDoors >= 9) && inDungeon) {
-    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas);
+    const cmd = borgActivateItem(ctx, "act_detect_all", d) || borgActivateItem(ctx, "act_mapping", d) || borgSpellFail(ctx, 22 /* DETECTION */, 40, playerHas2) || borgSpellFail(ctx, 2 /* FIND_TRAPS_DOORS_STAIRS */, 40, playerHas2);
     if (cmd) {
       mark(["door"]);
       self.whenDetectDoors = borgT;
@@ -9966,27 +9973,27 @@ function borgCheckLight(ctx, d, playerHas) {
     }
   }
   if (doObj && (!self.whenDetectObj || borgT - self.whenDetectObj >= 20)) {
-    const cmd = borgActivateItem(ctx, "act_detect_objects", d) || borgSpellFail(ctx, 111 /* OBJECT_DETECTION */, 40, playerHas);
+    const cmd = borgActivateItem(ctx, "act_detect_objects", d) || borgSpellFail(ctx, 111 /* OBJECT_DETECTION */, 40, playerHas2);
     if (cmd) {
       mark(["obj"]);
       self.whenDetectObj = borgT;
       return cmd;
     }
   }
-  return borgCheckLightOnly(ctx, d, playerHas);
+  return borgCheckLightOnly(ctx, d, playerHas2);
 }
-function borgLightBeamOkay(ctx, d, playerHas) {
+function borgLightBeamOkay(ctx, d, playerHas2) {
   if (trait3(ctx, 108 /* ISWEAK */)) return false;
   const wand = borgSlot(ctx, TV.WAND, SVAL.wand.light, d);
-  return borgSpellOkayFail(ctx, 64 /* SPEAR_OF_LIGHT */, 20, playerHas) || wand !== null && wand.pval > 0 || borgEquipsRod(ctx, SVAL.rod.light, d);
+  return borgSpellOkayFail(ctx, 64 /* SPEAR_OF_LIGHT */, 20, playerHas2) || wand !== null && wand.pval > 0 || borgEquipsRod(ctx, SVAL.rod.light, d);
 }
-function borgLightBeam(ctx, d, playerHas) {
-  if (!borgLightBeamOkay(ctx, d, playerHas)) return null;
-  return borgSpellFail(ctx, 64 /* SPEAR_OF_LIGHT */, 20, playerHas) || borgZapRod(ctx, SVAL.rod.light, d) || borgAimWand(ctx, SVAL.wand.light, d);
+function borgLightBeam(ctx, d, playerHas2) {
+  if (!borgLightBeamOkay(ctx, d, playerHas2)) return null;
+  return borgSpellFail(ctx, 64 /* SPEAR_OF_LIGHT */, 20, playerHas2) || borgZapRod(ctx, SVAL.rod.light, d) || borgAimWand(ctx, SVAL.wand.light, d);
 }
 
 // src/item/recover.ts
-function borgRecover(ctx, d, playerHas) {
+function borgRecover(ctx, d, playerHas2) {
   const light = borgMaintainLight(ctx, d);
   if (light.need === 1 /* MET_NEED */ && light.cmd) return light.cmd;
   const p = danger(d);
@@ -10091,7 +10098,7 @@ function borgRecover(ctx, d, playerHas) {
     trait3(ctx, 31 /* MAXSP */) * (trait3(ctx, 105 /* CDEPTH */) > 85 ? 7 : 6) / 10
   ))) {
     if (canRest(d) && !ctx.world.facts.scaryGuyOnLevel && p <= fearRegion && ctx.world.self.goal.type !== GOAL_RECOVER) {
-      const lightCmd = borgCheckLightOnly(ctx, d, playerHas);
+      const lightCmd = borgCheckLightOnly(ctx, d, playerHas2);
       if (lightCmd) return lightCmd;
       ctx.world.self.timeThisPanel = 0;
       ctx.world.self.temp.needSeeInvis = clockOf(ctx, d) - 50;
@@ -14721,7 +14728,7 @@ function borgThinkDungeon(ctx, session) {
     const cmd = borgPermaSpell(ctx);
     if (cmd) return cmd;
   }
-  if (T(ctx, 35 /* CLEVEL */) < 10 && T(ctx, 31 /* MAXSP */) && T(ctx, 30 /* CURSP */) === 0 && self.noRestPrep <= 1 && !self.temp.bless && !self.temp.hero && !self.temp.berserk && !self.temp.fastcast) {
+  if (T(ctx, 35 /* CLEVEL */) < 10 && T(ctx, 31 /* MAXSP */) && T(ctx, 30 /* CURSP */) === 0 && self.noRestPrep <= 1 && !self.temp.bless && !self.temp.hero && !self.temp.berserk && !self.temp.fastcast && !playerHas(ctx, "COMBAT_REGEN")) {
     const track = T(ctx, 105 /* CDEPTH */) ? st2.less : st2.more;
     for (let i = 0; i < track.num; i++) {
       if (self.c.y === track.y[i] && self.c.x === track.x[i]) {

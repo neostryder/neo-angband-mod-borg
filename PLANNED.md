@@ -517,9 +517,9 @@ implemented" but "who writes it".
 
 ### What is still not ported, named rather than left to be rediscovered
 
-- Nothing listed. (`PF_COMBAT_REGEN` was here: the engine seam,
-  `PlayerView.classFlags`, landed for neo-angband#34 in 1.3.0, and both of
-  its gates - `borg_check_rest` and the rest-for-mana rung - are now ported.)
+The `PF_COMBAT_REGEN` gates read `PlayerView.classFlags`. The rest check rejects a
+combat regenerator at full HP (`borg-flow-misc.c:1219-1221`), and the
+stair-mana rung excludes combat regenerators (`borg-think-dungeon.c:1652-1655`).
 
 ## Progress
 

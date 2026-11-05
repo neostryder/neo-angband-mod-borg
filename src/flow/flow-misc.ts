@@ -323,9 +323,9 @@ export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: n
 
 /**
  * borg_flow_recover's "do I need to recover some?" (borg-flow-misc.c:242-256):
- * a primary caster - borg_primarily_caster(), num_books > 3 (borg-magic.c:264)
- * - recovers for SP as well as HP; every other class only for HP, cuts, stuns
- * and fear.
+ * A primary caster with mana capacity also recovers at or below one quarter SP
+ * (borg-magic.c:264-266: num_books > 3). Every class recovers at or below
+ * one third HP, or for cuts, stuns and fear.
  */
 export function borgNeedsRecover(ctx: BorgContext): boolean {
   const w = ctx.world;
