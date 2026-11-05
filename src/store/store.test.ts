@@ -18,6 +18,11 @@ import { makeBorgRng } from "../rng.js";
 import type { BorgContext } from "../context.js";
 import { BI } from "../trait/trait-index.js";
 import { TV, SVAL } from "../item/svals.js";
+import { think } from "../think.js";
+import { buildThinkSession, installThinkSession } from "../think-session.js";
+import { borgNotice } from "../trait/trait.js";
+import { perceive, makePerceiveMemo } from "../perceive.js";
+import type { BorgLoadoutChange } from "../trait/simulate.js";
 import {
   BORG_HOME,
   SHOP_TEMPLE,
@@ -468,6 +473,163 @@ describe("borgChooseShop", () => {
     const deps = { mem: createStoreMemory(), buyShopEval: () => 1100 };
     expect(borgChooseShop(ctx, deps)).toBe(true);
     expect(ctx.world.self.goal.shop).toBe(SHOP_TEMPLE);
+  });
+});
+
+function shopScenario(
+  shopNum: number,
+  inventory: ItemView[] = [],
+  equipment: Array<ItemView | null> = [],
+  stock: StoreItemView[] = [],
+  score: (change: BorgLoadoutChange) => number = () => 1000,
+) {
+  const stores = Array.from({ length: 8 }, (_, index) =>
+    store(0, index === BORG_HOME, index === shopNum ? stock : []));
+  const { ctx } = makeCtx({ inventory, equipment, stores, power: 1000 });
+  ctx.world.wipeLevel(0);
+  borgNotice(ctx);
+  perceive(ctx.world, ctx.view, makePerceiveMemo());
+  const session = buildThinkSession({ inShop: () => shopNum, loadoutPower: (_ctx, change) => score(change) });
+  installThinkSession(ctx.world, session);
+  return { ctx, session, inventory, equipment, stores };
+}
+
+describe("the production shop ladder", () => {
+  it.each([
+    [2000, 1350, "shop-buy"],
+    [2001, 1350, "shop-exit"],
+    [2000, 1351, "shop-exit"],
+  ])("applies the level and panel bails before an existing goal at %i/%i", (elapsed, panel, code) => {
+    const { ctx, session } = shopScenario(0, [], [], [ware(0, { tval: TV.FOOD, value: 1 })]);
+    session.flow.state.borgBegan = 500;
+    ctx.world.clock = 500 + Number(elapsed);
+    ctx.world.self.timeThisPanel = Number(panel);
+    Object.assign(ctx.world.self.goal, { shop: 0, ware: 0, item: -1, type: 3 });
+    expect(think(ctx)).toMatchObject({ code });
+    expect(ctx.world.self.goal.type).toBe(0);
+    expect(ctx.world.self.goal.shop).toBe(-1);
+  });
+
+  it("searches equipment combinations before shopping and executes a home plan across turns", () => {
+    const old = item({ handle: 40, tval: TV.SWORD, sval: 1, value: 10 });
+    const sword = ware(0, { handle: 41, tval: TV.SWORD, sval: 2, value: 100, number: 2 });
+    const boots = item({ handle: 42, tval: TV.BOOTS, value: 100 });
+    const { ctx, equipment, inventory, stores } = shopScenario(BORG_HOME, [boots], [old], [sword], (change) => {
+      const choices = change.wieldAt ?? [];
+      const weapon = choices.some((choice) => choice.slot === 0);
+      const feet = choices.some((choice) => choice.slot === 11);
+      return choices.length === 0 ? 1000 : weapon && feet ? 1100 : 900;
+    });
+    expect(ctx.world.self.goal.doBest).toBe(true);
+    expect(think(ctx)).toMatchObject({ code: "shop-sell", args: { handle: 40, quantity: 1 } });
+    expect(ctx.world.self.goal.doBest).toBe(false);
+    equipment[0] = null;
+    expect(think(ctx)).toMatchObject({ code: "shop-buy", args: { index: 0, quantity: 1 } });
+    stores[BORG_HOME]!.stock = [];
+    inventory.push({ ...sword, handle: 99, number: 1 });
+    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 99 } });
+    equipment[0] = inventory.pop()!;
+    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 42 } });
+    inventory.pop();
+    equipment[11] = boots;
+    think(ctx);
+    expect(ctx.world.self.goal.bestItems).toBeUndefined();
+    expect(ctx.world.self.goal.doBest).toBe(false);
+  });
+
+  it("takes off occupied equipment before wearing a carried optimal item", () => {
+    const old = item({ handle: 10, tval: TV.BOOTS, sval: 1 });
+    const boots = item({ handle: 11, tval: TV.BOOTS, sval: 2, value: 100 });
+    const equipment = Array<ItemView | null>(12).fill(null);
+    equipment[11] = old;
+    const { ctx, inventory } = shopScenario(BORG_HOME, [boots], equipment, [], (change) => change.wieldAt?.length ? 1001 : 1000);
+    expect(think(ctx)).toMatchObject({ code: "takeoff", args: { handle: 10 } });
+    equipment[11] = null;
+    inventory.push(old);
+    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 11 } });
+  });
+
+  it.each([0, BORG_HOME])("replaces a non-artifact digger in store %i before trading", (shopNum) => {
+    const sword = item({ handle: 20, tval: TV.SWORD, value: 100 });
+    const { ctx } = shopScenario(shopNum, [sword], [item({ tval: TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
+    ctx.world.self.goal.doBest = false;
+    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
+    expect(ctx.world.self.timeThisPanel).toBe(2);
+    const expected = makeBorgRng(1);
+    expected.randint0(100);
+    expect(ctx.rng.randint0(100)).toBe(expected.randint0(100));
+  });
+
+  it("requires a pack hole before replacing a shop digger", () => {
+    const sword = item({ handle: 20, tval: TV.SWORD, value: 100 });
+    const pack = [sword, ...Array.from({ length: 22 }, (_, handle) => item({ handle: 100 + handle, tval: TV.FOOD }))];
+    const { ctx } = shopScenario(0, pack, [item({ tval: TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
+    expect(think(ctx)?.code).not.toBe("wield");
+    pack.pop();
+    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
+  });
+
+  it.each([TV.SWORD, TV.DIGGING])("keeps ordinary weapons and artifact diggers out of the shop wear fallback (%i)", (tval) => {
+    const { ctx } = shopScenario(0, [item({ handle: 20, tval: TV.SWORD, value: 100 })], [item({ tval, artifact: tval === TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
+    expect(think(ctx)).toMatchObject({ code: "shop-sell" });
+    const fallback = shopScenario(0, [item({ handle: 20, tval: TV.SWORD, value: 100 })], [item({ tval: TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
+    expect(think(fallback.ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
+  });
+
+  it.each([20000, 20010])("leaves during clock wrap %i before optimal wear or clearing shop goals", (clock) => {
+    let wrapping = true;
+    const { ctx } = shopScenario(BORG_HOME, [item({ tval: TV.BOOTS, value: 100 })], [], [], (change) => {
+      if (wrapping) throw new Error("equipment evaluation during clock wrap");
+      return change.wieldAt?.length ? 1001 : 1000;
+    });
+    ctx.world.clock = clock;
+    ctx.world.self.goal.shop = BORG_HOME;
+    expect(think(ctx)).toMatchObject({ code: "shop-exit" });
+    expect(ctx.world.self.goal.shop).toBe(BORG_HOME);
+    expect(ctx.world.self.goal.doBest).toBe(true);
+    wrapping = false;
+    ctx.world.clock = 20011;
+    expect(think(ctx)).toMatchObject({ code: "wield" });
+  });
+
+  it.each(["pack", "home"])("defers home optimization when the %s is full", (full) => {
+    const { ctx } = shopScenario(BORG_HOME,
+      Array.from({ length: full === "pack" ? 23 : 1 }, (_, handle) => item({ handle, tval: TV.BOOTS, value: 1 })), [],
+      Array.from({ length: full === "home" ? 24 : 0 }, (_, index) => ware(index, { tval: TV.BOOTS, value: 1 })));
+    think(ctx);
+    expect(ctx.world.self.goal.doBest).toBe(true);
+    expect(ctx.world.self.goal.bestItems).toBeUndefined();
+    ctx.world.self.goal.doBest = false;
+    ctx.world.wipeLevel(0);
+    expect(ctx.world.self.goal.doBest).toBe(true);
+  });
+
+  it("uses distinct ring candidates in the C slot order and keeps the first equally good plan", () => {
+    const rings = [item({ handle: 10, tval: TV.RING, sval: 1, value: 100 }), item({ handle: 11, tval: TV.RING, sval: 2, value: 100 })];
+    const seen: BorgLoadoutChange[] = [];
+    const { ctx } = shopScenario(BORG_HOME, rings, [], [], (change) => {
+      seen.push(change);
+      return change.wieldAt?.length === 2 ? 1100 : 1000;
+    });
+    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 10 } });
+    const paired = seen.filter((change) => change.wieldAt?.length === 2);
+    expect(paired[0]!.wieldAt).toEqual([
+      { item: { from: "gear", handle: 10 }, slot: 3 },
+      { item: { from: "gear", handle: 11 }, slot: 2 },
+    ]);
+    expect(paired.every((change) => JSON.stringify(change.wieldAt![0]!.item) !== JSON.stringify(change.wieldAt![1]!.item))).toBe(true);
+    expect(ctx.rng.randint0(100)).toBe(makeBorgRng(1).randint0(100));
+  });
+
+  it("keeps home optimization pending until loadout answers arrive", () => {
+    let ready = false;
+    const { ctx, session } = shopScenario(BORG_HOME, [item({ handle: 20, tval: TV.BOOTS, value: 100 })]);
+    const live = buildThinkSession({ inShop: session.resolvers.inShop!, loadoutPower: (_ctx, change) => ready ? change.wieldAt?.length ? 1001 : 1000 : null });
+    installThinkSession(ctx.world, live);
+    think(ctx);
+    expect(ctx.world.self.goal.doBest).toBe(true);
+    ready = true;
+    expect(think({ ...ctx })).toMatchObject({ code: "wield", args: { handle: 20 } });
   });
 });
 

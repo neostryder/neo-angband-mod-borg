@@ -1,12 +1,13 @@
 /**
- * Wear/equip decisions - a faithful port of borg-item-wear.c (borg_wear_stuff)
+ * Wear/equip decisions from borg-item-wear.c: borg_wear_stuff, borg_best_stuff
  * and the ammo predicate borg_is_ammo.
  *
  * borg_wear_stuff simulates wearing each carried item (borg_notice/borg_power on
  * the swapped loadout) and wears whichever raises borg.power the most. The frozen
  * contract cannot re-run notice on a hypothetical loadout here, so the power of a
- * candidate loadout is provided by the `wearEval` seam; every guard, slot rule
- * and threshold the C applies BEFORE the simulation is preserved verbatim.
+ * candidate loadout is provided by the `wearEval` seam. Home optimization uses
+ * `bestEval` to score combinations in the C slot order and keeps a plan across
+ * stash, retrieve, takeoff and wear commands (borg-item-wear.c:1077-1428).
  * Without the seam nothing improves on the current power, so the borg wears
  * nothing (the safe default). borg_remove_stuff lives in junk.ts (borgRemoveStuff).
  */
@@ -15,9 +16,14 @@ import type { BorgContext, ItemView, AgentCommand } from "./types.js";
 import { BI } from "../trait/trait-index.js";
 import { TV } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
-import { trait, isAware, isIdent, itemValue, canRest, needsIdent, packItems } from "./deps.js";
+import { trait, isAware, isIdent, isCursed, itemValue, canRest, needsIdent, packItems } from "./deps.js";
 import { SVAL } from "./svals.js";
 import { mod as modOf } from "../trait/item-util.js";
+import type { BorgLoadoutChange, BorgLoadoutRef } from "../trait/simulate.js";
+import {
+  BORG_HOME, borgHomeFull, borgInventoryFull, homeWares, isOneRing,
+  type StoreDeps,
+} from "../store/store.js";
 
 /** Wear-specific seams. */
 export interface WearDeps extends ItemDeps {
@@ -27,6 +33,10 @@ export interface WearDeps extends ItemDeps {
   randarts?: boolean;
   /** borg.power if `item` were worn (the C's borg_notice/borg_power sim). */
   wearEval?: (item: ItemView) => number;
+  /** Power for a complete equipment combination (borg-item-wear.c:1229). */
+  bestEval?: (choices: NonNullable<BorgLoadoutChange["wieldAt"]>) => number | null;
+  /** A cursed item has a curse with power below 100 (borg-item-analyze.c:347). */
+  uncursable?: (item: ItemView) => boolean;
   /**
    * borg_began: the Borg clock when it arrived on this level, for the
    * "been sitting here forever" guard (wear.c:779). Default 0, which with a
@@ -131,6 +141,110 @@ function wornInSlot(ctx: BorgContext, slot: Slot): ItemView | null {
   return null;
 }
 
+/** borg_best_stuff_order (borg-item-wear.c:1042-1071), in body-slot indices. */
+const BEST_ORDER = [1, 0, 6, 7, 8, 9, 10, 11, 3, 2, 5, 4] as const;
+const BEST_SLOTS: readonly Slot[] = [
+  "bow", "weapon", "body", "cloak", "shield", "helm", "gloves", "boots",
+  "ring", "ring", "light", "amulet",
+];
+
+/** borg_best_stuff (borg-item-wear.c:1329-1428) searches only at home. */
+export function borgBestStuff(
+  ctx: BorgContext,
+  shopNum: number,
+  d?: WearDeps,
+  stores?: StoreDeps,
+): AgentCommand | null {
+  if (shopNum !== BORG_HOME) return null;
+  const goal = ctx.world.self.goal;
+  if (goal.doBest) {
+    if (borgHomeFull(ctx, stores) || borgInventoryFull(ctx, stores)) return null;
+    const pack = packItems(ctx);
+    const home = homeWares(ctx);
+    const candidates = [
+      ...pack.map((item) => ({ item, ref: { from: "gear", handle: item.handle } as BorgLoadoutRef, home: false })),
+      ...home.map((item) => ({ item, ref: { from: "store", store: BORG_HOME, index: item.index } as BorgLoadoutRef, home: true })),
+    ];
+    const equipment = ctx.view.equipment();
+    type Choice = (typeof candidates)[number];
+    const trial: Array<Choice | null> = BEST_ORDER.map(() => null);
+    let best = [...trial];
+    let power = ctx.world.self.power;
+    let incomplete = false;
+    /* borg-item-wear.c:1210-1320 visits the current item before alternatives. */
+    const search = (n: number): void => {
+      if (n === BEST_ORDER.length) {
+        const choices = trial.flatMap((choice, k) => choice ? [{ item: choice.ref, slot: BEST_ORDER[k]! }] : []);
+        const score = d?.bestEval ? d.bestEval(choices) : ctx.world.self.power;
+        if (score === null) {
+          incomplete = true;
+          return;
+        }
+        if (score > power) {
+          power = score;
+          best = [...trial];
+        }
+        return;
+      }
+      search(n + 1);
+      for (const choice of candidates) {
+        const item = choice.item;
+        if (!item.number || !isAware(item, d) || !itemValue(item, d)) continue;
+        if (isCursed(item) && !d?.uncursable?.(item)) continue;
+        if (d?.randarts && item.artifact && !isIdent(item, d)) continue;
+        if (wieldSlot(item) !== BEST_SLOTS[n]) continue;
+        if (n === 9 && trial[8] === choice) continue;
+        const worn = equipment[BEST_ORDER[n]!];
+        if (worn && isOneRing(worn, stores)) continue;
+        trial[n] = choice;
+        search(n + 1);
+        trial[n] = null;
+      }
+    };
+    search(0);
+    if (incomplete) return null;
+    /* borg-item-wear.c:1378-1406 keeps identities across inventory reordering. */
+    goal.bestItems = best.map((choice) => choice ? {
+      tval: choice.item.tval, sval: choice.item.sval, pval: choice.item.pval, home: choice.home,
+    } : null);
+    goal.doBest = false;
+  }
+
+  /* borg_one_step_wearing_best (borg-item-wear.c:1077-1200) emits one action. */
+  const plan = goal.bestItems;
+  if (!plan) return null;
+  for (let n = 0; n < plan.length; n++) {
+    const choice = plan[n];
+    if (!choice) continue;
+    const worn = ctx.view.equipment()[BEST_ORDER[n]!];
+    const matches = (item: ItemView): boolean =>
+      item.tval === choice.tval && item.sval === choice.sval && item.pval === choice.pval;
+    if (choice.home) {
+      if (worn?.number) {
+        if (borgHomeFull(ctx, stores)) continue;
+        return ctx.act.shopSell(worn.handle, worn.number);
+      }
+      if (borgInventoryFull(ctx, stores)) continue;
+      const item = homeWares(ctx).find(matches);
+      if (!item) return null;
+      choice.home = false;
+      return ctx.act.shopBuy(item.index, 1);
+    }
+    if (worn?.number) {
+      if (borgInventoryFull(ctx, stores)) continue;
+      return ctx.act.takeoff(worn.handle);
+    }
+    const item = [...packItems(ctx), ...ctx.view.equipment().filter((entry): entry is ItemView => entry !== null)].find(matches);
+    if (!item) return null;
+    plan[n] = null;
+    return ctx.act.wear(item.handle);
+  }
+  /* borg-item-wear.c:1105-1112 retries plans blocked by full storage. */
+  goal.doBest = plan.some((choice) => choice !== null);
+  delete goal.bestItems;
+  return null;
+}
+
 /**
  * borg_wear_stuff (wear.c:745): wear the carried item that most improves power.
  * Returns the wear command, or null.
@@ -193,6 +307,8 @@ export function borgWearStuff(
 
     bestPower = p;
     best = item;
+    /* borg-item-wear.c:921 draws for the ring check after a regular upgrade. */
+    ctx.rng.randint0(100);
   }
 
   /* The final gate is against the CURRENT power, not against the running best

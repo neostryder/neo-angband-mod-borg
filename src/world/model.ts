@@ -47,6 +47,7 @@ export interface Goals {
   ware: number; /* next item to buy there */
   item: number; /* next item to sell there */
   doBest: boolean;
+  bestItems?: Array<{ tval: number; sval: number; pval: number; home: boolean } | null>;
 }
 
 /** A fresh, zeroed goal set. */
@@ -306,6 +307,8 @@ export class BorgWorld {
     this.self.goal = makeGoals();
     this.self.goal.rising = depth === 0 ? false : rising;
     this.self.goal.fleeingToTown = depth === 0 || depth >= 2 ? false : fleeingToTown;
+    /* borg-update.c:2155-2157 requests equipment optimization on town entry. */
+    this.self.goal.doBest = depth === 0;
 
     /* "Do not use any stairs" (borg-update.c:2135). */
     this.self.stairLess = false;

@@ -591,6 +591,7 @@ var BorgWorld = class {
     this.self.goal = makeGoals();
     this.self.goal.rising = depth === 0 ? false : rising;
     this.self.goal.fleeingToTown = depth === 0 || depth >= 2 ? false : fleeingToTown;
+    this.self.goal.doBest = depth === 0;
     this.self.stairLess = false;
     this.self.stairMore = false;
     this.self.timeThisPanel = 1;
@@ -3884,6 +3885,154 @@ function present(item) {
   return !!item && item.number > 0;
 }
 
+// src/store/store.ts
+var BORG_HOME = 7;
+var SHOP_GENERAL = 0;
+var SHOP_TEMPLE = 3;
+var SHOP_BLACK = 6;
+var STORE_INVEN_MAX = 24;
+var PACK_SIZE = 23;
+var DEFAULT_MAX_STACK = 40;
+function createStoreMemory() {
+  return {
+    soldTval: [],
+    soldSval: [],
+    soldPval: [],
+    soldStore: [],
+    soldNum: -1,
+    soldNxt: 0,
+    boughtTval: [],
+    boughtSval: [],
+    boughtPval: [],
+    boughtStore: [],
+    boughtNum: -1,
+    boughtNxt: 0,
+    moneyScumAmount: 0,
+    moneyScumWho: -1,
+    moneyScumWare: -1
+  };
+}
+function recordSold(mem, item, store2) {
+  if (mem.soldNxt >= 9) mem.soldNxt = 0;
+  mem.soldPval[mem.soldNxt] = item.pval;
+  mem.soldTval[mem.soldNxt] = item.tval;
+  mem.soldSval[mem.soldNxt] = item.sval;
+  mem.soldStore[mem.soldNxt] = store2;
+  mem.soldNum = mem.soldNxt;
+  mem.soldNxt++;
+}
+function recordBought(mem, item, store2) {
+  if (mem.boughtNxt >= 9) mem.boughtNxt = 0;
+  mem.boughtPval[mem.boughtNxt] = item.pval;
+  mem.boughtTval[mem.boughtNxt] = item.tval;
+  mem.boughtSval[mem.boughtNxt] = item.sval;
+  mem.boughtStore[mem.boughtNxt] = store2;
+  mem.boughtNum = mem.boughtNxt;
+  mem.boughtNxt++;
+}
+function st(ctx, bi) {
+  return ctx.world.self.trait[bi] ?? 0;
+}
+function storeInvenMax(d) {
+  return d?.storeInvenMax ?? STORE_INVEN_MAX;
+}
+function packSize(d) {
+  return d?.packSize ?? PACK_SIZE;
+}
+function maxStackOf(item, d) {
+  if (d?.maxStack) return d.maxStack(item);
+  return item.tval === TV.CHEST ? 1 : DEFAULT_MAX_STACK;
+}
+function iqty(item) {
+  return item.number;
+}
+function itemValue2(item, d) {
+  if (d?.itemValue) return d.itemValue(item);
+  return item.value ?? 0;
+}
+function isAware2(item, d) {
+  return d?.isAware ? d.isAware(item) : true;
+}
+function isIdent2(item, d) {
+  return d?.isIdent ? d.isIdent(item) : true;
+}
+function needsIdent2(item, d) {
+  return d?.needsIdent ? d.needsIdent(item) : false;
+}
+function noteNeedsId(item, d) {
+  if (d?.noteNeedsId) return d.noteNeedsId(item);
+  return needsIdent2(item, d);
+}
+function worthId(item, d) {
+  return d?.worthId ? d.worthId(item) : false;
+}
+function isOneRing(item, d) {
+  if (d?.isOneRing) return d.isOneRing(item);
+  return item.artifactName === "The One Ring";
+}
+function shopCost(item) {
+  return item.price ?? Infinity;
+}
+function isBookTval(tval) {
+  return tval === TV.MAGIC_BOOK || tval === TV.PRAYER_BOOK || tval === TV.NATURE_BOOK || tval === TV.SHADOW_BOOK || tval === TV.OTHER_BOOK;
+}
+function canBrowse2(item, d) {
+  if (d?.canBrowse) return d.canBrowse(item);
+  return isBookTval(item.tval);
+}
+function packSlots(ctx, d) {
+  const quiver = ctx.view.quiver?.();
+  const slots = quiver === void 0 ? st(ctx, 158 /* QUIVER_SLOTS */) : Math.ceil(quiver.reduce((count, item) => count + item.number * ([TV.SHOT, TV.ARROW, TV.BOLT].includes(item.tval) ? 1 : 5), 0) / 40);
+  return packSize(d) - slots;
+}
+function borgFirstEmptyInventorySlot(ctx, d) {
+  const quiver = new Set(ctx.view.quiver?.().map((item) => item.handle) ?? []);
+  const used = ctx.view.inventory().filter((i) => i.number > 0 && !quiver.has(i.handle)).length;
+  return used < packSlots(ctx, d) ? used : -1;
+}
+function borgInventoryFull(ctx, d) {
+  return borgFirstEmptyInventorySlot(ctx, d) === -1;
+}
+function homeStore(ctx) {
+  const stores = ctx.view.stores();
+  for (const s of stores) if (s.isHome) return s;
+  return stores[BORG_HOME] ?? null;
+}
+function homeWares(ctx) {
+  const home = homeStore(ctx);
+  if (!home) return [];
+  return home.stock.filter((i) => i.number > 0);
+}
+function borgHomeFull(ctx, d) {
+  return homeWares(ctx).length >= storeInvenMax(d);
+}
+function borgMinItemQuantity(ctx, item, d) {
+  if (st(ctx, 45 /* GOLD */) < 250) return 1;
+  if (itemValue2(item, d) > 5) return 1;
+  if (!isAware2(item, d)) return 1;
+  switch (item.tval) {
+    case TV.SHOT:
+    case TV.ARROW:
+    case TV.BOLT:
+      if (iqty(item) < 5) return iqty(item);
+      return 5;
+    case TV.FOOD:
+      if (iqty(item) < 3) return iqty(item);
+      return 3;
+    default:
+      return 1;
+  }
+}
+function borgPrimarilyCaster(ctx, d) {
+  if (d?.primarilyCaster !== void 0) return d.primarilyCaster;
+  const cls = st(ctx, 25 /* CLASS */);
+  return cls === 1 || cls === 2 || cls === 3 || cls === 4;
+}
+function borgUsesSwaps(ctx, d) {
+  const cfg = d?.usesSwaps ?? true;
+  return cfg && st(ctx, 106 /* MAXDEPTH */) < 90;
+}
+
 // src/item/item-wear.ts
 function borgWearRecharge(ctx, d) {
   if (!canRest(d) || trait3(ctx, 108 /* ISWEAK */)) return null;
@@ -3948,6 +4097,107 @@ function wornInSlot(ctx, slot) {
   }
   return null;
 }
+var BEST_ORDER = [1, 0, 6, 7, 8, 9, 10, 11, 3, 2, 5, 4];
+var BEST_SLOTS = [
+  "bow",
+  "weapon",
+  "body",
+  "cloak",
+  "shield",
+  "helm",
+  "gloves",
+  "boots",
+  "ring",
+  "ring",
+  "light",
+  "amulet"
+];
+function borgBestStuff(ctx, shopNum, d, stores) {
+  if (shopNum !== BORG_HOME) return null;
+  const goal = ctx.world.self.goal;
+  if (goal.doBest) {
+    if (borgHomeFull(ctx, stores) || borgInventoryFull(ctx, stores)) return null;
+    const pack = packItems(ctx);
+    const home = homeWares(ctx);
+    const candidates = [
+      ...pack.map((item) => ({ item, ref: { from: "gear", handle: item.handle }, home: false })),
+      ...home.map((item) => ({ item, ref: { from: "store", store: BORG_HOME, index: item.index }, home: true }))
+    ];
+    const equipment2 = ctx.view.equipment();
+    const trial = BEST_ORDER.map(() => null);
+    let best = [...trial];
+    let power = ctx.world.self.power;
+    let incomplete = false;
+    const search = (n) => {
+      if (n === BEST_ORDER.length) {
+        const choices = trial.flatMap((choice, k) => choice ? [{ item: choice.ref, slot: BEST_ORDER[k] }] : []);
+        const score = d?.bestEval ? d.bestEval(choices) : ctx.world.self.power;
+        if (score === null) {
+          incomplete = true;
+          return;
+        }
+        if (score > power) {
+          power = score;
+          best = [...trial];
+        }
+        return;
+      }
+      search(n + 1);
+      for (const choice of candidates) {
+        const item = choice.item;
+        if (!item.number || !isAware(item, d) || !itemValue(item, d)) continue;
+        if (isCursed(item) && !d?.uncursable?.(item)) continue;
+        if (d?.randarts && item.artifact && !isIdent(item, d)) continue;
+        if (wieldSlot(item) !== BEST_SLOTS[n]) continue;
+        if (n === 9 && trial[8] === choice) continue;
+        const worn = equipment2[BEST_ORDER[n]];
+        if (worn && isOneRing(worn, stores)) continue;
+        trial[n] = choice;
+        search(n + 1);
+        trial[n] = null;
+      }
+    };
+    search(0);
+    if (incomplete) return null;
+    goal.bestItems = best.map((choice) => choice ? {
+      tval: choice.item.tval,
+      sval: choice.item.sval,
+      pval: choice.item.pval,
+      home: choice.home
+    } : null);
+    goal.doBest = false;
+  }
+  const plan = goal.bestItems;
+  if (!plan) return null;
+  for (let n = 0; n < plan.length; n++) {
+    const choice = plan[n];
+    if (!choice) continue;
+    const worn = ctx.view.equipment()[BEST_ORDER[n]];
+    const matches = (item2) => item2.tval === choice.tval && item2.sval === choice.sval && item2.pval === choice.pval;
+    if (choice.home) {
+      if (worn?.number) {
+        if (borgHomeFull(ctx, stores)) continue;
+        return ctx.act.shopSell(worn.handle, worn.number);
+      }
+      if (borgInventoryFull(ctx, stores)) continue;
+      const item2 = homeWares(ctx).find(matches);
+      if (!item2) return null;
+      choice.home = false;
+      return ctx.act.shopBuy(item2.index, 1);
+    }
+    if (worn?.number) {
+      if (borgInventoryFull(ctx, stores)) continue;
+      return ctx.act.takeoff(worn.handle);
+    }
+    const item = [...packItems(ctx), ...ctx.view.equipment().filter((entry) => entry !== null)].find(matches);
+    if (!item) return null;
+    plan[n] = null;
+    return ctx.act.wear(item.handle);
+  }
+  goal.doBest = plan.some((choice) => choice !== null);
+  delete goal.bestItems;
+  return null;
+}
 function borgWearStuff(ctx, d) {
   if (trait3(ctx, 109 /* ISHUNGRY */) || trait3(ctx, 108 /* ISWEAK */)) return null;
   if (d?.hasHole === false) return null;
@@ -3971,6 +4221,7 @@ function borgWearStuff(ctx, d) {
     if (p <= bestPower + 50) continue;
     bestPower = p;
     best = item;
+    ctx.rng.randint0(100);
   }
   if (best && bestPower > currentPower) {
     ctx.world.self.timeThisPanel++;
@@ -4945,150 +5196,6 @@ function borgPrepLeaveLevelSpells(ctx) {
 function playerHas(ctx, code) {
   const flags = ctx.view.player().classFlags;
   return Array.isArray(flags) && flags.includes(code);
-}
-
-// src/store/store.ts
-var BORG_HOME = 7;
-var SHOP_GENERAL = 0;
-var SHOP_TEMPLE = 3;
-var SHOP_BLACK = 6;
-var STORE_INVEN_MAX = 24;
-var PACK_SIZE = 23;
-var DEFAULT_MAX_STACK = 40;
-function createStoreMemory() {
-  return {
-    soldTval: [],
-    soldSval: [],
-    soldPval: [],
-    soldStore: [],
-    soldNum: -1,
-    soldNxt: 0,
-    boughtTval: [],
-    boughtSval: [],
-    boughtPval: [],
-    boughtStore: [],
-    boughtNum: -1,
-    boughtNxt: 0,
-    moneyScumAmount: 0,
-    moneyScumWho: -1,
-    moneyScumWare: -1
-  };
-}
-function recordSold(mem, item, store2) {
-  if (mem.soldNxt >= 9) mem.soldNxt = 0;
-  mem.soldPval[mem.soldNxt] = item.pval;
-  mem.soldTval[mem.soldNxt] = item.tval;
-  mem.soldSval[mem.soldNxt] = item.sval;
-  mem.soldStore[mem.soldNxt] = store2;
-  mem.soldNum = mem.soldNxt;
-  mem.soldNxt++;
-}
-function recordBought(mem, item, store2) {
-  if (mem.boughtNxt >= 9) mem.boughtNxt = 0;
-  mem.boughtPval[mem.boughtNxt] = item.pval;
-  mem.boughtTval[mem.boughtNxt] = item.tval;
-  mem.boughtSval[mem.boughtNxt] = item.sval;
-  mem.boughtStore[mem.boughtNxt] = store2;
-  mem.boughtNum = mem.boughtNxt;
-  mem.boughtNxt++;
-}
-function st(ctx, bi) {
-  return ctx.world.self.trait[bi] ?? 0;
-}
-function storeInvenMax(d) {
-  return d?.storeInvenMax ?? STORE_INVEN_MAX;
-}
-function packSize(d) {
-  return d?.packSize ?? PACK_SIZE;
-}
-function maxStackOf(item, d) {
-  if (d?.maxStack) return d.maxStack(item);
-  return item.tval === TV.CHEST ? 1 : DEFAULT_MAX_STACK;
-}
-function iqty(item) {
-  return item.number;
-}
-function itemValue2(item, d) {
-  if (d?.itemValue) return d.itemValue(item);
-  return item.value ?? 0;
-}
-function isAware2(item, d) {
-  return d?.isAware ? d.isAware(item) : true;
-}
-function isIdent2(item, d) {
-  return d?.isIdent ? d.isIdent(item) : true;
-}
-function needsIdent2(item, d) {
-  return d?.needsIdent ? d.needsIdent(item) : false;
-}
-function noteNeedsId(item, d) {
-  if (d?.noteNeedsId) return d.noteNeedsId(item);
-  return needsIdent2(item, d);
-}
-function worthId(item, d) {
-  return d?.worthId ? d.worthId(item) : false;
-}
-function shopCost(item) {
-  return item.price ?? Infinity;
-}
-function isBookTval(tval) {
-  return tval === TV.MAGIC_BOOK || tval === TV.PRAYER_BOOK || tval === TV.NATURE_BOOK || tval === TV.SHADOW_BOOK || tval === TV.OTHER_BOOK;
-}
-function canBrowse2(item, d) {
-  if (d?.canBrowse) return d.canBrowse(item);
-  return isBookTval(item.tval);
-}
-function packSlots(ctx, d) {
-  const quiver = ctx.view.quiver?.();
-  const slots = quiver === void 0 ? st(ctx, 158 /* QUIVER_SLOTS */) : Math.ceil(quiver.reduce((count, item) => count + item.number * ([TV.SHOT, TV.ARROW, TV.BOLT].includes(item.tval) ? 1 : 5), 0) / 40);
-  return packSize(d) - slots;
-}
-function borgFirstEmptyInventorySlot(ctx, d) {
-  const quiver = new Set(ctx.view.quiver?.().map((item) => item.handle) ?? []);
-  const used = ctx.view.inventory().filter((i) => i.number > 0 && !quiver.has(i.handle)).length;
-  return used < packSlots(ctx, d) ? used : -1;
-}
-function borgInventoryFull(ctx, d) {
-  return borgFirstEmptyInventorySlot(ctx, d) === -1;
-}
-function homeStore(ctx) {
-  const stores = ctx.view.stores();
-  for (const s of stores) if (s.isHome) return s;
-  return stores[BORG_HOME] ?? null;
-}
-function homeWares(ctx) {
-  const home = homeStore(ctx);
-  if (!home) return [];
-  return home.stock.filter((i) => i.number > 0);
-}
-function borgHomeFull(ctx, d) {
-  return homeWares(ctx).length >= storeInvenMax(d);
-}
-function borgMinItemQuantity(ctx, item, d) {
-  if (st(ctx, 45 /* GOLD */) < 250) return 1;
-  if (itemValue2(item, d) > 5) return 1;
-  if (!isAware2(item, d)) return 1;
-  switch (item.tval) {
-    case TV.SHOT:
-    case TV.ARROW:
-    case TV.BOLT:
-      if (iqty(item) < 5) return iqty(item);
-      return 5;
-    case TV.FOOD:
-      if (iqty(item) < 3) return iqty(item);
-      return 3;
-    default:
-      return 1;
-  }
-}
-function borgPrimarilyCaster(ctx, d) {
-  if (d?.primarilyCaster !== void 0) return d.primarilyCaster;
-  const cls = st(ctx, 25 /* CLASS */);
-  return cls === 1 || cls === 2 || cls === 3 || cls === 4;
-}
-function borgUsesSwaps(ctx, d) {
-  const cfg = d?.usesSwaps ?? true;
-  return cfg && st(ctx, 106 /* MAXDEPTH */) < 90;
 }
 
 // src/flow/flow-misc.ts
@@ -9589,6 +9696,7 @@ function borgChooseShop(ctx, d) {
   const goal = ctx.world.self.goal;
   const mem = d?.mem ?? createStoreMemory();
   if (st(ctx, 105 /* CDEPTH */)) return false;
+  if (ctx.world.clock - (d?.began ?? 0) > 2e3) return false;
   if (ctx.world.self.timeThisPanel > 1350) return false;
   if (goal.shop !== -1 && goal.ware !== -1) return true;
   if (st(ctx, 116 /* ISCUT */) || st(ctx, 115 /* ISPOISONED */)) goal.shop = SHOP_TEMPLE;
@@ -9622,9 +9730,17 @@ function borgChooseShop(ctx, d) {
   if (borgUsesSwaps(ctx, d) && borgThinkHomeBuySwapArmour(ctx, d)) return true;
   return false;
 }
-function borgThinkStore(ctx, shopNum, d) {
+function borgThinkStore(ctx, shopNum, d, wearDeps) {
   if (ctx.world.clock >= 2e4 && ctx.world.clock <= 20010) {
     return ctx.act.shopExit();
+  }
+  borgNotice(ctx);
+  const best = borgBestStuff(ctx, shopNum, wearDeps, d);
+  if (best) return best;
+  const weapon = ctx.view.equipment()[0];
+  if (weapon?.tval === TV.DIGGING && !weapon.artifact) {
+    const wear = borgWearStuff(ctx, wearDeps);
+    if (wear) return wear;
   }
   if (borgChooseShop(ctx, d)) {
     const sell = borgThinkShopSell(ctx, shopNum, d);
@@ -14791,6 +14907,7 @@ function buildItemDeps(session) {
     clock: w.clock,
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
+    hasHole: borgFirstEmptyInventorySlot(c) !== -1,
     restAfterWear: (handle) => {
       session.rechargeRest = handle;
     },
@@ -14806,6 +14923,11 @@ function buildItemDeps(session) {
       wearEval: (item) => powerOf(session, c, {
         wield: [{ from: "gear", handle: item.handle }]
       }),
+      bestEval: (wieldAt) => {
+        const score = res.loadoutPower(c, { wieldAt });
+        const base = simulationBaseline(session, c, res.loadoutPower);
+        return score === null || base === null ? null : w.self.power + score - base;
+      },
       /* borg-junk.c:659-668,1047-1057 scores the reduced inventory. */
       dropEval: (item, quantity) => {
         const score = res.loadoutPower(c, { release: [{ handle: item.handle, number: quantity }] });
@@ -14826,9 +14948,11 @@ function storeCfg() {
 }
 function buildStoreDeps(session) {
   const res = session.resolvers;
-  if (!res.loadoutPower) return { mem: session.storeMem, ...storeCfg() };
+  const began = session.flow.state.borgBegan;
+  if (!res.loadoutPower) return { mem: session.storeMem, began, ...storeCfg() };
   return {
     mem: session.storeMem,
+    began,
     ...storeCfg(),
     /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
      * would WIELD is worn; anything else joins the pack. Both cost their weight,
@@ -16102,8 +16226,9 @@ function think(ctx) {
   primeSession(session, ctx);
   const shopNum = session.resolvers.inShop?.(ctx) ?? null;
   if (shopNum !== null && shopNum >= 0) {
+    ctx.world.self.goal.type = 0;
     ctx.world.self.inShop = true;
-    return borgThinkStore(ctx, shopNum, buildStoreDeps(session));
+    return borgThinkStore(ctx, shopNum, buildStoreDeps(session), buildItemDeps(session));
   }
   ctx.world.self.inShop = false;
   return borgThinkDungeon(ctx, session);

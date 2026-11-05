@@ -91,6 +91,8 @@ export type BorgLoadoutRef =
  * `LoadoutChange`). Fields compose, applied release -> remove -> wield -> carry.
  */
 export interface BorgLoadoutChange {
+  /** Place equipment in a specific body slot (borg-item-wear.c:1299). */
+  readonly wieldAt?: readonly { readonly item: BorgLoadoutRef; readonly slot: number }[];
   /** Wear or wield these, each into the slot wield_slot picks for its tval. */
   readonly wield?: readonly BorgLoadoutRef[];
   /** Take these into the pack without wearing them (a purchase). */

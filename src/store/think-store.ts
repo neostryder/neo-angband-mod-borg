@@ -14,15 +14,15 @@
  * goal via the sell/buy verbs, and otherwise leaves. It returns the AgentCommand
  * to execute this think (or shopExit).
  *
- * OUT OF SCOPE here (handled by the ladder BEFORE store logic in the C): the
- * borg_best_stuff / borg_wear_stuff equipment optimisation at the top of
- * borg_think_store:308-318, and the borg_notice(true) refresh - both belong to
- * the P8.5 item/wear and P8.3 trait subsystems and are driven by the caller.
+ * Equipment optimization precedes shop selection (borg-think-store.c:308-318).
  */
 
 import type { BorgContext } from "../context.js";
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
 import { BI } from "../trait/trait-index.js";
+import { borgNotice } from "../trait/trait.js";
+import { borgBestStuff, borgWearStuff, type WearDeps } from "../item/item-wear.js";
+import { TV } from "../item/svals.js";
 import {
   type StoreDeps,
   BORG_HOME,
@@ -52,10 +52,6 @@ import {
 /**
  * borg_choose_shop (borg-think-store.c:87). Decide the next shop/ware/item goal.
  * Returns true when a goal was set.
- *
- * TIME GUARDS: the C also bails on `borg_t - borg_began > 2000` (a per-level
- * boredom timer). borg_began is not modelled in the world foundation, so that
- * guard is omitted; the `time_this_panel > 1350` guard IS applied.
  */
 export function borgChooseShop(ctx: BorgContext, d?: StoreDeps): boolean {
   const goal = ctx.world.self.goal;
@@ -63,6 +59,8 @@ export function borgChooseShop(ctx: BorgContext, d?: StoreDeps): boolean {
 
   /* Must be in town (:92). */
   if (st(ctx, BI.CDEPTH)) return false;
+  /* borg-think-store.c:97 forbids shopping after 2000 turns on this level. */
+  if (ctx.world.clock - (d?.began ?? 0) > 2000) return false;
   /* Anti-loop panel timer (:99). */
   if (ctx.world.self.timeThisPanel > 1350) return false;
 
@@ -155,10 +153,23 @@ export function borgThinkStore(
   ctx: BorgContext,
   shopNum: number,
   d?: StoreDeps,
+  wearDeps?: WearDeps,
 ): AgentCommand | null {
   /* Clock-wrap hack (:288): near the clock wrap, just leave the store. */
   if (ctx.world.clock >= 20000 && ctx.world.clock <= 20010) {
     return ctx.act.shopExit();
+  }
+
+  /* borg-think-store.c:305-310 refreshes equipment before home optimization. */
+  borgNotice(ctx);
+  const best = borgBestStuff(ctx, shopNum, wearDeps, d);
+  if (best) return best;
+
+  /* borg-think-store.c:313-318 replaces only non-artifact diggers here. */
+  const weapon = ctx.view.equipment()[0];
+  if (weapon?.tval === TV.DIGGING && !weapon.artifact) {
+    const wear = borgWearStuff(ctx, wearDeps);
+    if (wear) return wear;
   }
 
   if (borgChooseShop(ctx, d)) {

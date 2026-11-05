@@ -368,6 +368,7 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
     clock: w.clock,
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
+    hasHole: borgFirstEmptyInventorySlot(c) !== -1,
     restAfterWear: (handle) => { session.rechargeRest = handle; },
     fearRegion: fear.region(py, px),
     ...(res.resolveActivation
@@ -388,6 +389,11 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
             powerOf(session, c, {
               wield: [{ from: "gear", handle: item.handle }],
             }),
+          bestEval: (wieldAt) => {
+            const score = res.loadoutPower!(c, { wieldAt });
+            const base = simulationBaseline(session, c, res.loadoutPower!);
+            return score === null || base === null ? null : w.self.power + score - base;
+          },
           /* borg-junk.c:659-668,1047-1057 scores the reduced inventory. */
           dropEval: (item: ItemView, quantity: number) => {
             const score = res.loadoutPower!(c, { release: [{ handle: item.handle, number: quantity }] });
@@ -421,9 +427,11 @@ function storeCfg(): Pick<StoreDeps, "worshipsGold" | "selfScum" | "usesSwaps"> 
 /** Build the store deps for this think (shares the anti-loop memory). */
 export function buildStoreDeps(session: ThinkSession): StoreDeps {
   const res = session.resolvers;
-  if (!res.loadoutPower) return { mem: session.storeMem, ...storeCfg() };
+  const began = session.flow.state.borgBegan;
+  if (!res.loadoutPower) return { mem: session.storeMem, began, ...storeCfg() };
   return {
     mem: session.storeMem,
+    began,
     ...storeCfg(),
     /* borg_think_shop_buy_useful (borg-store-buy.c:363/388). A ware the borg
      * would WIELD is worn; anything else joins the pack. Both cost their weight,

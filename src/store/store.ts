@@ -181,6 +181,8 @@ export interface BuySim {
 
 /** All seams and config the store decisions read. Every field is optional. */
 export interface StoreDeps {
+  /** borg_began, the clock on arrival at this level (borg-think-store.c:97). */
+  began?: number;
   /* --- persistent anti-loop memory (see StoreMemory). --- */
   mem?: StoreMemory;
 

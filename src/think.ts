@@ -22,6 +22,7 @@ import {
   getThinkSession,
   primeSession,
   buildStoreDeps,
+  buildItemDeps,
 } from "./think-session.js";
 import { borgThinkStore } from "./store/index.js";
 import { borgThinkDungeon } from "./think-ladder.js";
@@ -58,8 +59,10 @@ export function think(ctx: BorgContext): AgentCommand | null {
    * shop the borg stands in (default: never in a shop). */
   const shopNum = session.resolvers.inShop?.(ctx) ?? null;
   if (shopNum !== null && shopNum >= 0) {
+    /* borg-think.c:330 clears the navigation goal inside a store. */
+    ctx.world.self.goal.type = 0;
     ctx.world.self.inShop = true;
-    return borgThinkStore(ctx, shopNum, buildStoreDeps(session));
+    return borgThinkStore(ctx, shopNum, buildStoreDeps(session), buildItemDeps(session));
   }
   ctx.world.self.inShop = false;
 
