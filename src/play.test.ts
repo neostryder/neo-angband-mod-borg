@@ -20,16 +20,15 @@
  *
  * Every one of those was false at some point on 2026-08-21.
  *
- * WHY THIS SKIPS WITHOUT THE GAME'S CHECKOUT. The content pack is the game's, not
- * this repository's, and there is no copy here to fall back on. `NEO_ANGBAND_REPO`
- * (or the sibling checkout the other tools already assume) is what makes this
- * runnable, exactly as it is for the plugin builder. A skip says so out loud
- * rather than passing on nothing.
+ * Content comes from an explicit/sibling engine checkout or the declared
+ * content package. Missing required content fails in CI; optional local runs
+ * warn before skipping. Installed packages alone must exercise live play.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import {
   ContentIdResolver,
@@ -52,7 +51,15 @@ function packRoot(): string | null {
     const dir = join(root, "packages", "content", "pack");
     if (existsSync(join(dir, "constants.json"))) return dir;
   }
-  return null;
+  /* FORK: installed content must exercise these scenarios in CI. */
+  try {
+    return dirname(createRequire(import.meta.url).resolve("@rpgm-tools/neo-angband-content/pack/constants.json"));
+  } catch {
+    const message = "Play/rest tests require @rpgm-tools/neo-angband-content or NEO_ANGBAND_REPO with a built content pack.";
+    if (process.env["CI"]) throw new Error(message);
+    process.stderr.write(message + " Skipping play/rest cases locally.\n");
+    return null;
+  }
 }
 
 const PACK_DIR = packRoot();
