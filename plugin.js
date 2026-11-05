@@ -15065,10 +15065,11 @@ var NOT_PORTED = () => null;
 function timeToStayOnLevel(ctx, bored) {
   const clevel = T(ctx, 35 /* CLEVEL */);
   const STUFF0 = 5e4;
-  if (clevel < 5) {
+  const feelingStuff = 0;
+  if (clevel < 5 || !feelingStuff) {
     if (clevel < 10) return clevel * 50;
     if (clevel < 15 && T(ctx, 39 /* FOOD */) < 3) return T(ctx, 50 /* REG */) ? 2e3 : 2500;
-    if (T(ctx, 36 /* MAXCLEVEL */) < 20) return 100;
+    if (T(ctx, 36 /* MAXCLEVEL */) < 20 && feelingStuff === 0) return 100;
   }
   return bored ? STUFF0 / 10 : STUFF0;
 }

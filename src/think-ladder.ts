@@ -259,16 +259,18 @@ const NOT_PORTED: () => AgentCommand | null = () => null;
 /* --------------------------------------------------------- borg_leave_level */
 
 /** borg_time_to_stay_on_level (borg-think-dungeon-util.c:569). */
-function timeToStayOnLevel(ctx: BorgContext, bored: boolean): number {
+export function timeToStayOnLevel(ctx: BorgContext, bored: boolean): number {
   const clevel = T(ctx, BI.CLEVEL);
-  // borg_feeling_stuff is 0 in the port (no level-feeling stream); the C's
+  // borg_feeling_stuff is 0 in the port (no level-feeling stream), so the C's
+  // "clevel < 5 || !borg_feeling_stuff" guard always holds and
   // borg_stuff_feeling[0] == 50000 governs the not-yet-felt case.
   const STUFF0 = 50000;
-  if (clevel < 5) {
+  const feelingStuff = 0;
+  if (clevel < 5 || !feelingStuff) {
     if (clevel < 10) return clevel * 50;
     if (clevel < 15 && T(ctx, BI.FOOD) < 3) return T(ctx, BI.REG) ? 2000 : 2500;
     // z_info->feeling_need * 10 (feeling_need is 10 in 4.2.6) for low maxlevel.
-    if (T(ctx, BI.MAXCLEVEL) < 20) return 100;
+    if (T(ctx, BI.MAXCLEVEL) < 20 && feelingStuff === 0) return 100;
   }
   return bored ? STUFF0 / 10 : STUFF0;
 }
