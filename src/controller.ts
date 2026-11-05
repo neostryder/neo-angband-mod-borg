@@ -25,7 +25,7 @@
 import type { AgentController } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "./world/model.js";
 import { makeBorgRng, type Rng } from "./rng.js";
-import { perceive, makePerceiveMemo } from "./perceive.js";
+import { perceive, makePerceiveMemo, borgForgetGoalWhileImpaired } from "./perceive.js";
 import { buildHitByTable, buildSpellTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";
 import { borgFollowMissingKills } from "./flow/index.js";
@@ -195,6 +195,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     primeSession(session, ctx);
     borgFollowMissingKills(ctx, session.flow.state);
     borgUpdateMonsterFear(ctx);
+    borgForgetGoalWhileImpaired(world);
 
     /* 4. Score the world (borg_power, :459). */
     world.self.power = borgPower(ctx);

@@ -678,9 +678,8 @@ function borgFollowKill(ctx: BorgContext, flow: FlowState, i: number): void {
 export function borgFollowMissingKills(ctx: BorgContext, flow: FlowState): void {
   const w = ctx.world;
 
-  /* Blind or hallucinating: the C skips the whole pass. PlayerView carries no
-   * hallucination flag, so only blindness is checked. */
-  if (trait(w, BI.ISBLIND)) return;
+  /* Blind or hallucinating: the C skips the whole pass (borg-update.c:2920). */
+  if (trait(w, BI.ISBLIND) || trait(w, BI.ISIMAGE)) return;
 
   for (const [i, kill] of w.kills.entries()) {
     /* Skip seen monsters */

@@ -101,13 +101,25 @@ export function perceive(
   const seen = ingestMonsters(world, view);
   ingestFloor(world, view, oldX, oldY, valuation);
 
-  // Consume the message stream (drains view.messages() exactly once). The C
-  // also force-deletes all records while hallucinating (borg-update.c:1557);
-  // PlayerView exposes no hallucination flag, so that branch is omitted (the
-  // borg simply trusts the exact-id view it is given).
+  // Consume the message stream (drains view.messages() exactly once). The
+  // hallucination branches of borg_update (:538, :1557, :1585) sit in
+  // ingestMonsters and ingestFloor, driven by the ISIMAGE trait.
   borgReactMessages(world, view.messages(), seen.ids, seen.names, tables);
 
   world.seeded = true;
+}
+
+/**
+ * The two "forget goals" tests at the end of borg_update (borg-update.c:3017-3026).
+ * Any impairment drops the current goal: blind, confused, afraid or hallucinating,
+ * and then weak, poisoned, bleeding or stunned. Call once per think, after the
+ * missing-monster pass and the fear re-stamp, as the C does.
+ */
+export function borgForgetGoalWhileImpaired(world: BorgWorld): void {
+  const t = world.self.trait;
+  const on = (i: number): boolean => (t[i] ?? 0) !== 0;
+  if (on(BI.ISBLIND) || on(BI.ISCONFUSED) || on(BI.ISAFRAID) || on(BI.ISIMAGE)) world.self.goal.type = 0;
+  if (on(BI.ISWEAK) || on(BI.ISPOISONED) || on(BI.ISCUT) || on(BI.ISSTUN) || on(BI.ISHEAVYSTUN)) world.self.goal.type = 0;
 }
 
 /**
@@ -326,9 +338,13 @@ function ingestMonsters(
     if (k.mIdx !== 0) byMidx.set(k.mIdx, i);
   }
 
+  /* While hallucinating the C records no monster at all, new or already
+   * tracked (borg-update.c:538), so nothing below runs and nothing is seen. */
+  const hallucinating = (world.self.trait[BI.ISIMAGE] ?? 0) !== 0;
+
   const visibleIds = new Set<number>();
   const names = new Map<number, string>();
-  for (const m of view.monsters()) {
+  for (const m of hallucinating ? [] : view.monsters()) {
     if (!m.visible) continue;
     visibleIds.add(m.id);
     names.set(m.id, m.race);
@@ -379,8 +395,13 @@ function ingestMonsters(
 
   // Expiry pass: forget records unseen for >= 2000 borg-turns
   // (borg-update.c:1553). Visible records were just refreshed (when == clock).
+  // A recently seen record is kept, except for a hallucinating borg that is
+  // also afraid: the C test is `!(ISIMAGE && ISAFRAID)` (:1557), so that case
+  // falls through to the delete even though the comment above it says the
+  // opposite. The code is what runs, so the code is what is ported.
+  const imageAndAfraid = hallucinating && (world.self.trait[BI.ISAFRAID] ?? 0) !== 0;
   for (const [i, k] of world.kills.entries()) {
-    if (world.clock - k.when < BORG_EXPIRE_TURNS) continue;
+    if (world.clock - k.when < BORG_EXPIRE_TURNS && !imageAndAfraid) continue;
     world.kills.delete(i, world);
   }
 
@@ -515,8 +536,12 @@ function ingestFloor(
     byPos.set(`${t.pos.x},${t.pos.y}`, i);
   }
 
+  /* While hallucinating the C records no object (borg-update.c:538) and deletes
+   * every one it holds (:1585), so the floor is not read at all. */
+  const hallucinating = (world.self.trait[BI.ISIMAGE] ?? 0) !== 0;
+
   const bounds = view.mapBounds();
-  const maxY = Math.min(bounds.height, world.map.height);
+  const maxY = hallucinating ? 0 : Math.min(bounds.height, world.map.height);
   const maxX = Math.min(bounds.width, world.map.width);
 
   for (let y = 0; y < maxY; y++) {
@@ -552,7 +577,7 @@ function ingestFloor(
     const underMe =
       (t.pos.x === world.self.c.x && t.pos.y === world.self.c.y) ||
       (t.pos.x === oldX && t.pos.y === oldY);
-    if (underMe) {
+    if (underMe || hallucinating) {
       world.takes.delete(i);
       continue;
     }

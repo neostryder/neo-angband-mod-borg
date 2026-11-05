@@ -5163,7 +5163,7 @@ function borgFollowKill(ctx, flow, i) {
 }
 function borgFollowMissingKills(ctx, flow) {
   const w = ctx.world;
-  if (trait(w, 112 /* ISBLIND */)) return;
+  if (trait(w, 112 /* ISBLIND */) || trait(w, 120 /* ISIMAGE */)) return;
   for (const [i, kill] of w.kills.entries()) {
     if (kill.when === w.clock) continue;
     if (kill.seen) continue;
@@ -6138,6 +6138,8 @@ function borgNoticePlayer(c) {
   if (p.status.stun && p.status.stun <= 50) t[117 /* ISSTUN */] = 1;
   if (p.status.stun > 50) t[118 /* ISHEAVYSTUN */] = 1;
   if (p.status.paralyzed > 50) t[119 /* ISPARALYZED */] = 1;
+  if ((p.status.image ?? 0) > 0) t[120 /* ISIMAGE */] = 1;
+  if ((p.status.amnesia ?? 0) > 0) t[121 /* ISFORGET */] = 1;
   const drained = c.R.frame.statDrained;
   for (let i = 0; i < STAT_MAX; i++) {
     t[10 /* CSTR */ + i] = p.stats[i] ?? 10;
@@ -13032,6 +13034,7 @@ function auxProtEvil(ctx, fs, p1) {
   const fa = scaleFail(ctx, p1, 25, 5);
   let ok = borgSpellOkayFail(ctx, 67 /* PROTECTION_FROM_EVIL */, fa);
   if (borgSlot(ctx, TV.SCROLL, SVAL.scroll.protection_from_evil)) ok = true;
+  if (trait3(ctx, 120 /* ISIMAGE */)) ok = false;
   if (!lit(ctx)) ok = false;
   if (borgEquipsItem(ctx, "act_protevil", true)) ok = true;
   if (!ok) return 0;
@@ -13185,6 +13188,7 @@ function auxGlyph(ctx, fs, p1) {
   let ok = borgSpellOkayFail(ctx, 78 /* GLYPH_OF_WARDING */, fa);
   if (borgSlot(ctx, TV.SCROLL, SVAL.scroll.rune_of_protection)) ok = true;
   if (borgEquipsItem(ctx, "act_glyph", true)) ok = true;
+  if (trait3(ctx, 120 /* ISIMAGE */)) ok = false;
   if (!lit(ctx)) ok = false;
   if (!ok) return 0;
   const g = getDangerGlobals(ctx.world);
@@ -15493,6 +15497,12 @@ function perceive(world, view, memo, tables = emptyMessageTables(), valuation = 
   borgReactMessages(world, view.messages(), seen.ids, seen.names, tables);
   world.seeded = true;
 }
+function borgForgetGoalWhileImpaired(world) {
+  const t = world.self.trait;
+  const on2 = (i) => (t[i] ?? 0) !== 0;
+  if (on2(112 /* ISBLIND */) || on2(114 /* ISCONFUSED */) || on2(113 /* ISAFRAID */) || on2(120 /* ISIMAGE */)) world.self.goal.type = 0;
+  if (on2(108 /* ISWEAK */) || on2(115 /* ISPOISONED */) || on2(116 /* ISCUT */) || on2(117 /* ISSTUN */) || on2(118 /* ISHEAVYSTUN */)) world.self.goal.type = 0;
+}
 function decayLevelTimers(world) {
   const self = world.self;
   const ratio = self.gameRatio;
@@ -15621,9 +15631,10 @@ function ingestMonsters(world, view) {
   for (const [i, k] of world.kills.entries()) {
     if (k.mIdx !== 0) byMidx.set(k.mIdx, i);
   }
+  const hallucinating = (world.self.trait[120 /* ISIMAGE */] ?? 0) !== 0;
   const visibleIds = /* @__PURE__ */ new Set();
   const names = /* @__PURE__ */ new Map();
-  for (const m of view.monsters()) {
+  for (const m of hallucinating ? [] : view.monsters()) {
     if (!m.visible) continue;
     visibleIds.add(m.id);
     names.set(m.id, m.race);
@@ -15659,8 +15670,9 @@ function ingestMonsters(world, view) {
       world.map.at(m.grid.x, m.grid.y).kill = idx;
     }
   }
+  const imageAndAfraid = hallucinating && (world.self.trait[113 /* ISAFRAID */] ?? 0) !== 0;
   for (const [i, k] of world.kills.entries()) {
-    if (world.clock - k.when < BORG_EXPIRE_TURNS) continue;
+    if (world.clock - k.when < BORG_EXPIRE_TURNS && !imageAndAfraid) continue;
     world.kills.delete(i, world);
   }
   return { ids: visibleIds, names };
@@ -15714,8 +15726,9 @@ function ingestFloor(world, view, oldX, oldY, valuation) {
   for (const [i, t] of world.takes.entries()) {
     byPos.set(`${t.pos.x},${t.pos.y}`, i);
   }
+  const hallucinating = (world.self.trait[120 /* ISIMAGE */] ?? 0) !== 0;
   const bounds = view.mapBounds();
-  const maxY = Math.min(bounds.height, world.map.height);
+  const maxY = hallucinating ? 0 : Math.min(bounds.height, world.map.height);
   const maxX = Math.min(bounds.width, world.map.width);
   for (let y = 0; y < maxY; y++) {
     for (let x = 0; x < maxX; x++) {
@@ -15742,7 +15755,7 @@ function ingestFloor(world, view, oldX, oldY, valuation) {
   }
   for (const [i, t] of world.takes.entries()) {
     const underMe = t.pos.x === world.self.c.x && t.pos.y === world.self.c.y || t.pos.x === oldX && t.pos.y === oldY;
-    if (underMe) {
+    if (underMe || hallucinating) {
       world.takes.delete(i);
       continue;
     }
@@ -15804,6 +15817,7 @@ function createBorg(opts = {}) {
     primeSession(session, ctx);
     borgFollowMissingKills(ctx, session.flow.state);
     borgUpdateMonsterFear(ctx);
+    borgForgetGoalWhileImpaired(world);
     world.self.power = borgPower(ctx);
     const t = world.self.trait;
     if ((t[35 /* CLEVEL */] ?? 0) > (t[36 /* MAXCLEVEL */] ?? 0)) t[36 /* MAXCLEVEL */] = t[35 /* CLEVEL */];

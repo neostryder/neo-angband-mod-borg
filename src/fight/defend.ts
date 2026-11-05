@@ -299,6 +299,9 @@ function auxProtEvil(ctx: BorgContext, fs: FightState, p1: number): number {
   const fa = scaleFail(ctx, p1, 25, 5);
   let ok = borgSpellOkayFail(ctx, Spell.PROTECTION_FROM_EVIL, fa);
   if (borgSlot(ctx, TV.SCROLL, SVAL.scroll.protection_from_evil!)) ok = true;
+  /* Hallucinating clears the spell and the scroll before the light test
+   * (defend.c:1001-1003); blind and confused already left through screwed(). */
+  if (trait(ctx, BI.ISIMAGE)) ok = false;
   if (!lit(ctx)) ok = false;
   if (borgEquipsItem(ctx, "act_protevil", true)) ok = true;
   if (!ok) return 0;
@@ -499,6 +502,9 @@ function auxGlyph(ctx: BorgContext, fs: FightState, p1: number): number {
   let ok = borgSpellOkayFail(ctx, Spell.GLYPH_OF_WARDING, fa);
   if (borgSlot(ctx, TV.SCROLL, SVAL.scroll.rune_of_protection!)) ok = true;
   if (borgEquipsItem(ctx, "act_glyph", true)) ok = true;
+  /* Hallucinating clears all three sources, the activation included
+   * (defend.c:1566-1569). */
+  if (trait(ctx, BI.ISIMAGE)) ok = false;
   if (!lit(ctx)) ok = false;
   if (!ok) return 0;
   const g = getDangerGlobals(ctx.world);

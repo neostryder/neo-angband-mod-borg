@@ -227,8 +227,11 @@ function borgNoticePlayer(c: Ctx): void {
   if (p.status.stun && p.status.stun <= 50) t[BI.ISSTUN] = 1;
   if (p.status.stun > 50) t[BI.ISHEAVYSTUN] = 1;
   if (p.status.paralyzed > 50) t[BI.ISPARALYZED] = 1;
-  /* ISIMAGE (hallucination), ISFORGET (amnesia), ISSTUDY (new spells) have no
-   * AgentView field; left 0 (caveat). */
+  /* Hallucination and amnesia (trait.c:3116-3122). The status carries both as
+   * timers, optional on a game that predates them. ISSTUDY (new spells) has no
+   * AgentView field and stays 0. */
+  if ((p.status.image ?? 0) > 0) t[BI.ISIMAGE] = 1;
+  if ((p.status.amnesia ?? 0) > 0) t[BI.ISFORGET] = 1;
 
   /* Stats: CSTR..CCON = stat_cur (natural). ISFIX* (drained) from frame. */
   const drained = c.R.frame.statDrained;
