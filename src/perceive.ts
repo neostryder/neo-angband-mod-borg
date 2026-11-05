@@ -79,9 +79,11 @@ export function perceive(
   const oldY = world.self.c.y;
 
   // Level change: depth changed (or first sight) -> forget the old level.
-  const newLevel = !memo.initialized || p.depth !== memo.lastDepth;
+  const newLevel = world.resetLevel || !memo.initialized || p.depth !== memo.lastDepth;
   if (newLevel) {
     world.wipeLevel(p.depth);
+    world.resetLevel = false;
+    world.lastMorgoth = 1;
     memo.lastDepth = p.depth;
     memo.initialized = true;
   }

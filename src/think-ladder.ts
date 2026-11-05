@@ -41,6 +41,7 @@ import {
   borgNotice,
   borgPrepared,
   borgRestock,
+  borgCfg,
 } from "./trait/index.js";
 import {
   GOAL_BORE,
@@ -289,20 +290,38 @@ export function borgLeaveLevel(
   const g = self.goal;
   const flow = session.flow;
   let dir = 0;
+  let needRestock = false;
+  const cfg = borgCfg();
+  const fight = getFightState(w);
 
   /* Waiting for recall other than depth 1 (util:605). */
   if (g.recalling && T(ctx, BI.CDEPTH) !== 1) return null;
+
+  /* A recent Morgoth sighting cancels boredom (borg-think-dungeon-util.c:609). */
+  if (T(ctx, BI.CDEPTH) === 100 && w.facts.morgothOnLevel && w.clock - w.lastMorgoth < 5000) {
+    g.leaving = false;
+    g.rising = false;
+    bored = false;
+  }
 
   /* Town (util:633). */
   if (!T(ctx, BI.CDEPTH)) {
     g.rising = false;
     if (!bored) return null;
 
+    /* The Borg crawls when depth 100 needs supplies (borg-think-dungeon-util.c:641-659). */
+    if (T(ctx, BI.MAXDEPTH) === 100 && !cfg.playsRisky && borgRestock(ctx, 100) !== null) {
+      g.fleeing = true;
+      g.leaving = true;
+      self.stairMore = true;
+      return flow.toStairs(ctx, true, GOAL_BORE, false, false);
+    }
+
     /* Recall into dungeon if deep enough and have recalls (util:663). */
     if (
-      T(ctx, BI.MAXDEPTH) >= 8 &&
+      T(ctx, BI.MAXDEPTH) >= (cfg.worshipsGold ? 10 : 8) &&
       T(ctx, BI.RECALL) >= 3 &&
-      borgPrepared(ctx, Math.trunc((T(ctx, BI.MAXDEPTH) * 6) / 10)) === null
+      (borgPrepared(ctx, Math.trunc((T(ctx, BI.MAXDEPTH) * 6) / 10)) === null || cfg.playsRisky)
     ) {
       const rc = borgRecall(ctx);
       if (rc) return rc;
@@ -357,7 +376,15 @@ export function borgLeaveLevel(
         dir = -1;
       }
     }
-    if (mustReturnToTown(ctx, session.flow.state.borgBegan) !== null) g.rising = true;
+    if (mustReturnToTown(ctx, session.flow.state.borgBegan) !== null) {
+      g.rising = true;
+      needRestock = true;
+    }
+    /* The Borg fetches stored battle supplies (borg-think-dungeon-util.c:788-792). */
+    if (prepCur.includes("Collect from house")) {
+      g.rising = true;
+      needRestock = true;
+    }
   }
 
   /* Playing too shallow -> town to recall deeper (util:796). */
@@ -371,24 +398,25 @@ export function borgLeaveLevel(
   }
 
   /* Return to town to sell (util:813). */
+  if ((cfg.worshipsGold || T(ctx, BI.MAXCLEVEL) < 15) && T(ctx, BI.MAXCLEVEL) <= 25 && sellCount >= 12)
+    g.rising = true;
   if (bored && T(ctx, BI.MAXCLEVEL) >= 26 && sellCount >= 12) g.rising = true;
   if (T(ctx, BI.ISFIXLEV)) g.rising = true;
   if (bored && T(ctx, BI.ISFIXEXP) && T(ctx, BI.CLEVEL) !== 50) g.rising = true;
 
-  /* Vaults defer bored town trips until 12000 turns (borg-think-dungeon-util.c:832-840). */
-  const fight = getFightState(w);
+  /* Long trips and shallow scumming trigger a return (borg-think-dungeon-util.c:835-855). */
   const timeAway = fight.timeTown + w.clock - flow.state.borgBegan;
-  if (
-    (!g.rising && bored && !w.facts.vaultOnLevel && !fight.fightingUnique && timeAway > 8000) ||
-    timeAway > 12000
-  ) {
+  if ((!g.rising && bored && !w.facts.vaultOnLevel && !fight.fightingUnique && timeAway > 8000) || timeAway > 12000) {
     if (T(ctx, BI.MAXDEPTH) < 99 || !w.facts.uniqueOnLevel) g.rising = true;
   }
-
-  /* Vaults defer potion delivery (borg-think-dungeon-util.c:851-855). */
-  if (!w.facts.vaultOnLevel && T(ctx, BI.PREP_BIG_FIGHT) && (T(ctx, BI.AEZHEAL) >= 3 || T(ctx, BI.ALIFE) >= 1)) {
+  if (T(ctx, BI.MAXDEPTH) >= T(ctx, BI.CDEPTH) + 10 && T(ctx, BI.CDEPTH) <= 12 && timeAway > 3500)
     g.rising = true;
-  }
+
+  /* The Borg stores battle potions (borg-think-dungeon-util.c:858-862). */
+  if (!w.facts.vaultOnLevel && T(ctx, BI.PREP_BIG_FIGHT) && (T(ctx, BI.AEZHEAL) >= 3 || T(ctx, BI.ALIFE) >= 1))
+    g.rising = true;
+  /* The Borg scums on 98 after Sauron dies (borg-think-dungeon-util.c:870-875). */
+  if (T(ctx, BI.CDEPTH) === 99 && T(ctx, BI.SAURON_DEAD) && self.readyMorgoth !== 1) dir = -1;
 
   /* Power dive if King / prepared for 99 (util:868). */
   if (T(ctx, BI.KING)) dir = 1;
@@ -396,6 +424,10 @@ export function borgLeaveLevel(
 
   /* if returning to town, go up (util:883). */
   if (!dir && g.rising) dir = -1;
+
+  /* Time on depth 1 rotates shops (borg-think-dungeon-util.c:887-892). */
+  if (T(ctx, BI.CLEVEL) > 10 && T(ctx, BI.CDEPTH) === 1 && w.clock - flow.state.borgBegan < 200 && dir < 0 && T(ctx, BI.FOOD) > 1)
+    dir = 0;
 
   /* Do not hang out on boring levels too long (util:895). */
   if (!dir && w.clock - flow.state.borgBegan > timeToStayOnLevel(ctx, bored)) {
@@ -408,12 +440,24 @@ export function borgLeaveLevel(
   /* Go Up (util:911). */
   if (dir < 0) {
     if (!flow.state.hooks.forceDescend) self.stairLess = true;
-    if (g.rising && T(ctx, BI.CDEPTH) >= 5) {
-      const rc = borgRecall(ctx);
-      if (rc) return rc;
+    /* Depth and trip time gate upward recall (borg-think-dungeon-util.c:919-938). */
+    if (T(ctx, BI.CDEPTH) < 100 || borgPrepared(ctx, 99) === null) {
+      if (g.rising && timeAway > 200 && T(ctx, BI.CDEPTH) >= 5) {
+        const rc = borgRecall(ctx);
+        if (rc) return rc;
+      }
+      if (needRestock && T(ctx, BI.CDEPTH) >= 5) {
+        const rc = borgRecall(ctx);
+        if (rc) return rc;
+      }
     }
     const up = flow.toStairs(ctx, false, GOAL_BORE, false);
     if (up) return up;
+    /* The Borg recalls after failing to find stairs (borg-think-dungeon-util.c:949-954). */
+    if (g.rising && bored && w.clock - flow.state.borgBegan >= 1000) {
+      const rc = borgRecall(ctx);
+      if (rc) return rc;
+    }
     if (flow.state.less.num === 0) dir = 1; /* no up stairs -> go down */
   }
 
@@ -647,6 +691,7 @@ export function borgThinkDungeon(
     (w.clock >= 12000 && w.clock <= 12025) ||
     (w.clock >= 25000 && w.clock <= 25025)
   ) {
+    w.resetLevel = true;
     return ctx.act.hold();
   }
 
@@ -1284,11 +1329,15 @@ export function borgThinkDungeon(
     g.recalling &&
     borgDanger(ctx, self.c.y, self.c.x, 1, true, false) <= 0
   ) {
-    /* "&": rest as needed, same reasoning as the light-path recall wait above. */
-    return ctx.act.rest(REST_COMPLETE);
+    /* Recall waits last nine turns (borg-think-dungeon.c:2090-2099). */
+    return ctx.act.rest(9);
   }
 
   /*** Nothing to do ***/
+
+  /* A stuck Borg re-explores and shops again (borg-think-dungeon.c:2111-2113). */
+  if ((T(ctx, BI.CDEPTH) === 0 && w.clock - st.borgBegan > 800) || w.clock > 28000)
+    w.resetLevel = true;
 
   /* Not allowed to retreat for 5 rounds (:2116). */
   self.noRetreat = 5;

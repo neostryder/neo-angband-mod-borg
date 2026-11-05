@@ -209,7 +209,10 @@ export function borgNearMonsterType(ctx: BorgContext, dist: number): void {
       if (has("QUESTOR")) fight.fightingUnique += 10;
       fight.fightingUnique += 1;
       if (has("EVIL")) fight.fightingEvilUnique = true;
-      if (prefixI(name, "Morgoth")) morgoth = true;
+      if (prefixI(name, "Morgoth")) {
+        morgoth = true;
+        w.lastMorgoth = w.clock;
+      }
     }
 
     /*** Summoners ***/

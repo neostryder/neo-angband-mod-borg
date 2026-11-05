@@ -321,11 +321,9 @@ export function borgRecover(
         !borgSpellOkay(ctx, Spell.RECHARGING)
       ) {
         ctx.world.self.timeThisPanel = 0;
-        /* "&": rest as needed. A full-HP/SP character stops after one turn -
-         * the rod still needs a real recharge, so the ladder simply asks
-         * again next think - but a hurt one now gets the genuine multi-turn
-         * rest and its x2 regen bonus instead of a single hold-shaped turn. */
-        return ctx.act.rest(REST_COMPLETE);
+        /* The Borg waits for a rod to recharge (borg-recover.c:338-348). */
+        ctx.world.self.inShop = false;
+        return ctx.act.rest(100);
       }
     }
   }

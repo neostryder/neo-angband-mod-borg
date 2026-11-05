@@ -6,8 +6,8 @@
  *
  * The C borg_quaff_potion(sval) etc. locate the pack slot with borg_slot then
  * press the letter; here the port locates the ItemView and builds the verb from its
- * handle. The "clear shop goals" bookkeeping the C does after each use is
- * intentionally omitted (goal management is P8.6's concern).
+ * handle. Reading scrolls and zapping rods clear the shopping goals
+ * (borg-item-use.c:182, 492).
  */
 
 import type { BorgContext, ItemView, AgentCommand } from "./types.js";
@@ -133,6 +133,8 @@ export function borgReadScroll(
     return null;
   const item = borgSlot(ctx, TV.SCROLL, sval, d);
   if (!item) return null;
+  /* Reading clears shopping goals (borg-item-use.c:182). */
+  ctx.world.self.goal.shop = ctx.world.self.goal.ware = ctx.world.self.goal.item = -1;
   return ctx.act.read(item.handle);
 }
 
@@ -274,6 +276,8 @@ export function borgZapRod(
   if (sval !== SVAL.rod.recall) {
     if (fail > 500) return null;
   }
+  /* Zapping clears shopping goals (borg-item-use.c:492). */
+  ctx.world.self.goal.shop = ctx.world.self.goal.ware = ctx.world.self.goal.item = -1;
   return ctx.act.zapRod(item.handle);
 }
 

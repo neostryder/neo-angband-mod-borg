@@ -23,6 +23,7 @@ import type { Api2InputState, Api2Prompt, Api2PromptAnswer, ModApi2 } from "@rpg
 import type { Bridge } from "./host.js";
 import type { World } from "./world.js";
 import { createActFacade, intentOf } from "./act.js";
+import { recallDepthAnswer } from "../controller.js";
 
 /** Consecutive refusals after which the keyboard goes back. */
 export const REFUSALS_BEFORE_RELEASE = 25;
@@ -50,11 +51,13 @@ export interface Tick {
 }
 
 /** What to say to a prompt the game raised at the Borg's turn. The Borg asks nothing of the player. */
-export function promptAnswer(prompt: Api2Prompt): Api2PromptAnswer {
+export function promptAnswer(prompt: Api2Prompt, resetRecallDepth = false): Api2PromptAnswer {
   switch (prompt.kind) {
     case "ack":
       return { action: "acknowledge" };
     case "confirm":
+      /* Recall uses its queued depth answer (borg-escape.c:63-115). */
+      if (prompt.label?.startsWith("Set recall depth")) return resetRecallDepth;
       return true;
     case "quantity":
       return prompt.defaultValue;
@@ -106,7 +109,7 @@ export function createTick(bridge: Bridge, borg: Decider): Tick {
   return async (mod, input) => {
     bridge.setInput(input);
     if (input.prompt !== null) {
-      await mod.act.answer(input.prompt.promptId, promptAnswer(input.prompt));
+      await mod.act.answer(input.prompt.promptId, promptAnswer(input.prompt, recallDepthAnswer(borg.controller)));
       return;
     }
     if (input.phase !== "play" && input.phase !== "store") return;

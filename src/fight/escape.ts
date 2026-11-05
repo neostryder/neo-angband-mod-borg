@@ -46,6 +46,7 @@ import {
 } from "../item/item-use.js";
 import { getFightState, idiv, iabs, type FightState } from "./state.js";
 import { borgTarget } from "./projection.js";
+import { getThinkSession } from "../think-session.js";
 
 function avoidance(ctx: BorgContext): number {
   return getDangerGlobals(ctx.world).avoidance;
@@ -71,17 +72,35 @@ function rf(ctx: BorgContext, i: number, name: string): boolean {
 
 /**
  * borgRecall (escape.c:54): induce Word of Recall. Returns the command, or null.
- * The C's "reset recall depth? y/n" dialogue is engine-driven and omitted here
- * (P8.6 answers prompts); the means-selection ladder is preserved.
+ * The recall-depth answer is queued for the engine prompt (borg-escape.c:63-115).
  */
 export function borgRecall(ctx: BorgContext): AgentCommand | null {
   if (ctx.world.self.goal.recalling) return null;
-  return firstCmd(
-    borgZapRod(ctx, SVAL.rod.recall!),
-    borgActivateItem(ctx, "act_recall"),
-    borgSpellFail(ctx, Spell.WORD_OF_RECALL, 60),
-    borgReadScroll(ctx, SVAL.scroll.word_of_recall!),
-  );
+  const session = getThinkSession(ctx.world);
+  const activate = session.resolvers.activateHandle;
+  const deps = activate ? { activateItem: (act: string) => activate(ctx, act) } : undefined;
+  const cmd = borgZapRod(ctx, SVAL.rod.recall!, deps) ??
+    borgActivateItem(ctx, "act_recall", deps) ??
+    borgSpellFail(ctx, Spell.WORD_OF_RECALL, 60) ??
+    borgReadScroll(ctx, SVAL.scroll.word_of_recall!, deps);
+  if (cmd) {
+    const w = ctx.world;
+    const depth = trait(ctx, BI.CDEPTH);
+    const maxDepth = trait(ctx, BI.MAXDEPTH);
+    w.resetRecallDepth = false;
+    if (depth < maxDepth && depth !== 0) {
+      const diffMax = maxDepth - w.depthHuntedUnique;
+      const diffCur = depth - w.depthHuntedUnique;
+      if (diffMax > 5 && diffCur <= 5 && diffCur > -5) {
+        if (depth >= 80 && depth < 100 && trait(ctx, BI.SAURON_DEAD)) w.resetRecallDepth = true;
+        else if (w.self.goal.fleeingMunchkin) w.resetRecallDepth = true;
+        else if (depth >= 100 && !trait(ctx, BI.KING)) w.resetRecallDepth = false;
+        else if (maxDepth === 99 && w.liveUniques < 5) w.resetRecallDepth = false;
+        else w.resetRecallDepth = true;
+      }
+    }
+  }
+  return cmd;
 }
 
 /* ---------------------------------------------------------------- *

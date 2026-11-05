@@ -214,7 +214,8 @@ export function borgFlowStairMore(
 /**
  * borg_prep_leave_level_spells (borg-flow-stairs.c:252): buff before stepping
  * onto a staircase, in upstream's order -- haste, resistance, mana channel,
- * berserk strength, heroism, rapid regeneration, smite evil, venom. Each sets
+ * berserk strength, heroism, rapid regeneration, smite evil, venom, protection
+ * from evil and blessing. Each sets
  * `noRestPrep` so the borg does not immediately rest the buff away, and each
  * returns as soon as one casts, so a full set takes one turn per spell.
  *
@@ -301,6 +302,22 @@ export function borgPrepLeaveLevelSpells(
     const cmd = borgSpellFail(ctx, Spell.VENOM, 15);
     if (cmd) {
       self.noRestPrep = 18000;
+      return cmd;
+    }
+  }
+
+  /* The Borg protects itself before leaving (borg-flow-stairs.c:325-342). */
+  if (!temp.protFromEvil) {
+    const cmd = borgSpellFail(ctx, Spell.PROTECTION_FROM_EVIL, 15);
+    if (cmd) {
+      self.noRestPrep = trait(w, BI.CLEVEL) * 1000;
+      return cmd;
+    }
+  }
+  if (!temp.bless) {
+    const cmd = borgSpellFail(ctx, Spell.BLESS, 15) ?? borgSpellFail(ctx, Spell.DEMON_BANE, 15);
+    if (cmd) {
+      self.noRestPrep = 11000;
       return cmd;
     }
   }

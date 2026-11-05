@@ -266,6 +266,18 @@ export class BorgWorld {
   /** True once at least one perception has populated the model. */
   seeded = false;
 
+  /** A forced level update restarts exploration (borg-think-dungeon.c:1195, 2113). */
+  resetLevel = false;
+
+  /** Morgoth's sighting clock starts at one (borg-update.c:2017). */
+  lastMorgoth = 1;
+
+  /** No hunted unique has depth 127 (borg-update.c:2294-2300). */
+  depthHuntedUnique = 127;
+  liveUniques = 0;
+  /** Recall queues its depth answer (borg-escape.c:63-115). */
+  resetRecallDepth = false;
+
   /**
    * Reset everything for a new level (borg_init_cave + the new-level branch of
    * borg_update, borg-update.c:2050-2180). `depth` is the depth just ARRIVED at,

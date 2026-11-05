@@ -88,6 +88,13 @@ export interface Borg {
   rewind(): void;
 }
 
+const CONTROLLER_WORLDS = new WeakMap<AgentController, BorgWorld>();
+
+/** The controller owns its recall prompt answer (borg-escape.c:63-115). */
+export function recallDepthAnswer(controller: AgentController): boolean {
+  return CONTROLLER_WORLDS.get(controller)?.resetRecallDepth ?? false;
+}
+
 /**
  * Build a Borg. The returned controller is stateful (owns the world model,
  * perception memo, and wiring session), so build one Borg per game session.
@@ -121,7 +128,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   let lastDepth = -1;
   let retry = false;
   let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
-    rechargeRest: session.rechargeRest ?? false, panel: 0, junked: new Set(session.junked) };
+    rechargeRest: session.rechargeRest ?? false, panel: 0, resetLevel: world.resetLevel, junked: new Set(session.junked) };
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
@@ -129,7 +136,10 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     const recordStep = !retry;
     retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
-      rechargeRest: session.rechargeRest ?? false, panel: world.self.timeThisPanel, junked: new Set(session.junked) };
+      rechargeRest: session.rechargeRest ?? false, panel: world.self.timeThisPanel, resetLevel: world.resetLevel, junked: new Set(session.junked) };
+
+    /* Unknown recall effects keep the depth (borg-messages-react.c:229-242). */
+    world.resetRecallDepth = false;
 
     /* 1. Advance the clocks exactly once (borg-think.c:447). */
     world.clock += 1;
@@ -139,14 +149,14 @@ export function createBorg(opts: BorgOptions = {}): Borg {
      * perception, because everything perception writes is stamped with the
      * clock and the clock is one of the things a new level resets. */
     const depth = view.player().depth;
-    if (depth !== lastDepth) {
+    if (world.resetLevel || depth !== lastDepth) {
       const fs = getFightState(world);
       /* borg_time_town: time since the last visit to town, accumulated across
        * every level in between (:2011-2014). Leaving town zeroes it. Nothing
        * had ever written it, so the two arms that read it - the restock grace
        * in borg_caution and the bravery boost in borg_attack - were measuring
        * time on the current level instead. */
-      if (lastDepth <= 0) fs.timeTown = 0;
+      if (!world.resetLevel && lastDepth <= 0) fs.timeTown = 0;
       else fs.timeTown += world.clock - fs.began;
 
       /* Restart the clock (:2017). Upstream's borg_t is a PER-LEVEL counter,
@@ -177,9 +187,19 @@ export function createBorg(opts: BorgOptions = {}): Borg {
       st.closed.wipe();
       st.glyph.wipe();
       st.vein.wipe();
+      /* Level updates clear purchase and sale records (borg-update.c:2040-2056). */
+      const mem = session.storeMem;
+      mem.soldNum = mem.boughtNum = 0;
+      mem.soldNxt = mem.boughtNxt = 1;
+      for (const records of [mem.soldTval, mem.soldSval, mem.soldPval, mem.soldStore,
+        mem.boughtTval, mem.boughtSval, mem.boughtPval, mem.boughtStore]) {
+        records.length = 10;
+        records.fill(0);
+      }
       session.junked.clear();
       before.junked.clear();
       before.panel = 0;
+      before.resetLevel = false;
 
       lastDepth = depth;
     }
@@ -250,9 +270,11 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     /* borg-junk.c:1224-1241 and borg-item-wear.c:1516-1528 queue side
      * effects with their commands. A discarded decision restores them. */
     session.rechargeRest = before.rechargeRest;
+    world.resetLevel = before.resetLevel;
     session.junked.clear();
     for (const key of before.junked) session.junked.add(key);
   };
 
+  CONTROLLER_WORLDS.set(controller, world);
   return { world, rng, controller, rewind };
 }
