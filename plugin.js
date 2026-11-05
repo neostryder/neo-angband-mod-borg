@@ -13367,7 +13367,9 @@ function borgEscape(ctx, bQ) {
     }
   }
   if (trait3(ctx, 118 /* ISHEAVYSTUN */) || bQ > idiv(av3 * (13 + risky), 10) && uniq >= 2 && uniq <= 8 || bQ > idiv(av3 * (10 + risky), 10) && !uniq || bQ > idiv(av3 * (10 + risky), 10) && trait3(ctx, 113 /* ISAFRAID */) && trait3(ctx, 155 /* AMISSILES */) <= 0 && trait3(ctx, 25 /* CLASS */) === CLASS_WARRIOR) {
-    if ((borgEscapeStair(ctx) || borgCautionPhase(ctx, 25, 2)) && ctx.world.clock - fs.tAntisummon > 50) {
+    const stair = borgEscapeStair(ctx);
+    if (stair) return stair;
+    if (borgCautionPhase(ctx, 25, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
         borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
         borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
@@ -13421,7 +13423,9 @@ function borgEscape(ctx, bQ) {
       ctx.world.self.goal.leaving = true;
   }
   if (bQ > idiv(av3 * (8 + risky), 10) && (clevel < 35 || curhp <= idiv(maxhp, 3)) || bQ > idiv(av3 * (9 + risky), 10) && uniq >= 1 && uniq <= 8 && (clevel < 35 || curhp <= idiv(maxhp, 3)) || bQ > idiv(av3 * (6 + risky), 10) && clevel <= 20 && !uniq || bQ > idiv(av3 * (6 + risky), 10) && clevel <= 35) {
-    if ((borgEscapeStair(ctx) || borgCautionPhase(ctx, 20, 2)) && ctx.world.clock - fs.tAntisummon > 50) {
+    const stair = borgEscapeStair(ctx);
+    if (stair) return stair;
+    if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
         borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
         borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
@@ -13469,7 +13473,9 @@ function borgEscape(ctx, bQ) {
     }
   }
   if (clevel < 10 && (bQ > idiv(av3 * (5 + risky), 10) || bQ > idiv(av3 * (7 + risky), 10) && uniq >= 1 && uniq <= 8)) {
-    if (borgEscapeStair(ctx) || borgCautionPhase(ctx, 20, 2)) {
+    const stair = borgEscapeStair(ctx);
+    if (stair) return stair;
+    if (borgCautionPhase(ctx, 20, 2)) {
       const c = firstCmd(
         borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
         borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
@@ -13514,7 +13520,9 @@ function borgEscape(ctx, bQ) {
     }
   }
   if ((trait3(ctx, 25 /* CLASS */) === CLASS_MAGE || trait3(ctx, 25 /* CLASS */) === CLASS_PRIEST || trait3(ctx, 25 /* CLASS */) === CLASS_NECROMANCER) && (bQ > idiv(av3 * (6 + risky), 10) || bQ > idiv(av3 * (8 + risky), 10) && uniq >= 1 && uniq <= 8) && trait3(ctx, 30 /* CURSP */) <= idiv(trait3(ctx, 31 /* MAXSP */) * 1, 10) && trait3(ctx, 31 /* MAXSP */) >= 100) {
-    if ((borgEscapeStair(ctx) || borgCautionPhase(ctx, 20, 2)) && ctx.world.clock - fs.tAntisummon > 50) {
+    const stair = borgEscapeStair(ctx);
+    if (stair) return stair;
+    if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
         borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
         borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
@@ -13550,7 +13558,9 @@ function borgEscape(ctx, bQ) {
     }
   }
   if (ctx.world.self.timesTwitch > 50) {
-    if ((borgEscapeStair(ctx) || borgCautionPhase(ctx, 20, 2)) && ctx.world.clock - fs.tAntisummon > 50) {
+    const stair = borgEscapeStair(ctx);
+    if (stair) return stair;
+    if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
         borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
         borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
