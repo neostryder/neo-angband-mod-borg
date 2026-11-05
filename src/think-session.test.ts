@@ -11,14 +11,23 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { AgentView, ItemView, StoreItemView } from "@rpgm-tools/neo-angband-core";
+import type { AgentView, ItemView, StoreItemView, SpellbookView } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "./world/model.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { makeBorgRng } from "./rng.js";
 import type { BorgContext } from "./context.js";
 import { BI } from "./trait/trait-index.js";
 import { TV } from "./item/svals.js";
-import { borgWearStuff, borgRemoveStuff } from "./item/index.js";
+import { borgWearStuff, borgRemoveStuff, Spell, borgGetSpellNumber, SVAL } from "./item/index.js";
+import { borgFlowGlyph } from "./flow/flow-glyph.js";
+import { borgFlowKillAim } from "./flow/flow-kill.js";
+import { borgAttack } from "./fight/attack.js";
+import { getFightState } from "./fight/state.js";
+import { borgNotice } from "./trait/trait.js";
+import { perceive, makePerceiveMemo } from "./perceive.js";
+import { makeCoreResolvers } from "./resolvers.js";
+import { primeSession } from "./think-session.js";
+import { FEAT } from "./core-api.js";
 import { buildItemDeps, buildStoreDeps, buildThinkSession } from "./think-session.js";
 import type { BorgResolvers } from "./think-session.js";
 import type { BorgLoadoutChange } from "./trait/simulate.js";
@@ -227,6 +236,102 @@ describe("equipment removal (borg-junk.c:1259-1397)", () => {
     ctx.world.self.timeThisPanel = 150;
     expect(borgRemoveStuff(ctx, buildItemDeps(session))?.code).toBe("takeoff");
     expect(ctx.world.self.timeThisPanel).toBe(151);
+  });
+});
+
+describe("glyph and re-aim capability chains", () => {
+  function capabilities(cls: string, spell?: Spell, fail = 5, scroll = false) {
+    const source = makeScenarioView({
+      player: { cls, grid: { x: 20, y: 12 }, level: 20, maxLevel: 20, sp: 100, maxSp: 100, depth: 10 },
+      monsters: [{ grid: { x: 25, y: 12 } }],
+    });
+    const world = new BorgWorld();
+    const ctx: BorgContext = { world, view: source, act: makeFakeActions(), rng: makeBorgRng(1), bookKind: (tval) => ({ tval, sval: 1 }) };
+    const tval = cls === "Mage" ? TV.MAGIC_BOOK : cls === "Necromancer" ? TV.SHADOW_BOOK : TV.PRAYER_BOOK;
+    const books: SpellbookView[] = spell === undefined ? [] : [{
+      tval, realm: "test", name: "fixture",
+      spells: [{ name: "fixture", sidx: borgGetSpellNumber(ctx, spell), bidx: 0,
+        level: 20, mana: 1, fail, learned: true, worked: true, forgotten: false, studyEligible: false, infoLine: "" }],
+    }];
+    const gear = item({ handle: 42, artifact: true, artifactName: "glyph fixture", activation: true });
+    ctx.view = { ...source, equipment: () => [gear],
+      inventory: () => [item({ tval, sval: 1 }), item({ handle: 4, tval: TV.FOOD, sval: SVAL.food.ration! }),
+        ...(scroll ? [item({ handle: 2, tval: TV.SCROLL, sval: SVAL.scroll.rune_of_protection! })] : [])],
+      spellbooks: () => books };
+    borgNotice(ctx);
+    perceive(world, ctx.view, makePerceiveMemo());
+    const session = buildThinkSession(makeCoreResolvers({ objects: {
+      lookupKind: () => null, findEgo: () => null, findArtifact: () => ({ activation: { name: "GLYPH" } }),
+    } }));
+    primeSession(session, ctx);
+    return { ctx, session, flow: session.flow.state };
+  }
+
+  it.each([[30, true, "cast"], [31, true, "read"], [31, false, "activate"]] as const)(
+    "uses the C glyph chain at failure %i with scroll %s", (fail, scroll, code) => {
+      const { ctx, flow } = capabilities("Priest", Spell.GLYPH_OF_WARDING, fail, scroll);
+      flow.glyphX = ctx.world.self.c.x;
+      flow.glyphY = ctx.world.self.c.y;
+      expect(borgFlowGlyph(ctx, flow)?.code).toBe(code);
+      expect(flow.glyph.num).toBe(1);
+    },
+  );
+
+  it("rejects a charging glyph activation", () => {
+    const { ctx, flow } = capabilities("Priest");
+    const equipment = ctx.view.equipment().map((gear) => gear && { ...gear, timeout: 1 });
+    ctx.view = { ...ctx.view, equipment: () => equipment };
+    expect(flow.hooks.layGlyph(ctx)).toBeNull();
+  });
+
+  it.each([["Mage", Spell.MAGIC_MISSILE], ["Necromancer", Spell.NETHER_BOLT]] as const)(
+    "finds a %s bolt without a launcher and rejects a blocked bolt", (cls, spell) => {
+      const { ctx, flow } = capabilities(cls, spell);
+      borgAttack(ctx);
+      getFightState(ctx.world).simulate = true;
+      getFightState(ctx.world).successfulTarget = 0;
+      expect(flow.hooks.hasDistanceAttack(ctx.world)).toBe(true);
+      ctx.world.map.at(23, 12).feat = FEAT.GRANITE;
+      expect(flow.hooks.hasDistanceAttack(ctx.world)).toBe(false);
+    },
+  );
+
+  it("uses quiver ammunition and does not treat shots without ammunition as an attack", () => {
+    const { ctx, flow } = capabilities("Warrior");
+    const bow = item({ tval: TV.BOW });
+    const ammo = item({ handle: 3, tval: TV.ARROW, value: 10, dd: 1, ds: 4 });
+    ctx.view = { ...ctx.view, equipment: () => [null, bow], quiver: () => [ammo] };
+    ctx.world.self.trait[BI.AMMO_TVAL] = TV.ARROW;
+    ctx.world.self.trait[BI.AMMO_POWER] = 2;
+    ctx.world.self.trait[BI.SHOTS] = 1;
+    ctx.world.self.trait[BI.THB] = 100;
+    borgAttack(ctx);
+    getFightState(ctx.world).simulate = true;
+    getFightState(ctx.world).successfulTarget = 0;
+    expect(flow.hooks.hasDistanceAttack(ctx.world)).toBe(true);
+    const player = ctx.view.player();
+    ctx.view = { ...ctx.view, player: () => ({ ...player, shots: 10 }), quiver: () => [] };
+    expect(flow.hooks.hasDistanceAttack(ctx.world)).toBe(false);
+  });
+
+  it("draws for both spell probes before falling back to arrows, even without known spells", () => {
+    const { ctx, flow } = capabilities("Warrior");
+    ctx.world.self.trait[BI.CLEVEL] = 2;
+    const expected = makeBorgRng(1);
+    expected.randint0(100);
+    expected.randint0(100);
+    expect(flow.hooks.hasDistanceAttack(ctx.world)).toBe(false);
+    expect(ctx.rng.randint0(10000)).toBe(expected.randint0(10000));
+  });
+
+  it("moves to a position with a bolt path and restores the real position", () => {
+    const { ctx, flow } = capabilities("Mage", Spell.MAGIC_MISSILE);
+    ctx.world.map.at(23, 12).feat = FEAT.GRANITE;
+    borgAttack(ctx);
+    getFightState(ctx.world).simulate = true;
+    getFightState(ctx.world).successfulTarget = 0;
+    expect(borgFlowKillAim(ctx, flow, true)).toMatchObject({ code: "walk" });
+    expect(ctx.world.self.c).toEqual({ x: 20, y: 12 });
   });
 });
 

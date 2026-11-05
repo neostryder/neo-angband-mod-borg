@@ -11632,14 +11632,15 @@ function auxLaunch(ctx, fs) {
   let bV = -1;
   let bAmmo = null;
   const ammoTval = trait3(ctx, 152 /* AMMO_TVAL */);
-  for (const item of ctx.view.inventory()) {
+  for (const item of ctx.view.quiver?.() ?? []) {
     if (item.number <= 0) continue;
     if (item.tval !== ammoTval) continue;
-    if ((item.value ?? 0) <= 0) continue;
+    if (perItemValue(item) <= 0) continue;
     let d = idiv(item.dd * (item.ds + 1), 2);
     d = d + item.toD + bow.toD;
     d = d * trait3(ctx, 154 /* AMMO_POWER */) * trait3(ctx, 148 /* SHOTS */);
-    const v = item.value ?? 0;
+    const v = perItemValue(item);
+    if (needsIdent(item)) d *= 99;
     if (d <= 0) continue;
     const n = borgLaunchBolt(ctx, fs, 0, d, 1 /* ARROW */, 6 + 2 * trait3(ctx, 154 /* AMMO_POWER */), item);
     if (n === bN && v >= bV) continue;
@@ -11771,6 +11772,10 @@ function auxSpellBolt(ctx, fs, spell, rad, dam, typ, maxR, isArc) {
   fs.pending = borgSpell(ctx, spell);
   fs.successfulTarget = -1;
   return bN;
+}
+function borgHasDistanceAttack(ctx) {
+  const fs = getFightState(ctx.world);
+  return auxSpellBolt(ctx, fs, 0 /* MAGIC_MISSILE */, 0, 10, 0 /* MISSILE */, maxRange2(ctx), false) > 0 || auxSpellBolt(ctx, fs, 85 /* NETHER_BOLT */, 0, 10, 19 /* NETHER */, maxRange2(ctx), false) > 0 || auxLaunch(ctx, fs) > 0;
 }
 function auxSpellBoltReserve(ctx, fs, spell, rad, dam, typ, maxR) {
   if (trait3(ctx, 35 /* CLEVEL */) >= 15) return 0;
@@ -14823,10 +14828,8 @@ function buildFlowHooks(session) {
       }
       return borgSpellLegal(c, 38 /* TURN_STONE_TO_MUD */) || borgSpellLegal(c, 121 /* SHATTER_STONE */);
     },
-    hasDistanceAttack: (_world) => {
-      return (ctx().view.player().shots ?? 0) > 0;
-    },
-    layGlyph: (c) => borgSpell(c, 78 /* GLYPH_OF_WARDING */) ?? borgReadScroll(c, SVAL.scroll.rune_of_protection),
+    hasDistanceAttack: (_world) => borgHasDistanceAttack(ctx()),
+    layGlyph: (c) => borgSpellFail(c, 78 /* GLYPH_OF_WARDING */, 30) ?? borgReadScroll(c, SVAL.scroll.rune_of_protection) ?? borgActivateItem(c, "act_glyph", buildItemDeps(session)),
     /* borg-flow.c:903, 969, 977 resolves charged equipment through
      * borg_activate_item (borg-item-use.c:936-948). The session supplies
      * that lookup; borg_target at :911 and the direction at :979 aim it. */

@@ -48,7 +48,7 @@ import {
   CLASS_RANGER,
   CLASS_PALADIN,
 } from "../trait/trait-index.js";
-import { trait } from "../item/deps.js";
+import { trait, needsIdent, perItemValue } from "../item/deps.js";
 import type { BorgKill } from "../world/kill.js";
 import { FEAT, borgCaveFloorGrid } from "../flow/flow-consts.js";
 import { GOAL_KILL } from "../world/model.js";
@@ -1174,15 +1174,15 @@ function auxLaunch(ctx: BorgContext, fs: FightState): number {
   let bAmmo: ItemView | null = null;
   const ammoTval = trait(ctx, BI.AMMO_TVAL);
 
-  for (const item of ctx.view.inventory()) {
+  for (const item of ctx.view.quiver?.() ?? []) {
     if (item.number <= 0) continue;
     if (item.tval !== ammoTval) continue;
-    if ((item.value ?? 0) <= 0) continue;
+    if (perItemValue(item) <= 0) continue;
     let d = idiv(item.dd * (item.ds + 1), 2);
     d = d + item.toD + bow.toD;
     d = d * trait(ctx, BI.AMMO_POWER) * trait(ctx, BI.SHOTS);
-    const v = item.value ?? 0;
-    /* unID boost omitted (needs note-needs-id); faithful conservative default. */
+    const v = perItemValue(item);
+    if (needsIdent(item)) d *= 99;
     if (d <= 0) continue;
     const n = borgLaunchBolt(ctx, fs, 0, d, BA.ARROW, 6 + 2 * trait(ctx, BI.AMMO_POWER), item);
     if (n === bN && v >= bV) continue;
@@ -1353,6 +1353,14 @@ function auxSpellBolt(
   fs.pending = borgSpell(ctx, spell);
   fs.successfulTarget = -1;
   return bN;
+}
+
+/** borg-flow-kill.c:1941-1966 reuses the attack scan's targets and simulation flag. */
+export function borgHasDistanceAttack(ctx: BorgContext): boolean {
+  const fs = getFightState(ctx.world);
+  return auxSpellBolt(ctx, fs, Spell.MAGIC_MISSILE, 0, 10, BA.MISSILE, maxRange(ctx), false) > 0
+    || auxSpellBolt(ctx, fs, Spell.NETHER_BOLT, 0, 10, BA.NETHER, maxRange(ctx), false) > 0
+    || auxLaunch(ctx, fs) > 0;
 }
 
 /** borg_attack_aux_spell_bolt_reserve (attack.c:2518): emergency MM (neg mana). */

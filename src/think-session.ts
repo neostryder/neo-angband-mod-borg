@@ -62,12 +62,14 @@ import {
   borgActivateRing,
   borgReadScroll,
   borgSpell,
+  borgSpellFail,
   borgSpellLegal,
   borgSpellOkayFail,
   SVAL,
 } from "./item/index.js";
 import type { BorgWorld } from "./world/model.js";
 import { borgTarget } from "./fight/index.js";
+import { borgHasDistanceAttack } from "./fight/attack.js";
 
 /**
  * Injection points a host supplies via createBorg. All optional; each defaults
@@ -207,14 +209,11 @@ function buildFlowHooks(session: ThinkSession): FlowHooks {
         borgSpellLegal(c, Spell.SHATTER_STONE)
       );
     },
-    hasDistanceAttack: (_world) => {
-      // Proxy for borg_has_distance_attack: the borg can shoot if it has shots
-      // (a launcher + ammo). A real ranged-damage evaluator can replace this.
-      return (ctx().view.player().shots ?? 0) > 0;
-    },
+    hasDistanceAttack: (_world) => borgHasDistanceAttack(ctx()),
     layGlyph: (c) =>
-      borgSpell(c, Spell.GLYPH_OF_WARDING) ??
-      borgReadScroll(c, SVAL.scroll.rune_of_protection!),
+      borgSpellFail(c, Spell.GLYPH_OF_WARDING, 30) ??
+      borgReadScroll(c, SVAL.scroll.rune_of_protection!) ??
+      borgActivateItem(c, "act_glyph", buildItemDeps(session)),
     /* borg-flow.c:903, 969, 977 resolves charged equipment through
      * borg_activate_item (borg-item-use.c:936-948). The session supplies
      * that lookup; borg_target at :911 and the direction at :979 aim it. */
