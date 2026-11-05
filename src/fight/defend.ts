@@ -11,10 +11,9 @@
  * COVERAGE: the buff/resist/teleport-other cluster is ported in full (bless,
  * speed, grim purpose, resist FECAP + single elements, PFE, shield, tele-away,
  * hero, regen, berserk, smite-evil, glyph, create-door, earthquake, word of
- * destruction, teleport-level, banishment, detect-invis, light-beam). The four
- * data-gapped maneuvers return 0 (documented at each stub): the *genocide*
- * family needs r_ptr->d_char symbols, and panel-shift / rest / the Morgoth
- * variants need Term panel geometry / morgoth_panel data not on the borg model.
+ * destruction, teleport-level, banishment, detect-invis, light-beam). The
+ * genocide family and Morgoth variants use race facts and tracked positions.
+ * Panel-shift and defensive rest remain unported (documented at dispatch).
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
@@ -28,10 +27,11 @@ import {
   getFearCaches,
   borgProjectable,
   borgLos,
+  borgDistance,
 } from "../danger/index.js";
 import { borgCaveFloorBold } from "../danger/geometry.js";
 import { FEAT } from "../flow/flow-consts.js";
-import { BORG_GLOW } from "../world/grid.js";
+import { BORG_GLOW, BORG_VIEW } from "../world/grid.js";
 import { TV, SVAL } from "../item/svals.js";
 import {
   Spell,
@@ -59,11 +59,14 @@ import { borgLightBeam, borgLightBeamOkay } from "../item/light.js";
 import { getFightState, idiv, type FightState } from "./state.js";
 import { BA } from "./bf.js";
 import { borgLaunchBolt } from "./attack.js";
-import { borgCautionTeleport } from "./escape.js";
+import { borgCautionTeleport, borgSurrounded } from "./escape.js";
+import { borgProjectableDark, borgTarget } from "./projection.js";
 import type { Temp } from "../world/model.js";
+import type { ItemDeps } from "../item/deps.js";
+import { getThinkSession } from "../think-session.js";
 
 /* enum BD_* (defend.c:65). */
-enum BD {
+export enum BD {
   BLESS,
   SPEED,
   GRIM_PURPOSE,
@@ -749,6 +752,224 @@ function auxLbeam(ctx: BorgContext, fs: FightState, p1: number): number {
   return fs.pending ? 10 : 0;
 }
 
+/** These maneuvers need the same activation resolvers as the item ladder. */
+function defenseItems(ctx: BorgContext): ItemDeps {
+  const res = getThinkSession(ctx.world).resolvers;
+  return {
+    equipsItem: (act, charge) => res.resolveActivation?.(ctx, act, charge) ?? false,
+    activateItem: (act) => res.activateHandle?.(ctx, act) ?? null,
+  };
+}
+
+/* ---- mass genocide (defend.c:1720) ---- */
+function auxMassGenocide(ctx: BorgContext, fs: FightState, p1: number): number {
+  const d = defenseItems(ctx);
+  if (screwed(ctx)) return 0;
+  if (!borgSpellOkayFail(ctx, Spell.MASS_BANISHMENT, 40)
+    && !borgEquipsItem(ctx, "act_banishment", true, d) && !trait(ctx, BI.AMASSBAN)) return 0;
+  if (fs.simulate && p1 < idiv(av(ctx) * 12, 10)) return 0;
+  const { x, y } = ctx.world.self.c;
+  const g = getDangerGlobals(ctx.world);
+  let hit = 0;
+  let danger = 0;
+  for (const [i, kill] of ctx.world.kills.entries()) {
+    if (borgDistance(y, x, kill.pos.y, kill.pos.x) > 20 || g.resolveFacts(ctx, i).flags.has("UNIQUE")) continue;
+    danger += borgDangerOneKillLocal(ctx, i);
+    hit += 3;
+  }
+  if (idiv(hit * 12, 10) >= trait(ctx, BI.CURHP)) return 0;
+  let p2 = Math.max(0, p1 - danger) + hit;
+  if (fs.fightingUnique >= 10 && idiv(hit, 3) > 8) p2 = idiv(p2 * 6, 10);
+  if (p1 <= p2 || p2 > (fs.fightingUnique ? idiv(av(ctx) * 2, 3) : idiv(av(ctx), 2))) return 0;
+  if (fs.simulate) return p1 - p2;
+  fs.pending = borgReadScroll(ctx, SVAL.scroll.mass_banishment!)
+    || borgActivateItem(ctx, "act_banishment", d) || borgSpell(ctx, Spell.MASS_BANISHMENT);
+  if (!fs.pending) return 0;
+  for (const [i] of ctx.world.kills.entries()) {
+    if (!g.resolveFacts(ctx, i).flags.has("UNIQUE")) ctx.world.kills.delete(i);
+  }
+  return p1 - p2;
+}
+
+/** The symbol is an effect argument for scrolls, spells, activations and staves. */
+function genocideTarget(ctx: BorgContext, fs: FightState, symbol: string): void {
+  if (!fs.pending) return;
+  fs.pending = ctx.act.raw(fs.pending.code, { ...fs.pending.args, tgtsymbol: symbol });
+}
+
+/* ---- genocide (defend.c:1851) ---- */
+function auxGenocide(ctx: BorgContext, fs: FightState, p1: number): number {
+  const d = defenseItems(ctx);
+  const fa = scaleFail(ctx, p1, 25);
+  if (screwed(ctx)) return 0;
+  const { x, y } = ctx.world.self.c;
+  const fear = getFearCaches(ctx.world);
+  p1 -= fear.region(y, x) + fear.monsters(y, x);
+  if (!borgSpellOkayFail(ctx, Spell.BANISHMENT, fa) && !borgEquipsItem(ctx, "act_banishment", true, d)
+    && !borgEquipsStaffFail(ctx, SVAL.staff.banishment!) && borgSlot(ctx, TV.SCROLL, SVAL.scroll.banishment!) === null) return 0;
+  if (trait(ctx, BI.CURHP) <= 75) return 0;
+  const count = new Array<number>(255).fill(0);
+  const danger = new Array<number>(255).fill(0);
+  const threat = new Array<number>(255).fill(0);
+  const g = getDangerGlobals(ctx.world);
+  let total = 0;
+  for (const [i, kill] of ctx.world.kills.entries()) {
+    const facts = g.resolveFacts(ctx, i);
+    if (facts.flags.has("UNIQUE")) continue;
+    const symbol = facts.dChar?.charCodeAt(0);
+    if (symbol === undefined || symbol >= 255) continue;
+    const p = borgDangerOneKillLocal(ctx, i);
+    total += p;
+    danger[symbol]! += p;
+    threat[symbol]! += borgDangerOneKill(ctx, kill.pos.y, kill.pos.x, 1, i, true, true);
+    count[symbol]!++;
+  }
+  let biggestDanger = 0;
+  let biggestThreat = 0;
+  let maxThreat = 1;
+  let without = 0;
+  for (let i = 0; i < 255; i++) {
+    if (!count[i]) continue;
+    /* The C shares this maximum between immediate danger and level threat. */
+    if (danger[i]! > maxThreat) {
+      maxThreat = danger[i]!;
+      biggestDanger = i;
+      without = total - danger[i]!;
+    }
+    if (threat[i]! > maxThreat) {
+      maxThreat = threat[i]!;
+      biggestThreat = i;
+    }
+  }
+  let target = 0;
+  if (biggestThreat) {
+    if (trait(ctx, BI.CURHP) < 375) biggestThreat = 0;
+    if (threat[biggestThreat]! < trait(ctx, BI.MAXHP) * 3) biggestThreat = 0;
+    if (idiv(count[biggestThreat]! * 4 * 12, 10) >= trait(ctx, BI.CURHP)) biggestThreat = 0;
+    if (count[biggestThreat]! >= 75) biggestThreat = 0;
+    if (p1 > idiv(av(ctx), 5)) biggestThreat = 0;
+    target = biggestThreat;
+  }
+  if (biggestDanger) {
+    if (idiv(count[biggestDanger]! * 4 * 12, 10) >= trait(ctx, BI.CURHP)) biggestDanger = 0;
+    if (p1 < idiv(av(ctx) * 7, 10) || (trait(ctx, BI.CDEPTH) > 75 && p1 < idiv(av(ctx) * 6, 10))) biggestDanger = 0;
+    /* The <= gate is intentional: defend.c:2079-2081 rejects this case. */
+    if (without <= idiv(av(ctx), 2)) biggestDanger = 0;
+    if (biggestDanger) target = biggestDanger;
+  }
+  if (!target) return 0;
+  const value = biggestDanger ? p1 - without : threat[biggestThreat]!;
+  if (fs.simulate) return value;
+  fs.pending = borgReadScroll(ctx, SVAL.scroll.banishment!) || borgSpell(ctx, Spell.BANISHMENT)
+    || borgActivateItem(ctx, "act_banishment", d) || borgUseStaff(ctx, SVAL.staff.banishment!);
+  if (fs.pending) {
+    const symbol = String.fromCharCode(target);
+    genocideTarget(ctx, fs, symbol);
+    for (const [i] of ctx.world.kills.entries()) {
+      const facts = g.resolveFacts(ctx, i);
+      if (facts.dChar === symbol && !facts.flags.has("UNIQUE")) ctx.world.kills.delete(i);
+    }
+  }
+  return value;
+}
+
+/* ---- genocide nasties (defend.c:2157) ---- */
+function auxGenocideNasties(ctx: BorgContext, fs: FightState, p1: number): number {
+  const d = defenseItems(ctx);
+  if (trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP) * 7, 10) || trait(ctx, BI.CURHP) < 250) return 0;
+  if (trait(ctx, BI.CDEPTH) < 25 || screwed(ctx) || p1 > idiv(av(ctx), 4)) return 0;
+  if (!borgSpellOkayFail(ctx, Spell.BANISHMENT, 35) && !borgEquipsItem(ctx, "act_banishment", true, d)
+    && !borgEquipsStaffFail(ctx, SVAL.staff.banishment!)) return 0;
+  const limits = [20, 20, 10, 10, 10, 10, 10];
+  let best = -1;
+  for (let i = 0; i < limits.length; i++) if (ctx.world.facts.nastiesCount[i]! >= limits[i]!) best = i;
+  if (best < 0) return 0;
+  if (fs.simulate) return 10;
+  fs.pending = borgActivateItem(ctx, "act_banishment", d) || borgUseStaff(ctx, SVAL.staff.banishment!) || borgSpell(ctx, Spell.BANISHMENT);
+  if (!fs.pending) return 0;
+  const symbol = "ZAVULWD"[best]!;
+  genocideTarget(ctx, fs, symbol);
+  ctx.world.facts.nastiesCount[best] = 0;
+  for (const [i] of ctx.world.kills.entries()) {
+    if (getDangerGlobals(ctx.world).resolveFacts(ctx, i).dChar === symbol) ctx.world.kills.delete(i);
+  }
+  return 10;
+}
+
+/* ---- Morgoth teleport-away (defend.c:3048) ---- */
+function auxTeleAwayMorgoth(ctx: BorgContext, fs: FightState): number {
+  if (trait(ctx, BI.CDEPTH) !== 100 || !ctx.world.facts.morgothOnLevel || screwed(ctx)) return 0;
+  if (!borgSpellOkayFail(ctx, Spell.TELEPORT_OTHER, 40) || trait(ctx, BI.AGLYPH) < 10 || borgSurrounded(ctx)) return 0;
+  const g = getDangerGlobals(ctx.world);
+  const { x, y } = ctx.world.self.c;
+  const max = ctx.view.constants().maxRange ?? 20;
+  fs.tempN = 0;
+  g.tpOtherIndices.length = 0;
+  for (const [, kill] of ctx.world.kills.entries()) {
+    if (kill.when < ctx.world.clock - 2) continue;
+    const ag = ctx.world.map.at(kill.pos.x, kill.pos.y);
+    /* BORG_OKAY is treated as set, as in the ordinary teleport-away scan. */
+    if (!(ag.info & BORG_VIEW) || borgDistance(y, x, kill.pos.y, kill.pos.x) > max) continue;
+    if (!borgProjectable(ctx.world, g, max, y, x, kill.pos.y, kill.pos.x)) continue;
+    fs.tempX[fs.tempN] = kill.pos.x;
+    fs.tempY[fs.tempN++] = kill.pos.y;
+  }
+  if (!fs.tempN && fs.simulate) return 0;
+  const p2 = Math.min(1000, borgLaunchBolt(ctx, fs, 0, 50, BA.AWAY_ALL_MORGOTH, max, null));
+  fs.tempN = 0;
+  g.tpOtherIndices.length = 0;
+  if (fs.simulate) return p2;
+  fs.pending = borgSpell(ctx, Spell.TELEPORT_OTHER) || borgActivateItem(ctx, "act_tele_other", defenseItems(ctx)) || borgAimWand(ctx, SVAL.wand.teleport_away!);
+  if (fs.pending) fs.successfulTarget = -1;
+  return fs.pending ? p2 : 0;
+}
+
+/* ---- Morgoth banishment (defend.c:3198) ---- */
+function auxBanishmentMorgoth(ctx: BorgContext, fs: FightState): number {
+  if (!ctx.world.facts.morgothOnLevel || screwed(ctx)) return 0;
+  const evil = borgSpellOkayFail(ctx, Spell.BANISH_EVIL, 50);
+  const mass = borgSpellOkayFail(ctx, Spell.MASS_BANISHMENT, 50);
+  if (!evil && !mass) return 0;
+  const g = getDangerGlobals(ctx.world);
+  const { x, y } = ctx.world.self.c;
+  let count = 0;
+  for (const [i, kill] of ctx.world.kills.entries()) {
+    if (kill.when < ctx.world.clock - 2 || (evil && !mass && !g.resolveFacts(ctx, i).flags.has("EVIL"))) continue;
+    const d = borgDistance(y, x, kill.pos.y, kill.pos.x);
+    const max = ctx.view.constants().maxRange ?? 20;
+    if (d > max || !borgProjectable(ctx.world, g, max, y, x, kill.pos.y, kill.pos.x)) continue;
+    if (d <= 7) count++;
+    count++;
+  }
+  if (fs.simulate) return count > 7 ? 1500 : 0;
+  fs.pending = borgSpell(ctx, Spell.MASS_BANISHMENT) || borgSpell(ctx, Spell.BANISH_EVIL);
+  if (!fs.pending) return 0;
+  for (const [i] of ctx.world.kills.entries()) {
+    if (!g.resolveFacts(ctx, i).flags.has("UNIQUE")) ctx.world.kills.delete(i);
+  }
+  return 1000;
+}
+
+/* ---- Morgoth light (defend.c:3341) ---- */
+function auxLightMorgoth(ctx: BorgContext, fs: FightState): number {
+  if (!getDangerGlobals(ctx.world).morgothPosition || !ctx.world.facts.morgothOnLevel || screwed(ctx)) return 0;
+  if (!borgSpellOkayFail(ctx, Spell.SPEAR_OF_LIGHT, 50) && !borgSpellOkayFail(ctx, Spell.CLAIRVOYANCE, 50)
+    && !borgSpellOkayFail(ctx, Spell.FUME_OF_MORDOR, 50)) return 0;
+  const { x, y } = ctx.world.self.c;
+  let best: { x: number; y: number } | undefined;
+  for (const [, kill] of ctx.world.kills.entries()) {
+    if (!kill.isMorgoth || kill.when < ctx.world.clock - 2) continue;
+    const d = borgDistance(y, x, kill.pos.y, kill.pos.x);
+    if (d > (ctx.view.constants().maxRange ?? 20) || d <= 5) continue;
+    if (borgProjectableDark(ctx, y, x, kill.pos.y, kill.pos.x)) best = kill.pos;
+  }
+  if (!best) return 0;
+  if (fs.simulate) return 500;
+  borgTarget(ctx, best.y, best.x, false);
+  fs.pending = borgSpell(ctx, Spell.SPEAR_OF_LIGHT) || borgSpell(ctx, Spell.CLAIRVOYANCE) || borgSpell(ctx, Spell.FUME_OF_MORDOR);
+  return fs.pending ? 200 : 0;
+}
+
 /** borg_danger_one_kill wrapper at the borg's grid (average, full). */
 function borgDangerOneKillLocal(ctx: BorgContext, i: number): number {
   return borgDangerOneKill(ctx, ctx.world.self.c.y, ctx.world.self.c.x, 1, i, true, true);
@@ -760,7 +981,7 @@ function getFearRegional(ctx: BorgContext): number {
 }
 
 /* dispatch (defend.c:3441). */
-function defendAux(ctx: BorgContext, fs: FightState, what: BD, p1: number): number {
+export function borgCalculateDefenseEffectiveness(ctx: BorgContext, fs: FightState, what: BD, p1: number): number {
   switch (what) {
     case BD.SPEED: return auxSpeed(ctx, fs, p1);
     case BD.PROT_FROM_EVIL: return auxProtEvil(ctx, fs, p1);
@@ -844,19 +1065,18 @@ function defendAux(ctx: BorgContext, fs: FightState, what: BD, p1: number): numb
     case BD.BANISHMENT: return auxBanishment(ctx, fs, p1);
     case BD.DETECT_INVISO: return auxInviso(ctx, fs, p1);
     case BD.LIGHT_BEAM: return auxLbeam(ctx, fs, p1);
-    /* GAP: the *genocide* family (defend.c:1720/1851/2157) needs r_ptr->d_char
-     * symbols; panel-shift (2817) needs Term panel geometry; rest (2973) and the
-     * Morgoth variants (3048/3198/3341) need morgoth-panel/position data not on
-     * the borg model. These return 0 (unavailable), which is the faithful
-     * "cannot perform this maneuver" result for the best-of scan. */
-    case BD.MASS_GENOCIDE:
-    case BD.GENOCIDE:
-    case BD.GENOCIDE_NASTIES:
+    case BD.MASS_GENOCIDE: return auxMassGenocide(ctx, fs, p1);
+    case BD.GENOCIDE: return auxGenocide(ctx, fs, p1);
+    case BD.GENOCIDE_NASTIES: return auxGenocideNasties(ctx, fs, p1);
+    case BD.TELE_AWAY_MORGOTH: return auxTeleAwayMorgoth(ctx, fs);
+    case BD.BANISHMENT_MORGOTH: return auxBanishmentMorgoth(ctx, fs);
+    case BD.LIGHT_MORGOTH: return auxLightMorgoth(ctx, fs);
+    /* GAP: defend.c:2820-2821 needs Term->offset_x/y and borg_panel_wid/hgt;
+     * defend.c:2828 also compares w_x/y to morgy_panel_x/y. */
     case BD.SHIFT_PANEL:
+      return 0;
+    /* Unported defend.c:2973; its position flags and timers are available. */
     case BD.REST:
-    case BD.TELE_AWAY_MORGOTH:
-    case BD.BANISHMENT_MORGOTH:
-    case BD.LIGHT_MORGOTH:
       return 0;
     default:
       return 0;
@@ -892,7 +1112,7 @@ export function borgDefend(ctx: BorgContext, p1: number): AgentCommand | null {
   let bG = -1;
   let bN = 0;
   for (let g = 0; g < BD.MAX; g++) {
-    const n = defendAux(ctx, fs, g as BD, p1);
+    const n = borgCalculateDefenseEffectiveness(ctx, fs, g as BD, p1);
     if (n <= bN) continue;
     bG = g;
     bN = n;
@@ -901,6 +1121,6 @@ export function borgDefend(ctx: BorgContext, p1: number): AgentCommand | null {
 
   fs.simulate = false;
   fs.pending = null;
-  defendAux(ctx, fs, bG as BD, p1);
+  borgCalculateDefenseEffectiveness(ctx, fs, bG as BD, p1);
   return fs.pending;
 }

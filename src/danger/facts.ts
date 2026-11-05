@@ -32,6 +32,8 @@ export interface BlowFacts {
 export interface MonsterFacts {
   /** r_idx. */
   rIdx: number;
+  /** r_ptr->d_char, independent of the player's display glyph overrides. */
+  dChar?: string | undefined;
   /** RF_* codes present on the race (r_ptr->flags). */
   flags: ReadonlySet<string>;
   /** r_ptr->level. */

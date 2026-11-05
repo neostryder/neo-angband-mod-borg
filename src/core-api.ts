@@ -255,6 +255,7 @@ export interface RaceBlow {
 /** The parts of a monster race the danger evaluator reads, as plain data. */
 export interface RaceRecord {
   readonly ridx: number;
+  readonly dChar?: string | undefined;
   /** RF_* code names for the set flags (index == RF value). */
   readonly flags: Set<string>;
   readonly level: number;
@@ -279,6 +280,7 @@ export function racesByIndex(races: readonly MonsterRace[]): Map<number, Monster
 export function raceRecord(race: MonsterRace): RaceRecord {
   return {
     ridx: race.ridx,
+    dChar: race.dChar,
     flags: raceFlagNames(race),
     level: race.level,
     sleep: race.sleep,

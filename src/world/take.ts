@@ -15,6 +15,8 @@ export interface BorgTake {
   kIdx: number;
   /** Object tval (broad category), for quick filtering. */
   tval: number;
+  sval: number;
+  aware: boolean;
   /** Verified kind (not just guessed from a symbol). */
   known: boolean;
   /**
@@ -37,6 +39,8 @@ export function makeBorgTake(): BorgTake {
   return {
     kIdx: 0,
     tval: 0,
+    sval: 0,
+    aware: false,
     known: false,
     value: 0,
     pos: { x: 0, y: 0 },

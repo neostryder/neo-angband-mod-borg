@@ -76,6 +76,8 @@ export interface CoreShopLookup {
 
 /** What the host supplies to build real resolvers. */
 export interface CoreResolverInput {
+  /** Default race symbols from composed content, indexed by bound race index. */
+  raceSymbol?: (ridx: number) => string | undefined;
   bookKind?: BorgContext["bookKind"];
   spellEffect?: BorgContext["spellEffect"];
   /** The bound monster-race registry (booted.registries...); indexed by ridx. Absent when `raceRecord` answers instead. */
@@ -192,10 +194,11 @@ export function makeCoreResolvers(input: CoreResolverInput): BorgResolvers {
     const record = input.raceRecord?.(kill.rIdx) ?? (race ? raceRecord(race) : undefined);
     // Unknown race (e.g. a mod race the registry lacks): fall back to the
     // MonsterView-derived defaults rather than throwing.
-    if (!record) return defaultResolveMonsterFacts(ctx, killIndex);
+    if (!record) return { ...defaultResolveMonsterFacts(ctx, killIndex), dChar: input.raceSymbol?.(kill.rIdx) };
 
     return {
       rIdx: record.ridx,
+      dChar: record.dChar ?? input.raceSymbol?.(kill.rIdx),
       flags: record.flags,
       level: record.level,
       sleep: record.sleep,

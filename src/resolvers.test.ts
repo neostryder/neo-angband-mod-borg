@@ -33,6 +33,7 @@ function fakeRace(over: Partial<MonsterRace> = {}): MonsterRace {
   };
   return {
     ridx: 7,
+    dChar: "d",
     name: "test-drake",
     flags: [RF.UNIQUE] as unknown as MonsterRace["flags"],
     spellFlags: [RSF.BR_FIRE] as unknown as MonsterRace["spellFlags"],
@@ -66,6 +67,7 @@ describe("makeCoreResolvers", () => {
     const facts = resolvers.resolveMonsterFacts!(ctx, 1);
 
     expect(facts.rIdx).toBe(7);
+    expect(facts.dChar).toBe("d");
     expect(facts.level).toBe(20);
     expect(facts.sleep).toBe(10);
     expect(facts.spellPower).toBe(25);

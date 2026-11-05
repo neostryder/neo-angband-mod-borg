@@ -220,6 +220,8 @@ export function makeBorgSelf(): BorgSelf {
 
 /** Per-level facts the Borg derives from what it perceives (borg-flow-kill.h). */
 export interface LevelFacts {
+  /** ZAVULWD counts since level entry (borg-update.c:2212-2217). */
+  nastiesCount: number[];
   uniqueOnLevel: number;
   scaryGuyOnLevel: boolean;
   morgothOnLevel: boolean;
@@ -232,6 +234,7 @@ export interface LevelFacts {
 /** Fresh per-level facts. */
 export function makeLevelFacts(): LevelFacts {
   return {
+    nastiesCount: [25, 0, 0, 0, 0, 0, 0],
     uniqueOnLevel: 0,
     scaryGuyOnLevel: false,
     morgothOnLevel: false,

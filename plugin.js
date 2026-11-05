@@ -189,6 +189,8 @@ var BorgMap = class {
 function makeBorgKill() {
   return {
     rIdx: 0,
+    isMorgoth: false,
+    nastyCounted: false,
     known: false,
     awake: false,
     confused: false,
@@ -304,6 +306,8 @@ function makeBorgTake() {
   return {
     kIdx: 0,
     tval: 0,
+    sval: 0,
+    aware: false,
     known: false,
     value: 0,
     pos: { x: 0, y: 0 },
@@ -529,6 +533,7 @@ function makeBorgSelf() {
 }
 function makeLevelFacts() {
   return {
+    nastiesCount: [25, 0, 0, 0, 0, 0, 0],
     uniqueOnLevel: 0,
     scaryGuyOnLevel: false,
     morgothOnLevel: false,
@@ -669,6 +674,7 @@ function racesByIndex(races) {
 function raceRecord(race) {
   return {
     ridx: race.ridx,
+    dChar: race.dChar,
     flags: raceFlagNames(race),
     level: race.level,
     sleep: race.sleep,
@@ -10997,6 +11003,22 @@ function borgOffsetProjectable(ctx, y1, x1, y2, x2) {
   }
   return false;
 }
+function borgProjectableDark(ctx, y1, x1, y2, x2) {
+  let y = y1;
+  let x = x1;
+  let unknown = 0;
+  const max = maxRange(ctx);
+  for (let dist4 = 0; dist4 <= max; dist4++) {
+    const feat = featAt(ctx, y, x);
+    if (dist4 && feat === FEAT.NONE) unknown++;
+    if (dist4 && feat !== FEAT.NONE && !borgCaveFloorGrid(ctx.world.map.at(x, y)))
+      break;
+    if (x === x2 && y === y2 && unknown >= 1) return true;
+    if (killAt(ctx, y, x)) break;
+    [y, x] = borgIncMotion(y, x, y1, x1, y2, x2);
+  }
+  return false;
+}
 function borgTarget(ctx, y, x, requireMonster = false) {
   const ki = killAt(ctx, y, x);
   if (requireMonster && ki && ctx.world.kills.has(ki)) {
@@ -11507,16 +11529,21 @@ function borgLaunchDestroyStuff(ctx, takeIdx, typ) {
   const t = ctx.world.takes.at(takeIdx);
   switch (typ) {
     case 4 /* ACID */:
-      if (t.tval === TV.BOOTS) return 20;
+      if (t.tval === TV.BOOTS && !t.aware) return 20;
       break;
     case 5 /* ELEC */:
-      if (t.tval === TV.RING) return 20;
+      if (t.tval === TV.RING && !t.aware) return 20;
+      if (t.tval === TV.RING && t.sval === SVAL.ring.speed) return 2e3;
       break;
     case 6 /* FIRE */:
-      if (t.tval === TV.BOOTS) return 20;
+      if (t.tval === TV.BOOTS && !t.aware) return 20;
       break;
     case 7 /* COLD */:
-      if (t.tval === TV.POTION) return 20;
+      if (t.tval === TV.POTION) {
+        const stats = [SVAL.potion.inc_str, SVAL.potion.inc_int, SVAL.potion.inc_wis, SVAL.potion.inc_dex, SVAL.potion.inc_con];
+        if (!t.aware || t.sval === SVAL.potion.healing || t.sval === SVAL.potion.star_healing || t.sval === SVAL.potion.life || stats.some((sval, stat) => t.sval === sval && getDerived(ctx.world).needStatgain[stat])) return 2e3;
+        return 20;
+      }
       break;
   }
   return 0;
@@ -13927,13 +13954,206 @@ function auxLbeam(ctx, fs, p1) {
   fs.pending = borgLightBeam(ctx);
   return fs.pending ? 10 : 0;
 }
+function defenseItems(ctx) {
+  const res = getThinkSession(ctx.world).resolvers;
+  return {
+    equipsItem: (act, charge) => res.resolveActivation?.(ctx, act, charge) ?? false,
+    activateItem: (act) => res.activateHandle?.(ctx, act) ?? null
+  };
+}
+function auxMassGenocide(ctx, fs, p1) {
+  const d = defenseItems(ctx);
+  if (screwed(ctx)) return 0;
+  if (!borgSpellOkayFail(ctx, 28 /* MASS_BANISHMENT */, 40) && !borgEquipsItem(ctx, "act_banishment", true, d) && !trait3(ctx, 249 /* AMASSBAN */)) return 0;
+  if (fs.simulate && p1 < idiv(av(ctx) * 12, 10)) return 0;
+  const { x, y } = ctx.world.self.c;
+  const g = getDangerGlobals(ctx.world);
+  let hit = 0;
+  let danger2 = 0;
+  for (const [i, kill] of ctx.world.kills.entries()) {
+    if (borgDistance(y, x, kill.pos.y, kill.pos.x) > 20 || g.resolveFacts(ctx, i).flags.has("UNIQUE")) continue;
+    danger2 += borgDangerOneKillLocal(ctx, i);
+    hit += 3;
+  }
+  if (idiv(hit * 12, 10) >= trait3(ctx, 27 /* CURHP */)) return 0;
+  let p2 = Math.max(0, p1 - danger2) + hit;
+  if (fs.fightingUnique >= 10 && idiv(hit, 3) > 8) p2 = idiv(p2 * 6, 10);
+  if (p1 <= p2 || p2 > (fs.fightingUnique ? idiv(av(ctx) * 2, 3) : idiv(av(ctx), 2))) return 0;
+  if (fs.simulate) return p1 - p2;
+  fs.pending = borgReadScroll(ctx, SVAL.scroll.mass_banishment) || borgActivateItem(ctx, "act_banishment", d) || borgSpell(ctx, 28 /* MASS_BANISHMENT */);
+  if (!fs.pending) return 0;
+  for (const [i] of ctx.world.kills.entries()) {
+    if (!g.resolveFacts(ctx, i).flags.has("UNIQUE")) ctx.world.kills.delete(i);
+  }
+  return p1 - p2;
+}
+function genocideTarget(ctx, fs, symbol) {
+  if (!fs.pending) return;
+  fs.pending = ctx.act.raw(fs.pending.code, { ...fs.pending.args, tgtsymbol: symbol });
+}
+function auxGenocide(ctx, fs, p1) {
+  const d = defenseItems(ctx);
+  const fa = scaleFail(ctx, p1, 25);
+  if (screwed(ctx)) return 0;
+  const { x, y } = ctx.world.self.c;
+  const fear = getFearCaches(ctx.world);
+  p1 -= fear.region(y, x) + fear.monsters(y, x);
+  if (!borgSpellOkayFail(ctx, 27 /* BANISHMENT */, fa) && !borgEquipsItem(ctx, "act_banishment", true, d) && !borgEquipsStaffFail(ctx, SVAL.staff.banishment) && borgSlot(ctx, TV.SCROLL, SVAL.scroll.banishment) === null) return 0;
+  if (trait3(ctx, 27 /* CURHP */) <= 75) return 0;
+  const count = new Array(255).fill(0);
+  const danger2 = new Array(255).fill(0);
+  const threat = new Array(255).fill(0);
+  const g = getDangerGlobals(ctx.world);
+  let total = 0;
+  for (const [i, kill] of ctx.world.kills.entries()) {
+    const facts = g.resolveFacts(ctx, i);
+    if (facts.flags.has("UNIQUE")) continue;
+    const symbol = facts.dChar?.charCodeAt(0);
+    if (symbol === void 0 || symbol >= 255) continue;
+    const p = borgDangerOneKillLocal(ctx, i);
+    total += p;
+    danger2[symbol] += p;
+    threat[symbol] += borgDangerOneKill(ctx, kill.pos.y, kill.pos.x, 1, i, true, true);
+    count[symbol]++;
+  }
+  let biggestDanger = 0;
+  let biggestThreat = 0;
+  let maxThreat = 1;
+  let without = 0;
+  for (let i = 0; i < 255; i++) {
+    if (!count[i]) continue;
+    if (danger2[i] > maxThreat) {
+      maxThreat = danger2[i];
+      biggestDanger = i;
+      without = total - danger2[i];
+    }
+    if (threat[i] > maxThreat) {
+      maxThreat = threat[i];
+      biggestThreat = i;
+    }
+  }
+  let target = 0;
+  if (biggestThreat) {
+    if (trait3(ctx, 27 /* CURHP */) < 375) biggestThreat = 0;
+    if (threat[biggestThreat] < trait3(ctx, 28 /* MAXHP */) * 3) biggestThreat = 0;
+    if (idiv(count[biggestThreat] * 4 * 12, 10) >= trait3(ctx, 27 /* CURHP */)) biggestThreat = 0;
+    if (count[biggestThreat] >= 75) biggestThreat = 0;
+    if (p1 > idiv(av(ctx), 5)) biggestThreat = 0;
+    target = biggestThreat;
+  }
+  if (biggestDanger) {
+    if (idiv(count[biggestDanger] * 4 * 12, 10) >= trait3(ctx, 27 /* CURHP */)) biggestDanger = 0;
+    if (p1 < idiv(av(ctx) * 7, 10) || trait3(ctx, 105 /* CDEPTH */) > 75 && p1 < idiv(av(ctx) * 6, 10)) biggestDanger = 0;
+    if (without <= idiv(av(ctx), 2)) biggestDanger = 0;
+    if (biggestDanger) target = biggestDanger;
+  }
+  if (!target) return 0;
+  const value = biggestDanger ? p1 - without : threat[biggestThreat];
+  if (fs.simulate) return value;
+  fs.pending = borgReadScroll(ctx, SVAL.scroll.banishment) || borgSpell(ctx, 27 /* BANISHMENT */) || borgActivateItem(ctx, "act_banishment", d) || borgUseStaff(ctx, SVAL.staff.banishment);
+  if (fs.pending) {
+    const symbol = String.fromCharCode(target);
+    genocideTarget(ctx, fs, symbol);
+    for (const [i] of ctx.world.kills.entries()) {
+      const facts = g.resolveFacts(ctx, i);
+      if (facts.dChar === symbol && !facts.flags.has("UNIQUE")) ctx.world.kills.delete(i);
+    }
+  }
+  return value;
+}
+function auxGenocideNasties(ctx, fs, p1) {
+  const d = defenseItems(ctx);
+  if (trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */) * 7, 10) || trait3(ctx, 27 /* CURHP */) < 250) return 0;
+  if (trait3(ctx, 105 /* CDEPTH */) < 25 || screwed(ctx) || p1 > idiv(av(ctx), 4)) return 0;
+  if (!borgSpellOkayFail(ctx, 27 /* BANISHMENT */, 35) && !borgEquipsItem(ctx, "act_banishment", true, d) && !borgEquipsStaffFail(ctx, SVAL.staff.banishment)) return 0;
+  const limits = [20, 20, 10, 10, 10, 10, 10];
+  let best = -1;
+  for (let i = 0; i < limits.length; i++) if (ctx.world.facts.nastiesCount[i] >= limits[i]) best = i;
+  if (best < 0) return 0;
+  if (fs.simulate) return 10;
+  fs.pending = borgActivateItem(ctx, "act_banishment", d) || borgUseStaff(ctx, SVAL.staff.banishment) || borgSpell(ctx, 27 /* BANISHMENT */);
+  if (!fs.pending) return 0;
+  const symbol = "ZAVULWD"[best];
+  genocideTarget(ctx, fs, symbol);
+  ctx.world.facts.nastiesCount[best] = 0;
+  for (const [i] of ctx.world.kills.entries()) {
+    if (getDangerGlobals(ctx.world).resolveFacts(ctx, i).dChar === symbol) ctx.world.kills.delete(i);
+  }
+  return 10;
+}
+function auxTeleAwayMorgoth(ctx, fs) {
+  if (trait3(ctx, 105 /* CDEPTH */) !== 100 || !ctx.world.facts.morgothOnLevel || screwed(ctx)) return 0;
+  if (!borgSpellOkayFail(ctx, 15 /* TELEPORT_OTHER */, 40) || trait3(ctx, 230 /* AGLYPH */) < 10 || borgSurrounded(ctx)) return 0;
+  const g = getDangerGlobals(ctx.world);
+  const { x, y } = ctx.world.self.c;
+  const max = ctx.view.constants().maxRange ?? 20;
+  fs.tempN = 0;
+  g.tpOtherIndices.length = 0;
+  for (const [, kill] of ctx.world.kills.entries()) {
+    if (kill.when < ctx.world.clock - 2) continue;
+    const ag = ctx.world.map.at(kill.pos.x, kill.pos.y);
+    if (!(ag.info & BORG_VIEW) || borgDistance(y, x, kill.pos.y, kill.pos.x) > max) continue;
+    if (!borgProjectable(ctx.world, g, max, y, x, kill.pos.y, kill.pos.x)) continue;
+    fs.tempX[fs.tempN] = kill.pos.x;
+    fs.tempY[fs.tempN++] = kill.pos.y;
+  }
+  if (!fs.tempN && fs.simulate) return 0;
+  const p2 = Math.min(1e3, borgLaunchBolt(ctx, fs, 0, 50, 46 /* AWAY_ALL_MORGOTH */, max, null));
+  fs.tempN = 0;
+  g.tpOtherIndices.length = 0;
+  if (fs.simulate) return p2;
+  fs.pending = borgSpell(ctx, 15 /* TELEPORT_OTHER */) || borgActivateItem(ctx, "act_tele_other", defenseItems(ctx)) || borgAimWand(ctx, SVAL.wand.teleport_away);
+  if (fs.pending) fs.successfulTarget = -1;
+  return fs.pending ? p2 : 0;
+}
+function auxBanishmentMorgoth(ctx, fs) {
+  if (!ctx.world.facts.morgothOnLevel || screwed(ctx)) return 0;
+  const evil = borgSpellOkayFail(ctx, 80 /* BANISH_EVIL */, 50);
+  const mass = borgSpellOkayFail(ctx, 28 /* MASS_BANISHMENT */, 50);
+  if (!evil && !mass) return 0;
+  const g = getDangerGlobals(ctx.world);
+  const { x, y } = ctx.world.self.c;
+  let count = 0;
+  for (const [i, kill] of ctx.world.kills.entries()) {
+    if (kill.when < ctx.world.clock - 2 || evil && !mass && !g.resolveFacts(ctx, i).flags.has("EVIL")) continue;
+    const d = borgDistance(y, x, kill.pos.y, kill.pos.x);
+    const max = ctx.view.constants().maxRange ?? 20;
+    if (d > max || !borgProjectable(ctx.world, g, max, y, x, kill.pos.y, kill.pos.x)) continue;
+    if (d <= 7) count++;
+    count++;
+  }
+  if (fs.simulate) return count > 7 ? 1500 : 0;
+  fs.pending = borgSpell(ctx, 28 /* MASS_BANISHMENT */) || borgSpell(ctx, 80 /* BANISH_EVIL */);
+  if (!fs.pending) return 0;
+  for (const [i] of ctx.world.kills.entries()) {
+    if (!g.resolveFacts(ctx, i).flags.has("UNIQUE")) ctx.world.kills.delete(i);
+  }
+  return 1e3;
+}
+function auxLightMorgoth(ctx, fs) {
+  if (!getDangerGlobals(ctx.world).morgothPosition || !ctx.world.facts.morgothOnLevel || screwed(ctx)) return 0;
+  if (!borgSpellOkayFail(ctx, 64 /* SPEAR_OF_LIGHT */, 50) && !borgSpellOkayFail(ctx, 74 /* CLAIRVOYANCE */, 50) && !borgSpellOkayFail(ctx, 103 /* FUME_OF_MORDOR */, 50)) return 0;
+  const { x, y } = ctx.world.self.c;
+  let best;
+  for (const [, kill] of ctx.world.kills.entries()) {
+    if (!kill.isMorgoth || kill.when < ctx.world.clock - 2) continue;
+    const d = borgDistance(y, x, kill.pos.y, kill.pos.x);
+    if (d > (ctx.view.constants().maxRange ?? 20) || d <= 5) continue;
+    if (borgProjectableDark(ctx, y, x, kill.pos.y, kill.pos.x)) best = kill.pos;
+  }
+  if (!best) return 0;
+  if (fs.simulate) return 500;
+  borgTarget(ctx, best.y, best.x, false);
+  fs.pending = borgSpell(ctx, 64 /* SPEAR_OF_LIGHT */) || borgSpell(ctx, 74 /* CLAIRVOYANCE */) || borgSpell(ctx, 103 /* FUME_OF_MORDOR */);
+  return fs.pending ? 200 : 0;
+}
 function borgDangerOneKillLocal(ctx, i) {
   return borgDangerOneKill(ctx, ctx.world.self.c.y, ctx.world.self.c.x, 1, i, true, true);
 }
 function getFearRegional(ctx) {
   return getFearCaches(ctx.world).region(ctx.world.self.c.y, ctx.world.self.c.x);
 }
-function defendAux(ctx, fs, what, p1) {
+function borgCalculateDefenseEffectiveness(ctx, fs, what, p1) {
   switch (what) {
     case 1 /* SPEED */:
       return auxSpeed(ctx, fs, p1);
@@ -14024,19 +14244,24 @@ function defendAux(ctx, fs, what, p1) {
       return auxInviso(ctx, fs, p1);
     case 26 /* LIGHT_BEAM */:
       return auxLbeam(ctx, fs, p1);
-    /* GAP: the *genocide* family (defend.c:1720/1851/2157) needs r_ptr->d_char
-     * symbols; panel-shift (2817) needs Term panel geometry; rest (2973) and the
-     * Morgoth variants (3048/3198/3341) need morgoth-panel/position data not on
-     * the borg model. These return 0 (unavailable), which is the faithful
-     * "cannot perform this maneuver" result for the best-of scan. */
     case 18 /* MASS_GENOCIDE */:
+      return auxMassGenocide(ctx, fs, p1);
     case 19 /* GENOCIDE */:
+      return auxGenocide(ctx, fs, p1);
     case 20 /* GENOCIDE_NASTIES */:
-    case 27 /* SHIFT_PANEL */:
-    case 28 /* REST */:
+      return auxGenocideNasties(ctx, fs, p1);
     case 29 /* TELE_AWAY_MORGOTH */:
+      return auxTeleAwayMorgoth(ctx, fs);
     case 30 /* BANISHMENT_MORGOTH */:
+      return auxBanishmentMorgoth(ctx, fs);
     case 31 /* LIGHT_MORGOTH */:
+      return auxLightMorgoth(ctx, fs);
+    /* GAP: defend.c:2820-2821 needs Term->offset_x/y and borg_panel_wid/hgt;
+     * defend.c:2828 also compares w_x/y to morgy_panel_x/y. */
+    case 27 /* SHIFT_PANEL */:
+      return 0;
+    /* Unported defend.c:2973; its position flags and timers are available. */
+    case 28 /* REST */:
       return 0;
     default:
       return 0;
@@ -14061,7 +14286,7 @@ function borgDefend(ctx, p1) {
   let bG = -1;
   let bN = 0;
   for (let g = 0; g < 32 /* MAX */; g++) {
-    const n = defendAux(ctx, fs, g, p1);
+    const n = borgCalculateDefenseEffectiveness(ctx, fs, g, p1);
     if (n <= bN) continue;
     bG = g;
     bN = n;
@@ -14069,7 +14294,7 @@ function borgDefend(ctx, p1) {
   if (bN <= 0) return null;
   fs.simulate = false;
   fs.pending = null;
-  defendAux(ctx, fs, bG, p1);
+  borgCalculateDefenseEffectiveness(ctx, fs, bG, p1);
   return fs.pending;
 }
 
@@ -16588,7 +16813,7 @@ var BORG_EXPIRE_TURNS = 2e3;
 function makePerceiveMemo() {
   return { lastDepth: -1, initialized: false };
 }
-function perceive(world, view, memo, tables = emptyMessageTables(), valuation = {}) {
+function perceive(world, view, memo, tables = emptyMessageTables(), valuation = {}, raceSymbol) {
   const p = view.player();
   const oldX = world.self.c.x;
   const oldY = world.self.c.y;
@@ -16608,7 +16833,7 @@ function perceive(world, view, memo, tables = emptyMessageTables(), valuation = 
   world.facts.depth = p.depth;
   ingestMap(world, view);
   borgUpdateLight(world, view);
-  const seen = ingestMonsters(world, view);
+  const seen = ingestMonsters(world, view, raceSymbol);
   ingestFloor(world, view, oldX, oldY, valuation);
   borgReactMessages(world, view.messages(), seen.ids, seen.names, tables);
   world.seeded = true;
@@ -16741,7 +16966,7 @@ function borgUpdateLight(world, view) {
     }
   }
 }
-function ingestMonsters(world, view) {
+function ingestMonsters(world, view, raceSymbol) {
   for (const [, k] of world.kills.entries()) {
     if (world.map.inBounds(k.pos.x, k.pos.y)) {
       world.map.at(k.pos.x, k.pos.y).kill = 0;
@@ -16771,6 +16996,7 @@ function ingestMonsters(world, view) {
     const k = world.kills.at(idx);
     k.mIdx = m.id;
     k.rIdx = m.raceIndex;
+    k.isMorgoth = m.race.toLowerCase().startsWith("morgoth");
     k.known = true;
     k.ox = k.pos.x;
     k.oy = k.pos.y;
@@ -16788,6 +17014,14 @@ function ingestMonsters(world, view) {
     k.isMultiplier = m.raceFlags.includes("MULTIPLY");
     k.seen = true;
     k.when = world.clock;
+    if (!k.nastyCounted) {
+      const symbol = raceSymbol?.(idx);
+      if (symbol !== void 0) {
+        const nasty = "ZAVULWD".indexOf(symbol);
+        if (nasty >= 0) world.facts.nastiesCount[nasty] = world.facts.nastiesCount[nasty] + 1 & 255;
+        k.nastyCounted = true;
+      }
+    }
     if (world.map.inBounds(m.grid.x, m.grid.y)) {
       world.map.at(m.grid.x, m.grid.y).kill = idx;
     }
@@ -16868,6 +17102,8 @@ function ingestFloor(world, view, oldX, oldY, valuation) {
       const t = world.takes.at(idx);
       t.kIdx = head.tval > 0 ? head.tval : 1;
       t.tval = head.tval;
+      t.sval = head.sval;
+      t.aware = head.aware;
       t.known = false;
       t.pos.x = x;
       t.pos.y = y;
@@ -16976,7 +17212,7 @@ function createBorg(opts = {}) {
     perceive(world, view, memo, tables, {
       kindCost: session.resolvers.kindCost,
       junked: session.junked
-    });
+    }, (i) => session.resolvers.resolveMonsterFacts?.(ctx, i).dChar);
     const shopNum = session.resolvers.inShop?.(ctx) ?? null;
     if (recordStep && (shopNum === null || shopNum < 0)) {
       borgTrackStep(session.flow.state.step, world.self.c.y, world.self.c.x);
@@ -17045,9 +17281,10 @@ function makeCoreResolvers(input) {
     const kill = ctx.world.kills.at(killIndex);
     const race = byRidx.get(kill.rIdx);
     const record = input.raceRecord?.(kill.rIdx) ?? (race ? raceRecord(race) : void 0);
-    if (!record) return defaultResolveMonsterFacts(ctx, killIndex);
+    if (!record) return { ...defaultResolveMonsterFacts(ctx, killIndex), dChar: input.raceSymbol?.(kill.rIdx) };
     return {
       rIdx: record.ridx,
+      dChar: record.dChar ?? input.raceSymbol?.(kill.rIdx),
       flags: record.flags,
       level: record.level,
       sleep: record.sleep,
@@ -17306,6 +17543,26 @@ async function spellMessages(api) {
 async function kindCosts(api) {
   const records = await valueOf2(api.content.records("object")) ?? [];
   return records.map((record) => typeof record["cost"] === "number" ? record["cost"] : 0);
+}
+async function monsterSymbols(api) {
+  const [races, bases, bound2] = await Promise.all([
+    valueOf2(api.content.records("monster")),
+    valueOf2(api.content.records("monster_base")),
+    valueOf2(api.content.boundRecords("monster"))
+  ]);
+  const baseSymbols = new Map((bases ?? []).map((base) => [base["name"], base["glyph"]]));
+  const byName = /* @__PURE__ */ new Map();
+  for (const race of races ?? []) {
+    const name = race["name"];
+    const symbol = race["glyph"] ?? baseSymbols.get(race["base"]);
+    if (typeof name === "string" && typeof symbol === "string" && !byName.has(name)) byName.set(name, symbol);
+  }
+  const symbols = /* @__PURE__ */ new Map();
+  for (const race of bound2 ?? []) {
+    const symbol = byName.get(race.name);
+    if (symbol !== void 0) symbols.set(race.index, symbol);
+  }
+  return symbols;
 }
 var ITEM_ANALYZERS = /* @__PURE__ */ new WeakMap();
 function itemAnalyzer(api) {
@@ -17705,6 +17962,7 @@ function createBridge(mod2) {
   let blows = [];
   let spells = [];
   let magic = null;
+  let symbols = /* @__PURE__ */ new Map();
   const objects = {
     lookupKind: (tval, sval) => {
       const activation = activations.kind(tval, sval);
@@ -17726,6 +17984,7 @@ function createBridge(mod2) {
       blows = actions;
       spells = messages;
       magic = await magicRecords(mod2, engine.core.EFFECT_ENTRIES);
+      symbols = await monsterSymbols(mod2);
       feed = await watchMessages(mod2);
     },
     async readWorld() {
@@ -17746,6 +18005,7 @@ function createBridge(mod2) {
     resolverInput() {
       return {
         raceRecord: (ridx) => races.get(ridx),
+        raceSymbol: (ridx) => symbols.get(ridx),
         objects,
         shopnum: () => facts.shopnum,
         kindCost: (tval, sval) => facts.kinds.get(`${String(tval)}:${String(sval)}`) ?? null,

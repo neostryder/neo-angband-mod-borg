@@ -90,6 +90,27 @@ export async function kindCosts(api: Content): Promise<readonly number[]> {
   return records.map((record) => (typeof record["cost"] === "number" ? record["cost"] : 0));
 }
 
+/** Bound indexes survive refused mod records; symbols inherit from monster bases. */
+export async function monsterSymbols(api: Content): Promise<ReadonlyMap<number, string>> {
+  const [races, bases, bound] = await Promise.all([
+    valueOf(api.content.records("monster")), valueOf(api.content.records("monster_base")),
+    valueOf(api.content.boundRecords("monster")),
+  ]);
+  const baseSymbols = new Map((bases ?? []).map((base) => [base["name"], base["glyph"]]));
+  const byName = new Map<string, string>();
+  for (const race of races ?? []) {
+    const name = race["name"];
+    const symbol = race["glyph"] ?? baseSymbols.get(race["base"]);
+    if (typeof name === "string" && typeof symbol === "string" && !byName.has(name)) byName.set(name, symbol);
+  }
+  const symbols = new Map<number, string>();
+  for (const race of bound ?? []) {
+    const symbol = byName.get(race.name);
+    if (symbol !== undefined) symbols.set(race.index, symbol);
+  }
+  return symbols;
+}
+
 export type ItemAnalyzer = (item: ItemView) => ItemAnalysis;
 const ITEM_ANALYZERS = new WeakMap<Content["content"], Promise<ItemAnalyzer>>();
 

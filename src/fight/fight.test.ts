@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { ItemView } from "@rpgm-tools/neo-angband-core";
+import type { ItemView, SpellbookView } from "@rpgm-tools/neo-angband-core";
 import { BorgWorld } from "../world/model.js";
 import { perceive, makePerceiveMemo } from "../perceive.js";
 import { makeScenarioView, makeFakeActions, type Scenario } from "../harness.js";
@@ -16,10 +16,20 @@ import { makeBorgRng } from "../rng.js";
 import type { BorgContext } from "../context.js";
 import { BI } from "../trait/trait-index.js";
 import type { MonsterFacts } from "../danger/index.js";
-import { getDangerGlobals, MONBLOW } from "../danger/index.js";
-import { BA } from "./bf.js";
+import { getDangerGlobals, getFearCaches, MONBLOW } from "../danger/index.js";
+import { BA, BF } from "./bf.js";
 import { getFightState } from "./state.js";
-import { borgThrustDamageOne, borgLaunchDamageOne, borgBestMult, borgAttack } from "./attack.js";
+import { borgThrustDamageOne, borgLaunchDamageOne, borgBestMult, borgAttack, borgLaunchBolt, borgCalculateAttackEffectiveness } from "./attack.js";
+import { BD, borgCalculateDefenseEffectiveness, borgDefend } from "./defend.js";
+import { borgNotice } from "../trait/index.js";
+import { getDerived } from "../trait/state.js";
+import { TV, SVAL } from "../item/svals.js";
+import { Spell, ratingsForClass } from "../item/magic.js";
+import { classIndexFromName } from "../trait/trait-index.js";
+import { makeCoreResolvers } from "../resolvers.js";
+import { borgNearMonsterType } from "../perceive-facts.js";
+import { buildThinkSession, installThinkSession } from "../think-session.js";
+import { createBorg } from "../controller.js";
 import { borgCaution } from "./caution.js";
 import { createFlowState } from "../flow/flow.js";
 import { FEAT } from "../flow/flow-consts.js";
@@ -345,5 +355,366 @@ describe("borgBackAway (caution.c:1664)", () => {
     const ctx = corridor();
     ctx.world.self.trait[BI.ISCONFUSED] = 1;
     expect(borgCaution(ctx, makeFlowState())).toBeNull();
+  });
+});
+
+
+/** The same notice, perception and race-fact paths the controller uses. */
+function defenseScenario(
+  scenario: Scenario & { inventory?: ItemView[] } = {},
+  spells: Spell[] = [],
+  symbols: Record<number, string> = {},
+  blows = 0,
+) {
+  const cls = scenario.player?.cls ?? "Mage";
+  const ratings = ratingsForClass(classIndexFromName(cls))!;
+  const book: SpellbookView = {
+    name: "defence book", tval: TV.MAGIC_BOOK, realm: "arcane",
+    spells: spells.map((spell) => ({
+      name: Spell[spell], sidx: ratings.findIndex((r) => r.spell === spell), bidx: 0,
+      level: 1, mana: 1, fail: 0, learned: true, worked: true, forgotten: false,
+      studyEligible: false, infoLine: "",
+    })),
+  };
+  const world = new BorgWorld();
+  const base = makeScenarioView({ width: 80, ...scenario, player: {
+    grid: { x: 20, y: 12 }, depth: 50, level: 50, maxLevel: 50,
+    hp: 1000, maxHp: 1000, sp: 200, maxSp: 200, stats: [118, 118, 118, 118, 118],
+    ...scenario.player, cls,
+  } });
+  const view = { ...base, spellbooks: () => [book], inventory: () => [
+    item({ handle: 99, tval: TV.MAGIC_BOOK, sval: 1 }), ...(scenario.inventory ?? []),
+  ] };
+  const act = makeFakeActions();
+  const resolvers = makeCoreResolvers({ raceRecord: (ridx) => ({
+    ridx, dChar: symbols[ridx], flags: new Set(view.monsters().find((m) => m.raceIndex === ridx)?.raceFlags),
+    level: 1, sleep: 0, spellPower: 0, freqInnate: 0, freqSpell: 0, hasFriends: false,
+    blows: blows ? [{ dice: blows, sides: 100, effect: "HURT" }] : [], spells: [],
+  }) });
+  const ctx: BorgContext = { world, view, act, rng: makeBorgRng(), bookKind: () => ({ tval: TV.MAGIC_BOOK, sval: 1 }) };
+  installThinkSession(world, buildThinkSession(resolvers));
+  borgNotice(ctx);
+  const memo = makePerceiveMemo();
+  perceive(world, view, memo, undefined, undefined, (i) => resolvers.resolveMonsterFacts!(ctx, i).dChar);
+  getDangerGlobals(world).resolveFacts = resolvers.resolveMonsterFacts!;
+  getDangerGlobals(world).avoidance = 100;
+  borgNearMonsterType(ctx, 20);
+  return { ctx, act, book, memo, view };
+}
+
+function defenseScore(ctx: BorgContext, maneuver: BD, danger = 0, simulate = true): number {
+  const fs = getFightState(ctx.world);
+  fs.simulate = simulate;
+  fs.pending = null;
+  return borgCalculateDefenseEffectiveness(ctx, fs, maneuver, danger);
+}
+
+const morgoth: NonNullable<Scenario["monsters"]>[number] = {
+  raceIndex: 99, race: "Morgoth, Lord of Darkness", grid: { x: 28, y: 12 },
+  raceFlags: ["UNIQUE", "QUESTOR", "EVIL"], hp: 20000, maxHp: 20000,
+};
+
+describe("genocide defences through notice and perceive", () => {
+  it("scores mass genocide at 120 percent danger, reads before casting, and forgets non-uniques across the level", () => {
+    const { ctx } = defenseScenario({ monsters: [
+      { raceIndex: 1, grid: { x: 21, y: 12 } }, morgoth,
+      { raceIndex: 2, grid: { x: 50, y: 12 } },
+    ], inventory: [item({ handle: 7, tval: TV.SCROLL, sval: SVAL.scroll.mass_banishment! })] }, [Spell.MASS_BANISHMENT], {}, 100);
+    expect(defenseScore(ctx, BD.MASS_GENOCIDE, 119)).toBe(0);
+    expect(defenseScore(ctx, BD.MASS_GENOCIDE, 120)).toBe(117);
+    expect([...ctx.world.kills.entries()]).toHaveLength(3);
+    expect(borgDefend(ctx, 120)).toEqual({ code: "read", args: { handle: 7 } });
+    expect([...ctx.world.kills.entries()].map(([, k]) => k.rIdx)).toEqual([99]);
+    expect(ctx.world.map.at(21, 12).kill).toBe(0);
+    expect(ctx.world.map.at(50, 12).kill).toBe(0);
+  });
+
+  it("rejects lethal mass-genocide strain and discounts a crowd during the Morgoth fight", () => {
+    const monsters = Array.from({ length: 9 }, (_, i) => ({ grid: { x: 21 + i, y: 12 } }));
+    const { ctx } = defenseScenario({ monsters }, [Spell.MASS_BANISHMENT], {}, 100);
+    getFightState(ctx.world).fightingUnique = 10;
+    expect(defenseScore(ctx, BD.MASS_GENOCIDE, 120)).toBe(104);
+    ctx.world.self.trait[BI.CURHP] = 32;
+    expect(defenseScore(ctx, BD.MASS_GENOCIDE, 120)).toBe(0);
+  });
+
+  it("banishes a distant level threat by default symbol and preserves uniques sharing it", () => {
+    const { ctx } = defenseScenario({ player: { hp: 500, maxHp: 500 }, monsters: [
+      { raceIndex: 1, glyph: "!", grid: { x: 45, y: 12 } },
+      { raceIndex: 2, raceFlags: ["UNIQUE"], grid: { x: 46, y: 12 } },
+    ], inventory: [item({ handle: 7, tval: TV.SCROLL, sval: SVAL.scroll.banishment! })] }, [Spell.BANISHMENT], { 1: "o", 2: "o" }, 100);
+    expect(defenseScore(ctx, BD.GENOCIDE)).toBe(2000);
+    expect(borgDefend(ctx, 0)).toEqual({ code: "read", args: { handle: 7, tgtsymbol: "o" } });
+    expect([...ctx.world.kills.entries()].map(([, k]) => k.rIdx)).toEqual([2]);
+  });
+
+  it("subtracts both fear caches before the immediate-danger gates and keeps the C's <= gate", () => {
+    const { ctx } = defenseScenario({ monsters: [
+      { raceIndex: 1, grid: { x: 21, y: 12 } },
+      { raceIndex: 2, grid: { x: 20, y: 13 } },
+    ] }, [Spell.BANISHMENT], { 1: "a", 2: "b" }, 100);
+    expect(defenseScore(ctx, BD.GENOCIDE, 3000)).toBe(1000);
+    const fear = getFearCaches(ctx.world);
+    fear.region2d[1]![1] = 100;
+    fear.monsters2d[12]![20] = 200;
+    expect(defenseScore(ctx, BD.GENOCIDE, 3000)).toBe(700);
+    ctx.world.kills.delete(2);
+    expect(defenseScore(ctx, BD.GENOCIDE, 3000)).toBe(0);
+    ctx.world.self.trait[BI.CURHP] = 75;
+    expect(defenseScore(ctx, BD.GENOCIDE, 3000)).toBe(0);
+  });
+
+  it("counts nasties once, keeps historical counts, chooses the last qualifying symbol, and resets only that count", () => {
+    const { ctx, memo } = defenseScenario({ monsters: Array.from({ length: 10 }, (_, i) => ({
+      raceIndex: 1, grid: { x: 30 + i, y: 12 },
+    })) }, [Spell.BANISHMENT], { 1: "D" });
+    borgNearMonsterType(ctx, 20);
+    perceive(ctx.world, ctx.view, memo, undefined, undefined, () => "D");
+    expect(ctx.world.facts.nastiesCount).toEqual([25, 0, 0, 0, 0, 0, 10]);
+    ctx.world.kills.delete(1);
+    expect(defenseScore(ctx, BD.GENOCIDE_NASTIES)).toBe(10);
+    expect(borgDefend(ctx, 0)).toEqual({ code: "cast", args: { spell: 27, tgtsymbol: "D" } });
+    expect(ctx.world.facts.nastiesCount).toEqual([25, 0, 0, 0, 0, 0, 0]);
+    expect([...ctx.world.kills.entries()]).toHaveLength(0);
+    expect(defenseScore(ctx, BD.GENOCIDE_NASTIES, 26)).toBe(0);
+    expect(defenseScore(ctx, BD.GENOCIDE_NASTIES, 25, false)).toBe(10);
+    expect(getFightState(ctx.world).pending?.args?.tgtsymbol).toBe("Z");
+  });
+
+  it("uses banishment for assumed hounds through the production controller", () => {
+    const { ctx, view, act } = defenseScenario({ player: { depth: 100 }, monsters: [morgoth] }, [Spell.BANISHMENT]);
+    const borg = createBorg({ resolvers: {
+      bookKind: ctx.bookKind,
+      resolveMonsterFacts: getDangerGlobals(ctx.world).resolveFacts,
+    } });
+    expect(borg.controller(view, act)).toEqual({ code: "cast", args: { spell: 27, tgtsymbol: "Z" } });
+    expect(borg.world.facts.nastiesCount[0]).toBe(0);
+  });
+
+  it.each([BI.ISBLIND, BI.ISCONFUSED, BI.ISFORGET])("rejects genocide manoeuvres under status %s", (status) => {
+    const { ctx } = defenseScenario({}, [Spell.BANISHMENT, Spell.MASS_BANISHMENT]);
+    ctx.world.self.trait[status] = 1;
+    for (const maneuver of [BD.GENOCIDE, BD.MASS_GENOCIDE, BD.GENOCIDE_NASTIES]) expect(defenseScore(ctx, maneuver, 120)).toBe(0);
+  });
+});
+
+describe("Morgoth defences through notice and perceive", () => {
+  it("scores teleport-away, targets the remembered grid, and requires ten glyphs", () => {
+    const { ctx, act } = defenseScenario({ player: { depth: 100 }, monsters: [morgoth], inventory: [
+      item({ tval: TV.SCROLL, sval: SVAL.scroll.rune_of_protection!, number: 10 }),
+    ] }, [Spell.TELEPORT_OTHER]);
+    expect(defenseScore(ctx, BD.TELE_AWAY_MORGOTH)).toBe(100);
+    expect(act.targets).toEqual([]);
+    expect(borgDefend(ctx, 0)).toEqual({ code: "cast", args: { spell: 15 } });
+    expect(act.targets).toEqual([{ x: 28, y: 12 }]);
+    expect(getFightState(ctx.world).successfulTarget).toBe(-1);
+    expect(getFightState(ctx.world).tempN).toBe(0);
+    expect(getDangerGlobals(ctx.world).tpOtherIndices).toEqual([]);
+    ctx.world.self.trait[BI.AGLYPH] = 9;
+    expect(defenseScore(ctx, BD.TELE_AWAY_MORGOTH)).toBe(0);
+  });
+
+  it("uses the glyph and low-mana teleport values in C order", () => {
+    const { ctx } = defenseScenario({ player: { depth: 100 }, monsters: [morgoth], inventory: [
+      item({ tval: TV.SCROLL, sval: SVAL.scroll.rune_of_protection!, number: 10 }),
+    ] }, [Spell.TELEPORT_OTHER]);
+    ctx.world.map.at(29, 12).glyph = true;
+    getDangerGlobals(ctx.world).morgothPosition = true;
+    expect(defenseScore(ctx, BD.TELE_AWAY_MORGOTH)).toBe(300);
+    ctx.world.self.trait[BI.CURSP] = 35;
+    expect(defenseScore(ctx, BD.TELE_AWAY_MORGOTH)).toBe(150);
+  });
+
+  it("scores crowded banishment at 1500, counts close monsters twice, and casts mass before evil", () => {
+    const { ctx } = defenseScenario({ player: { depth: 100 }, monsters: [morgoth,
+      ...Array.from({ length: 4 }, (_, i) => ({ grid: { x: 22 + i, y: 13 } })),
+    ] }, [Spell.MASS_BANISHMENT]);
+    expect(defenseScore(ctx, BD.BANISHMENT_MORGOTH)).toBe(1500);
+    expect([...ctx.world.kills.entries()]).toHaveLength(5);
+    expect(defenseScore(ctx, BD.BANISHMENT_MORGOTH, 0, false)).toBe(1000);
+    expect(getFightState(ctx.world).pending).toEqual({ code: "cast", args: { spell: 28 } });
+    expect([...ctx.world.kills.entries()].map(([, k]) => k.rIdx)).toEqual([99]);
+  });
+
+  it("requires more than seven weighted targets and filters non-evil monsters for banish evil", () => {
+    const { ctx } = defenseScenario({ player: { cls: "Priest", depth: 100 }, monsters: [morgoth,
+      ...Array.from({ length: 3 }, (_, i) => ({ grid: { x: 22 + i, y: 13 } })),
+    ] }, [Spell.BANISH_EVIL]);
+    expect(defenseScore(ctx, BD.BANISHMENT_MORGOTH)).toBe(0);
+  });
+
+  it("lights a dark path to Morgoth using the tracked position, with 500 simulation and 200 execution values", () => {
+    const { ctx, act } = defenseScenario({ player: { cls: "Priest", depth: 100 }, monsters: [morgoth],
+      cells: { "24,12": { known: false, inView: false } },
+    }, [Spell.SPEAR_OF_LIGHT, Spell.CLAIRVOYANCE]);
+    expect(defenseScore(ctx, BD.LIGHT_MORGOTH)).toBe(0);
+    getDangerGlobals(ctx.world).morgothPosition = true;
+    expect(defenseScore(ctx, BD.LIGHT_MORGOTH)).toBe(500);
+    expect(act.targets).toEqual([]);
+    expect(defenseScore(ctx, BD.LIGHT_MORGOTH, 0, false)).toBe(200);
+    expect(getFightState(ctx.world).pending).toEqual({ code: "cast", args: { spell: 7 } });
+    expect(act.targets).toEqual([{ x: 28, y: 12 }]);
+    ctx.world.map.at(24, 12).feat = FEAT.FLOOR;
+    expect(defenseScore(ctx, BD.LIGHT_MORGOTH)).toBe(0);
+  });
+});
+
+describe("Orb of Draining (attack.c:3904)", () => {
+  it.each([29, 30])("scores and casts the prayer at level %s", (level) => {
+    const { ctx, act } = defenseScenario({ player: { cls: "Priest", level }, monsters: [
+      { raceFlags: ["EVIL"], grid: { x: 25, y: 12 }, hp: 1000, maxHp: 1000 },
+      { raceFlags: ["EVIL"], grid: { x: 25, y: 9 }, hp: 1000, maxHp: 1000 },
+    ] }, [Spell.ORB_OF_DRAINING]);
+    const fs = getFightState(ctx.world);
+    fs.tempN = 1;
+    fs.tempX[0] = 25;
+    fs.tempY[0] = 12;
+    const expected = level === 29 ? 106 : 136;
+    expect(borgCalculateAttackEffectiveness(ctx, fs, BF.PRAYER_HOLY_ORB_BALL)).toBe(expected);
+    expect(act.targets).toEqual([]);
+    expect(borgAttack(ctx)).toEqual({ code: "cast", args: { spell: 6 } });
+    expect(act.targets).toHaveLength(1);
+    expect(act.targets[0]?.x).toBe(25);
+  });
+});
+
+describe("floor destruction penalties through perceive (attack.c:1344)", () => {
+  it.each([
+    [BA.ACID, TV.BOOTS, 0, false, 20], [BA.ACID, TV.BOOTS, 0, true, 0],
+    [BA.FIRE, TV.BOOTS, 0, false, 20], [BA.FIRE, TV.BOOTS, 0, true, 0],
+    [BA.ELEC, TV.RING, SVAL.ring.speed!, false, 20], [BA.ELEC, TV.RING, SVAL.ring.speed!, true, 2000],
+    [BA.COLD, TV.POTION, SVAL.potion.healing!, true, 2000],
+    [BA.COLD, TV.POTION, SVAL.potion.star_healing!, true, 2000],
+    [BA.COLD, TV.POTION, SVAL.potion.life!, true, 2000],
+    [BA.COLD, TV.POTION, SVAL.potion.cure_light!, false, 2000],
+    [BA.COLD, TV.POTION, SVAL.potion.cure_light!, true, 20],
+    [BA.MANA, TV.POTION, SVAL.potion.life!, true, 0],
+  ])("applies %s to tval %s sval %s aware %s with penalty %s", (type, tval, sval, aware, penalty) => {
+    const { ctx } = defenseScenario({ monsters: [{ grid: { x: 25, y: 12 }, hp: 10000, maxHp: 10000 }],
+      floor: { "25,12": [item({ tval: Number(tval), sval: Number(sval), aware: Boolean(aware) })] },
+    });
+    const fs = getFightState(ctx.world);
+    fs.tempN = 1;
+    fs.tempX[0] = 25;
+    fs.tempY[0] = 12;
+    const score = borgLaunchBolt(ctx, fs, 2, 3000, Number(type), 20, null);
+    expect(score).toBe(3000 - Number(penalty));
+  });
+
+  it.each(["inc_str", "inc_int", "inc_wis", "inc_dex", "inc_con"] as const)("protects %s only while the stat needs raising", (stat) => {
+    const { ctx } = defenseScenario({ monsters: [{ grid: { x: 25, y: 12 }, hp: 10000, maxHp: 10000 }],
+      floor: { "25,12": [item({ tval: TV.POTION, sval: SVAL.potion[stat]!, aware: true })] },
+    });
+    const fs = getFightState(ctx.world);
+    fs.tempN = 1;
+    fs.tempX[0] = 25;
+    fs.tempY[0] = 12;
+    expect(borgLaunchBolt(ctx, fs, 2, 3000, BA.COLD, 20, null)).toBe(2980);
+    getDerived(ctx.world).needStatgain[["inc_str", "inc_int", "inc_wis", "inc_dex", "inc_con"].indexOf(stat)] = true;
+    expect(borgLaunchBolt(ctx, fs, 2, 3000, BA.COLD, 20, null)).toBe(1000);
+  });
+});
+
+
+describe("banishment action order", () => {
+  function activation(ctx: BorgContext) {
+    ctx.view = { ...ctx.view, equipment: () => [item({ handle: 42, tval: TV.RING, sval: 1, activation: true })] };
+    installThinkSession(ctx.world, buildThinkSession(makeCoreResolvers({ objects: {
+      lookupKind: () => ({ activation: { name: "BANISHMENT" } }),
+      findEgo: () => null, findArtifact: () => null,
+    } })));
+  }
+
+  it("uses the mass-genocide activation ahead of its spell", () => {
+    const { ctx } = defenseScenario({ monsters: [{ grid: { x: 21, y: 12 } }] }, [Spell.MASS_BANISHMENT], {}, 100);
+    activation(ctx);
+    expect(defenseScore(ctx, BD.MASS_GENOCIDE, 120, false)).toBe(117);
+    expect(getFightState(ctx.world).pending).toEqual({ code: "activate", args: { handle: 42 } });
+  });
+
+  it.each([true, false])("prefers a genocide spell to its activation when spell=%s", (spell) => {
+    const { ctx } = defenseScenario({ player: { hp: 500, maxHp: 500 }, monsters: [
+      { grid: { x: 45, y: 12 } },
+    ] }, spell ? [Spell.BANISHMENT] : [], { 1: "o" }, 100);
+    activation(ctx);
+    expect(defenseScore(ctx, BD.GENOCIDE, 0, false)).toBe(2000);
+    expect(getFightState(ctx.world).pending).toEqual(spell
+      ? { code: "cast", args: { spell: 27, tgtsymbol: "o" } }
+      : { code: "activate", args: { handle: 42, tgtsymbol: "o" } });
+  });
+
+  it.each([true, false])("prefers a nasty activation to its staff and spell when activation=%s", (worn) => {
+    const { ctx } = defenseScenario({ player: { skills: [0, 0, 100, 0, 0, 0, 0, 0, 0, 0] }, inventory: [
+      item({ handle: 8, tval: TV.STAFF, sval: SVAL.staff.banishment!, pval: 1 }),
+    ] }, [Spell.BANISHMENT]);
+    if (worn) activation(ctx);
+    expect(defenseScore(ctx, BD.GENOCIDE_NASTIES, 0, false)).toBe(10);
+    expect(getFightState(ctx.world).pending).toEqual(worn
+      ? { code: "activate", args: { handle: 42, tgtsymbol: "Z" } }
+      : { code: "use-staff", args: { handle: 8, tgtsymbol: "Z" } });
+  });
+
+  it("uses a staff when no other genocide source exists", () => {
+    const { ctx } = defenseScenario({ player: { hp: 500, maxHp: 500, skills: [0, 0, 100, 0, 0, 0, 0, 0, 0, 0] },
+      monsters: [{ grid: { x: 45, y: 12 } }], inventory: [
+        item({ handle: 8, tval: TV.STAFF, sval: SVAL.staff.banishment!, pval: 1 }),
+      ],
+    }, [], { 1: "o" }, 100);
+    expect(defenseScore(ctx, BD.GENOCIDE, 0, false)).toBe(2000);
+    expect(getFightState(ctx.world).pending).toEqual({ code: "use-staff", args: { handle: 8, tgtsymbol: "o" } });
+  });
+});
+
+
+describe("defence boundaries from the C", () => {
+  it.each([
+    [{ hp: 249, maxHp: 250, depth: 25 }, 0, 0],
+    [{ hp: 250, maxHp: 250, depth: 25 }, 25, 10],
+    [{ hp: 250, maxHp: 250, depth: 24 }, 0, 0],
+    [{ hp: 699, maxHp: 1000, depth: 25 }, 0, 0],
+    [{ hp: 700, maxHp: 1000, depth: 25 }, 0, 10],
+    [{ hp: 700, maxHp: 1000, depth: 25 }, 26, 0],
+  ] as const)("scores nasty health/depth %o at danger %s as %s", (player, danger, value) => {
+    const { ctx } = defenseScenario({ player }, [Spell.BANISHMENT]);
+    expect(defenseScore(ctx, BD.GENOCIDE_NASTIES, danger)).toBe(value);
+  });
+
+  it("rejects a genocide level threat below 375 HP or at 75 monsters", () => {
+    const low = defenseScenario({ player: { hp: 374, maxHp: 500 }, monsters: [
+      { grid: { x: 45, y: 12 } },
+    ] }, [Spell.BANISHMENT], { 1: "o" }, 100).ctx;
+    expect(defenseScore(low, BD.GENOCIDE)).toBe(0);
+    low.world.self.trait[BI.CURHP] = 375;
+    expect(defenseScore(low, BD.GENOCIDE)).toBe(2000);
+    const pit = defenseScenario({ monsters: Array.from({ length: 75 }, (_, i) => ({
+      grid: { x: 45 + i % 20, y: 2 + Math.trunc(i / 20) },
+    })) }, [Spell.BANISHMENT], { 1: "o" }, 100).ctx;
+    expect(defenseScore(pit, BD.GENOCIDE)).toBe(0);
+    pit.world.kills.delete(75);
+    expect(defenseScore(pit, BD.GENOCIDE)).toBeGreaterThan(0);
+  });
+
+  it("casts banish evil on a crowd and preserves uniques while forgetting all other races", () => {
+    const { ctx, book } = defenseScenario({ player: { cls: "Priest", depth: 100 }, monsters: [morgoth,
+      ...Array.from({ length: 4 }, (_, i) => ({ raceIndex: 1, grid: { x: 22 + i, y: 13 }, raceFlags: ["EVIL"] })),
+      { raceIndex: 2, grid: { x: 50, y: 12 } },
+    ] }, [Spell.BANISH_EVIL]);
+    expect(defenseScore(ctx, BD.BANISHMENT_MORGOTH)).toBe(1500);
+    expect(borgDefend(ctx, 0)).toEqual({ code: "cast", args: { spell: book.spells[0]!.sidx } });
+    expect([...ctx.world.kills.entries()].map(([, k]) => k.rIdx)).toEqual([99]);
+  });
+
+  it.each([Spell.CLAIRVOYANCE, Spell.FUME_OF_MORDOR])("uses Morgoth light fallback %s", (spell) => {
+    const { ctx, book } = defenseScenario({ player: { cls: spell === Spell.CLAIRVOYANCE ? "Priest" : "Necromancer", depth: 100 },
+      monsters: [morgoth], cells: { "24,12": { known: false, inView: false } },
+    }, [spell]);
+    getDangerGlobals(ctx.world).morgothPosition = true;
+    expect(defenseScore(ctx, BD.LIGHT_MORGOTH, 0, false)).toBe(200);
+    expect(getFightState(ctx.world).pending).toEqual({ code: "cast", args: { spell: book.spells[0]!.sidx } });
+    ctx.world.kills.at(1).pos.x = 25;
+    expect(defenseScore(ctx, BD.LIGHT_MORGOTH)).toBe(0);
+    ctx.world.kills.at(1).pos.x = 28;
+    ctx.world.kills.at(1).when = ctx.world.clock - 3;
+    expect(defenseScore(ctx, BD.LIGHT_MORGOTH)).toBe(0);
   });
 });

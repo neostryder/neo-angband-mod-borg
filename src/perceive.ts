@@ -71,6 +71,7 @@ export function perceive(
   memo: PerceiveMemo,
   tables: BorgMessageTables = emptyMessageTables(),
   valuation: TakeValuation = {},
+  raceSymbol?: (killIndex: number) => string | undefined,
 ): void {
   const p = view.player();
 
@@ -101,7 +102,7 @@ export function perceive(
 
   ingestMap(world, view);
   borgUpdateLight(world, view);
-  const seen = ingestMonsters(world, view);
+  const seen = ingestMonsters(world, view, raceSymbol);
   ingestFloor(world, view, oldX, oldY, valuation);
 
   // Consume the message stream (drains view.messages() exactly once). The
@@ -332,6 +333,7 @@ function borgUpdateLight(world: BorgWorld, view: BorgView): void {
 function ingestMonsters(
   world: BorgWorld,
   view: BorgView,
+  raceSymbol?: (killIndex: number) => string | undefined,
 ): { ids: Set<number>; names: Map<number, string> } {
   // Clear the grid.kill back-pointers; rebuilt below from live positions.
   for (const [, k] of world.kills.entries()) {
@@ -376,6 +378,7 @@ function ingestMonsters(
     const k = world.kills.at(idx);
     k.mIdx = m.id;
     k.rIdx = m.raceIndex;
+    k.isMorgoth = m.race.toLowerCase().startsWith("morgoth");
     k.known = true;
     k.ox = k.pos.x;
     k.oy = k.pos.y;
@@ -399,6 +402,16 @@ function ingestMonsters(
     k.isMultiplier = m.raceFlags.includes("MULTIPLY");
     k.seen = true;
     k.when = world.clock;
+
+    /* borg_new_kill (borg-flow-kill.c:861-864) counts arrivals, not survivors. */
+    if (!k.nastyCounted) {
+      const symbol = raceSymbol?.(idx);
+      if (symbol !== undefined) {
+        const nasty = "ZAVULWD".indexOf(symbol);
+        if (nasty >= 0) world.facts.nastiesCount[nasty] = (world.facts.nastiesCount[nasty]! + 1) & 0xff;
+        k.nastyCounted = true;
+      }
+    }
 
     if (world.map.inBounds(m.grid.x, m.grid.y)) {
       world.map.at(m.grid.x, m.grid.y).kill = idx;
@@ -575,6 +588,8 @@ function ingestFloor(
       // binds the real object kind; tval carries the broad category.
       t.kIdx = head.tval > 0 ? head.tval : 1;
       t.tval = head.tval;
+      t.sval = head.sval;
+      t.aware = head.aware;
       t.known = false;
       t.pos.x = x;
       t.pos.y = y;

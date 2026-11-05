@@ -21,11 +21,8 @@
  *  - r_ptr->speed (race base speed) is not on MonsterFacts; the status-spell
  *    branches use kill.speed for both sides of the `kill->speed < r_ptr->speed-5`
  *    test (so the guard never fires), documented per site.
- *  - r_ptr->d_char is unavailable; the OLD_DRAIN "Egv" symbol guard is dropped
+ *  - the OLD_DRAIN "Egv" symbol guard remains unported
  *    (the RF_UNDEAD/RF_DEMON guards remain).
- *  - borg_takes carry tval but not sval/aware; borg_launch_destroy_stuff applies
- *    the base tval penalty only (the ring-of-speed / cool-potion specials are
- *    skipped).
  */
 
 import type { AgentCommand, ItemView } from "@rpgm-tools/neo-angband-core";
@@ -84,6 +81,7 @@ import {
 import { borgSlot } from "../item/deps.js";
 import { borgExtractDir } from "../flow/flow-consts.js";
 import { getFightState, idiv, iabs, type FightState } from "./state.js";
+import { getDerived } from "../trait/state.js";
 import { BA, BF, BTH_PLUS_ADJ } from "./bf.js";
 import { borgOffsetProjectable, borgTarget } from "./projection.js";
 
@@ -804,22 +802,28 @@ function borgLaunchBoltAuxHack(
   return d;
 }
 
-/** borg_launch_destroy_stuff (attack.c:1344). GAP: takes carry tval only. */
+/** borg_launch_destroy_stuff (attack.c:1344). */
 function borgLaunchDestroyStuff(ctx: BorgContext, takeIdx: number, typ: number): number {
   if (!ctx.world.takes.has(takeIdx)) return 0;
   const t = ctx.world.takes.at(takeIdx);
   switch (typ) {
     case BA.ACID:
-      if (t.tval === TV.BOOTS) return 20;
+      if (t.tval === TV.BOOTS && !t.aware) return 20;
       break;
     case BA.ELEC:
-      if (t.tval === TV.RING) return 20;
+      if (t.tval === TV.RING && !t.aware) return 20;
+      if (t.tval === TV.RING && t.sval === SVAL.ring.speed) return 2000;
       break;
     case BA.FIRE:
-      if (t.tval === TV.BOOTS) return 20;
+      if (t.tval === TV.BOOTS && !t.aware) return 20;
       break;
     case BA.COLD:
-      if (t.tval === TV.POTION) return 20;
+      if (t.tval === TV.POTION) {
+        const stats = [SVAL.potion.inc_str, SVAL.potion.inc_int, SVAL.potion.inc_wis, SVAL.potion.inc_dex, SVAL.potion.inc_con];
+        if (!t.aware || t.sval === SVAL.potion.healing || t.sval === SVAL.potion.star_healing || t.sval === SVAL.potion.life
+          || stats.some((sval, stat) => t.sval === sval && getDerived(ctx.world).needStatgain[stat])) return 2000;
+        return 20;
+      }
       break;
   }
   return 0;

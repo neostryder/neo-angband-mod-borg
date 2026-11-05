@@ -211,7 +211,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     perceive(world, view, memo, tables, {
       kindCost: session.resolvers.kindCost,
       junked: session.junked,
-    });
+    }, (i) => session.resolvers.resolveMonsterFacts?.(ctx, i).dChar);
 
     /* borg-update.c:2466-2479 records after the map update. Loadout retries
      * share the decision's entry, matching one borg_update per dungeon decision

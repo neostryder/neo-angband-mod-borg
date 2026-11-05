@@ -17,6 +17,11 @@ import { LoadoutBook, RaceBook, SIMULATIONS_PER_ROUND, gearSignature } from "./c
 import { borgTruth } from "./truth.js";
 import { hasRandomPower, isCursed, isIdent, perItemValue } from "../item/deps.js";
 import { TV } from "../item/svals.js";
+import { makeCoreResolvers } from "../resolvers.js";
+import { BorgWorld } from "../world/model.js";
+import { perceive, makePerceiveMemo } from "../perceive.js";
+import { makeBorgRng } from "../rng.js";
+import { makeFakeActions } from "../harness.js";
 
 const SCENARIO: Scenario = {
   player: { grid: { x: 5, y: 5 }, depth: 3 },
@@ -292,5 +297,38 @@ describe("the gear signature", () => {
     expect(gearSignature([item({})], [item({ handle: 2 })], [{ feat: 1, stock: [item({})] }], null)).not.toBe(base);
     expect(gearSignature([item({})], [null], [{ feat: 1, stock: [] }], null)).not.toBe(base);
     expect(gearSignature([item({})], [null], [{ feat: 2, stock: [item({})] }], null)).not.toBe(base);
+  });
+});
+
+
+describe("default monster symbols through the API 2 bridge", () => {
+  it.each([true, false])("resolves inherited and overridden symbols by bound index with truth=%s", async (truth) => {
+    const game = fakeGame({ scenario: { monsters: [
+      { grid: { x: 6, y: 5 }, raceIndex: 42, glyph: "!" },
+      { grid: { x: 7, y: 5 }, raceIndex: 43, glyph: "?" },
+    ] }, truth, engine: { core: Core } });
+    const records: Record<string, readonly JsonRecord[]> = {
+      monster_base: [{ name: "hound", glyph: "Z" }],
+      monster: [
+        { name: "inherited", base: "hound" },
+        { name: "refused duplicate", base: "missing" },
+        { name: "overridden", base: "hound", glyph: "C" },
+      ],
+    };
+    game.mod.content.records = async (file) => ({ ok: true, value: records[file] ?? [] });
+    game.mod.content.boundRecords = async (file) => ({ ok: true, value: file === "monster" ? [
+      { index: 43, name: "overridden", key: "overridden", owner: "test" },
+      { index: 42, name: "inherited", key: "inherited", owner: "core" },
+    ] : [] });
+    const bridge = createBridge(game.mod);
+    await bridge.prime();
+    const snapshot = (await bridge.readWorld())!;
+    const world = new BorgWorld();
+    perceive(world, snapshot.view, makePerceiveMemo());
+    const ctx = { world, view: snapshot.view, act: makeFakeActions(), rng: makeBorgRng() };
+    const resolve = makeCoreResolvers(bridge.resolverInput()).resolveMonsterFacts!;
+    expect(resolve(ctx, 1).dChar).toBe("Z");
+    expect(resolve(ctx, 2).dChar).toBe("C");
+    await bridge.dispose();
   });
 });

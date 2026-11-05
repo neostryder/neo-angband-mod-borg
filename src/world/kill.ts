@@ -15,6 +15,10 @@ import { GOAL_KILL, type BorgWorld } from "./model.js";
 export interface BorgKill {
   /** Race index (r_idx). */
   rIdx: number;
+  /** Race identity persists when Morgoth leaves the visible view. */
+  isMorgoth: boolean;
+  /** Historical nasty counts include each new tracked monster once. */
+  nastyCounted: boolean;
   /** Verified race (not just guessed from a symbol). */
   known: boolean;
   /** Probably awake. */
@@ -74,6 +78,8 @@ export interface BorgKill {
 export function makeBorgKill(): BorgKill {
   return {
     rIdx: 0,
+    isMorgoth: false,
+    nastyCounted: false,
     known: false,
     awake: false,
     confused: false,
