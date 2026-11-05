@@ -263,14 +263,14 @@ describe("recall means and waiting", () => {
     expect(borgRecall(s.ctx)).toEqual({ code: "activate", args: { handle: 42 } });
   });
 
-  it("short-circuits after the rod and clears shopping goals", () => {
+  it("short-circuits after the rod and leaves shopping goals alone", () => {
     const s = scenario();
     s.inventory.push(item({ handle: 43, tval: TV.ROD, sval: SVAL.rod.recall!, pval: 1 }));
     const read = vi.spyOn(s.ctx.act, "read");
     Object.assign(s.world.self.goal, { shop: 1, ware: 2, item: 3 });
     expect(borgRecall(s.ctx)).toEqual({ code: "zap-rod", args: { handle: 43 } });
     expect(read).not.toHaveBeenCalled();
-    expect([s.world.self.goal.shop, s.world.self.goal.ware, s.world.self.goal.item]).toEqual([-1, -1, -1]);
+    expect([s.world.self.goal.shop, s.world.self.goal.ware, s.world.self.goal.item]).toEqual([1, 2, 3]);
   });
 
   it("clears shopping goals after the recall scroll", () => {
