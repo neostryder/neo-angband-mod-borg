@@ -9,12 +9,14 @@
 
 import { describe, expect, it } from "vitest";
 import * as Core from "@rpgm-tools/neo-angband-core";
-import type { KnownItem, LoadoutChange } from "@rpgm-tools/neo-angband-mod-sdk";
-import { fakeGame, type FakeGame } from "../harness-api2.js";
+import type { JsonRecord, KnownItem, LoadoutChange } from "@rpgm-tools/neo-angband-mod-sdk";
+import { fakeGame, knownWorld, type FakeGame } from "../harness-api2.js";
 import type { Scenario } from "../harness.js";
 import { createBridge, type Bridge } from "./host.js";
 import { LoadoutBook, RaceBook, SIMULATIONS_PER_ROUND, gearSignature } from "./caches.js";
 import { borgTruth } from "./truth.js";
+import { hasRandomPower, isCursed, isIdent, perItemValue } from "../item/deps.js";
+import { TV } from "../item/svals.js";
 
 const SCENARIO: Scenario = {
   player: { grid: { x: 5, y: 5 }, depth: 3 },
@@ -91,6 +93,59 @@ describe("the bridge", () => {
     const seams = bridge.resolverInput();
     expect(seams.shopnum?.()).toBeNull();
     expect(seams.kindCost?.(75, 1)).toBeNull();
+  });
+
+  it("adapts published item costs, dice, ego powers and negative flags to C inventory values", async () => {
+    const game = fakeGame({ engine: { api: "1", core: Core, state: { actor: { player: { noscore: 0 } } } } });
+    const item = (over: Partial<KnownItem>): KnownItem => ({
+      handle: 1, kindKey: "kind:0", baseName: "sword", carried: true, aware: true,
+      label: "sword", nameColor: "white", tval: TV.SWORD, sval: 1, pval: 0, number: 4,
+      weight: 10, ac: 0, toA: 1, toH: 2, toD: 3, dd: 2, ds: 4, ego: false,
+      artifact: false, flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [],
+      egoName: null, artifactName: null, activation: false, charging: 0, unknownRunes: false,
+      inscription: null, value: 99999, ...over,
+    });
+    const inventory = [item({}), item({ handle: 2, unknownRunes: true }),
+      item({ handle: 3, tval: TV.WAND, pval: 10 }),
+      item({ handle: 4, ego: true, egoName: "of Accuracy" }),
+      item({ handle: 5, ego: true, egoName: "of Protection", unknownRunes: true }),
+      item({ handle: 6, flags: ["DRAIN_EXP"] }),
+      item({ handle: 7, artifact: true, artifactName: "'The One Ring'", tval: TV.RING,
+        toA: 0, toH: 0, toD: 0, curses: ["doom"] }),
+      item({ handle: 8, tval: TV.ARROW }),
+      item({ handle: 9, tval: TV.BOOTS, toH: -2, toD: 1, toA: 2 }),
+      item({ handle: 10, tval: TV.BOOTS, pval: 1, toA: 0, toH: 0, toD: 0,
+        flags: ["SUST_STR"], modifiers: [{ code: "SPEED", value: 2 }] }),
+      item({ handle: 11, kindKey: "kind:1" }),
+      item({ handle: 12, kindKey: "kind:99" }),
+      item({ handle: 13, ego: true, egoName: "of Doubt" }),
+    ];
+    const known = { ...knownWorld(game.view), inventory };
+    game.mod.view.world = () => Promise.resolve({ ok: true, value: known });
+    const records: Record<string, JsonRecord[]> = {
+      object: [{ name: "sword", cost: 100, attack: { hd: "1d4" } }, { name: "worthless" }],
+      ego_item: [{ name: "of Accuracy", info: { cost: 500 } },
+        { name: "of Protection", info: { cost: 600 }, flags: ["RAND_POWER"] },
+        { name: "of Doubt", info: { cost: 100 } }, { name: "of Doubt", info: { cost: 200 } }],
+      artifact: [{ name: "'The One Ring'", cost: 10000, act: "BIZARRE" }],
+      object_property: [{ type: "flag", code: "DRAIN_EXP", power: -10 }],
+    };
+    const calls: string[] = [];
+    game.mod.content.records = (file) => {
+      calls.push(file);
+      return Promise.resolve({ ok: true, value: records[file] ?? [] });
+    };
+    const bridge = createBridge(game.mod);
+    await bridge.prime();
+    const world = (await bridge.readWorld())!;
+    const items = world.view.inventory();
+    expect(items.map((entry) => perItemValue(entry))).toEqual([1500, 100, 150, 2000, 100, 0, 10000, 145, 400, 60300, 0, 24999, 24999]);
+    expect(isIdent(items[1]!)).toBe(false);
+    expect(hasRandomPower(items[3]!)).toBe(false);
+    expect(hasRandomPower(items[4]!)).toBe(true);
+    expect(isCursed(items[5]!)).toBe(true);
+    await bridge.readWorld();
+    expect(calls.filter((file) => file === "ego_item")).toHaveLength(1);
   });
 });
 

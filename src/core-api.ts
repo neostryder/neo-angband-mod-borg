@@ -414,8 +414,7 @@ export function borgView(host: AgentView): BorgView {
     mapBounds: () => host.mapBounds(),
     // view: the pack, each item from its known twin. API 2: view.world().inventory.
     inventory: () => host.inventory(),
-    // FORK (Mandos #50), DEFECT: dump_quiver needs membership, while the
-    // inventory master list already includes these handles for ammo notice.
+    // borg-junk.c:1189 scans quiver slots; inventory also includes these handles.
     quiver: () => host.quiver?.() ?? [],
     // view: worn gear by slot, each item from its known twin. API 2: view.world().equipment.
     equipment: () => host.equipment(),

@@ -9,7 +9,8 @@
  */
 
 import type { JsonRecord, KnownPlayer, ModApi2 } from "@rpgm-tools/neo-angband-mod-sdk";
-import type { GameConstants } from "@rpgm-tools/neo-angband-core";
+import type { GameConstants, ItemView } from "@rpgm-tools/neo-angband-core";
+import type { ItemAnalysis } from "../item/deps.js";
 import { RSF } from "../core-api.js";
 import type { BorgContext } from "../context.js";
 
@@ -87,6 +88,53 @@ export async function spellMessages(api: Content): Promise<SpellMessages[]> {
 export async function kindCosts(api: Content): Promise<readonly number[]> {
   const records = (await valueOf(api.content.records("object"))) ?? [];
   return records.map((record) => (typeof record["cost"] === "number" ? record["cost"] : 0));
+}
+
+export type ItemAnalyzer = (item: ItemView) => ItemAnalysis;
+const ITEM_ANALYZERS = new WeakMap<Content["content"], Promise<ItemAnalyzer>>();
+
+/** borg-item-analyze.c:43-259,413-425,646-655 reads costs, dice and flag properties. */
+export function itemAnalyzer(api: Content): Promise<ItemAnalyzer> {
+  const cached = ITEM_ANALYZERS.get(api.content);
+  if (cached) return cached;
+  const read = async (): Promise<ItemAnalyzer> => {
+    const [objects, egos, artifacts, properties] = await Promise.all([
+      valueOf(api.content.records("object")), valueOf(api.content.records("ego_item")),
+      valueOf(api.content.records("artifact")), valueOf(api.content.records("object_property")),
+    ]);
+    /* ItemView names identify static entries; duplicate names keep the stack estimate. */
+    const byName = (records: readonly JsonRecord[] | null) => {
+      const names = new Map<unknown, JsonRecord | null>();
+      for (const record of records ?? []) names.set(record["name"], names.has(record["name"]) ? null : record);
+      return names;
+    };
+    const egoNames = byName(egos);
+    const artifactNames = byName(artifacts);
+    const negative = new Set((properties ?? []).filter((record) => record["type"] === "flag"
+      && typeof record["power"] === "number" && record["power"] < 0).map((record) => record["code"]));
+    const number = (value: unknown): number | null => typeof value === "number" ? value : null;
+    const field = (value: unknown, key: string): unknown => value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord)[key] : undefined;
+    return (item) => {
+      const index = /^kind:(\d+)$/.exec(item.kindKey);
+      const kind = index ? objects?.[Number(index[1])] : undefined;
+      const ego = egoNames.get(item.egoName);
+      const artifact = artifactNames.get(item.artifactName);
+      const dice = /^(\d+)d(\d+)$/.exec(String(field(kind?.["attack"], "hd") ?? ""));
+      const flags = recordFlags(ego?.["flags"]);
+      return {
+        cost: kind ? number(kind["cost"]) ?? 0 : null,
+        egoCost: ego ? number(field(ego["info"], "cost")) ?? 0 : null,
+        artifactCost: artifact ? number(artifact["cost"]) ?? 0 : null,
+        dd: dice ? Number(dice[1]) : item.dd, ds: dice ? Number(dice[2]) : item.ds,
+        cursed: item.curses.length > 0 || item.flags.some((flag) => negative.has(flag)),
+        oneRing: artifact ? artifact["act"] === "BIZARRE" : item.artifactName === "'The One Ring'",
+        randomPower: item.ego && (!ego || ["RAND_POWER", "RAND_SUSTAIN", "RAND_BASE_RES", "RAND_HI_RES", "RAND_RES_POWER"].some((flag) => flags.has(flag))),
+      };
+    };
+  };
+  const result = read();
+  ITEM_ANALYZERS.set(api.content, result);
+  return result;
 }
 
 /** Book kinds follow global registration order; shared names reuse a kind (borg-magic.c:689-694). */

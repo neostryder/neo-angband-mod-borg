@@ -16,7 +16,7 @@
  *   borg_swap_rings / borg_wear_rings and borg_destroy_floor.
  *   borg_play_magic (borg-magic-play.c) is ported in src/item/magic-play.ts.
  *   The drop_hole / drop_slow / dump_quiver / wear_recharge rungs
- *   are restored here; borg_drop_junk is
+ *   run here; borg_drop_junk is
  *     mapped to the ported borgCrushJunk (borg-junk.c's junk-dropping routine).
  *   borg_must_return_to_town (borg-prepared.c:828) is ported with both of its
  *   guards (mustReturnToTown below).
@@ -495,11 +495,12 @@ export function borgThinkDungeon(
   const g = self.goal;
   const flow = session.flow;
   const st = flow.state;
-  /* FORK (#50), DEFECT: finish wear_recharge's queued R75 before asking
-   * the decision ladder again (the C queues both key sequences together). */
+  /* borg-item-wear.c:1516-1528 queues R75 after wearing. The API submits
+   * wearing separately, so the equipment view confirms its completion. */
   if (session.rechargeRest) {
+    const handle = session.rechargeRest;
     session.rechargeRest = false;
-    return ctx.act.rest(75);
+    if (ctx.view.equipment().some((item) => item?.handle === handle)) return ctx.act.rest(75);
   }
   /* Primes the per-world fight state before the ladder runs; the fight rungs read
    * it back through the same memo rather than from here. */
@@ -666,7 +667,7 @@ export function borgThinkDungeon(
     }
     const rec = borgRecover(ctx, itemDeps);
     if (rec) return rec;
-    /* FORK (#50), DEFECT: restore borg_drop_hole(false), C :1562. */
+    /* borg-think-dungeon.c:1562 makes room before shopping. */
     {
       const cmd = rememberJunkDrop(ctx, session, borgDropHole(ctx, false, itemDeps));
       if (cmd) return cmd;
@@ -730,7 +731,7 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
-  /* FORK (#50), DEFECT: restore borg_dump_quiver, C :1627. */
+  /* borg-think-dungeon.c:1627 dumps bad quiver ammunition. */
   {
     const cmd = rememberJunkDrop(ctx, session, borgDumpQuiver(ctx, itemDeps));
     if (cmd) return cmd;
@@ -936,7 +937,7 @@ export function borgThinkDungeon(
       return cmd;
     }
   }
-  /* FORK (#50), DEFECT: restore pack-space and weight rungs (:1862, :1866). */
+  /* borg-think-dungeon.c:1862,1866 makes space, then sheds weight. */
   {
     const cmd = rememberJunkDrop(ctx, session, borgDropHole(ctx, false, itemDeps));
     if (cmd) return cmd;
@@ -1094,7 +1095,7 @@ export function borgThinkDungeon(
     if (cmd) return cmd;
   }
 
-  /* FORK (#50), DEFECT: restore borg_wear_recharge (C :2056). */
+  /* borg-think-dungeon.c:2056 recharges before leaving the level. */
   {
     const cmd = borgWearRecharge(ctx, itemDeps);
     if (cmd) return cmd;

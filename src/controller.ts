@@ -120,14 +120,16 @@ export function createBorg(opts: BorgOptions = {}): Borg {
 
   let lastDepth = -1;
   let retry = false;
-  let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup, rechargeRest: session.rechargeRest ?? false };
+  let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
+    rechargeRest: session.rechargeRest ?? false, panel: 0, junked: new Set(session.junked) };
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
     const ctx: BorgContext = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect };
     const recordStep = !retry;
     retry = false;
-    before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup, rechargeRest: session.rechargeRest ?? false };
+    before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
+      rechargeRest: session.rechargeRest ?? false, panel: world.self.timeThisPanel, junked: new Set(session.junked) };
 
     /* 1. Advance the clocks exactly once (borg-think.c:447). */
     world.clock += 1;
@@ -176,6 +178,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
       st.glyph.wipe();
       st.vein.wipe();
       session.junked.clear();
+      before.junked.clear();
+      before.panel = 0;
 
       lastDepth = depth;
     }
@@ -237,17 +241,17 @@ export function createBorg(opts: BorgOptions = {}): Borg {
 
   const rewind = (): void => {
     retry = true;
-    /* Each decision adds one to both clocks, even on the pass that restarts the
-     * level clock, so taking one back leaves them where the pass began. A level
-     * change is not undone: the second pass sees the new depth already counted. */
+    /* A retry keeps the level transition and repeats the decision at the same
+     * level clock. The panel snapshot also covers borg_dump_quiver's increment. */
     world.clock -= 1;
-    world.self.timeThisPanel -= 1;
+    world.self.timeThisPanel = before.panel;
     session.lastGrid = before.lastGrid;
     session.arrivalPickup = before.arrival;
-    /* FORK (Mandos #76), DEFECT in B50's API2 command continuation: a
-     * speculative pass may queue or consume R75 before any command was
-     * submitted. Restore the entry value in both directions on retry. */
+    /* borg-junk.c:1224-1241 and borg-item-wear.c:1516-1528 queue side
+     * effects with their commands. A discarded decision restores them. */
     session.rechargeRest = before.rechargeRest;
+    session.junked.clear();
+    for (const key of before.junked) session.junked.add(key);
   };
 
   return { world, rng, controller, rewind };

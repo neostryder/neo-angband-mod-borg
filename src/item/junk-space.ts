@@ -1,15 +1,16 @@
 /**
- * FORK (Mandos #50), inherited DEFECT: restore the omitted borg-junk.c rungs.
+ * Inventory space and weight decisions from borg-junk.c:514-1245.
  * Power is supplied by the existing loadout simulation. Knowledge uses the
  * existing ItemDeps seams; absent book/ego knowledge retains those items
  * conservatively, and absent simulation declines a speculative drop.
  */
 import type { AgentCommand, BorgContext, ItemView } from "./types.js";
 import type { ItemDeps } from "./deps.js";
-import { danger, isAware, isIdent, itemValue, needsIdent, trait } from "./deps.js";
+import { canBrowse, danger, isAware, isIdent, isCursed, itemValue, needsIdent, packItems, perItemValue, trait } from "./deps.js";
 import { BI, CLASS_WARRIOR, CLASS_RANGER, CLASS_MAGE, CLASS_DRUID, CLASS_NECROMANCER, CLASS_PRIEST } from "../trait/trait-index.js";
 import { FEAT } from "../core-api.js";
 import { mod } from "../trait/item-util.js";
+import { borgNoticeWithout } from "../trait/simulate.js";
 import { borgInventoryFull } from "../store/store.js";
 import { TV, SVAL } from "./svals.js";
 import { borgEat, borgQuaffPotion, borgReadScroll } from "./item-use.js";
@@ -27,10 +28,6 @@ export interface SpaceDeps extends ItemDeps {
   maxAmmoStack?: number;
 }
 
-function isBook(tval: number): boolean {
-  return ([TV.MAGIC_BOOK, TV.PRAYER_BOOK, TV.NATURE_BOOK, TV.SHADOW_BOOK, TV.OTHER_BOOK] as readonly number[]).includes(tval);
-}
-
 function valuableGear(tval: number): boolean {
   return ([TV.AMULET, TV.BOW, TV.HAFTED, TV.POLEARM, TV.SWORD, TV.BOOTS, TV.GLOVES,
     TV.HELM, TV.CROWN, TV.SHIELD, TV.SOFT_ARMOR, TV.HARD_ARMOR, TV.DRAG_ARMOR] as readonly number[]).includes(tval);
@@ -39,12 +36,6 @@ function valuableGear(tval: number): boolean {
 function onFloor(ctx: BorgContext): boolean {
   const { x, y } = ctx.world.self.c;
   return ctx.world.map.at(x, y).feat === FEAT.FLOOR;
-}
-
-/** The C pack excludes quiver slots; inventory() includes their handles. */
-function pack(ctx: BorgContext): ItemView[] {
-  const quiver = new Set(ctx.view.quiver?.().map((item) => item.handle) ?? []);
-  return ctx.view.inventory().filter((item) => item.number > 0 && !quiver.has(item.handle));
 }
 
 /** borg_consume (junk.c:74): consume only the C's named safe junk. */
@@ -111,7 +102,7 @@ function protectedForHole(ctx: BorgContext, item: ItemView): boolean {
 
 /** Monetary penalties from junk.c:699-859; preserve even the C's odd ORs. */
 function holeValue(ctx: BorgContext, item: ItemView, boost: number, d?: SpaceDeps): number {
-  let value = itemValue(item, d) + boost;
+  let value = (d?.itemValue ? itemValue(item, d) : perItemValue(item)) + boost;
   if (["STR", "INT", "WIS", "DEX", "CON"].some((stat) => mod(item, stat) > 0)) value += 20000;
   if (item.tval === trait(ctx, BI.AMMO_TVAL) && value > 0
     && trait(ctx, BI.AMISSILES) <= 35 && trait(ctx, BI.CDEPTH) >= 1) value += 5000;
@@ -158,7 +149,7 @@ function holeValue(ctx: BorgContext, item: ItemView, boost: number, d?: SpaceDep
   return value;
 }
 
-/** FORK (#50), DEFECT: borg_drop_hole (junk.c:514), one entire stack. */
+/** borg_drop_hole (borg-junk.c:514-948) releases one entire stack. */
 export function borgDropHole(ctx: BorgContext, desperate = false, d?: SpaceDeps): AgentCommand | null {
   if (!(d?.packFull ?? borgInventoryFull(ctx)) || !onFloor(ctx) || !d?.dropEval) return null;
   const hp = trait(ctx, BI.CURHP);
@@ -168,11 +159,10 @@ export function borgDropHole(ctx: BorgContext, desperate = false, d?: SpaceDeps)
   let bestPower = 0;
   let bestWeight = 0;
   const digger = ctx.view.equipment()[0]?.tval === TV.DIGGING;
-  for (const item of pack(ctx)) {
+  for (const item of packItems(ctx)) {
     if (item.artifact || (item.tval === TV.FOOD && trait(ctx, BI.FOOD) < 5)) continue;
     if (d.protectedHandles?.includes(item.handle)) continue;
-    // The optional book/ego knowledge seams share the existing port's conservative defaults.
-    if (d.canBrowse?.(item) ?? isBook(item.tval)) continue;
+    if (d.canBrowse?.(item) ?? canBrowse(item)) continue;
     let boost = 0;
     if ((item.tval === TV.BOOTS && !isIdent(item, d))
       || (item.tval >= TV.DIGGING && item.tval <= TV.SWORD && digger)) {
@@ -185,14 +175,14 @@ export function borgDropHole(ctx: BorgContext, desperate = false, d?: SpaceDeps)
     }
     if (!desperate) {
       if (protectedForHole(ctx, item)) continue;
-    } else boost = 7000; // C overwrites earlier boosts here (junk.c:650).
+    } else boost = 7000; // borg-junk.c:640-641 assigns this boost after the knowledge gates.
     if (item.ego && !isIdent(item, d) && (d.randomPower?.(item) ?? true)) {
       if (!desperate) continue;
       boost = 10000;
     }
     const simulated = d.dropEval(item, item.number);
     if (simulated === null) continue;
-    const power = simulated - holeValue(ctx, item, boost, d);
+    const power = simulated - holeValue(borgNoticeWithout(ctx, item.handle), item, boost, d);
     const weight = item.weight * item.number;
     if (best && power < bestPower) continue;
     if (power === bestPower && weight < bestWeight) continue;
@@ -204,7 +194,7 @@ export function borgDropHole(ctx: BorgContext, desperate = false, d?: SpaceDeps)
   return desperate ? null : borgDropHole(ctx, true, d);
 }
 
-/** FORK (#50), DEFECT: borg_drop_slow (junk.c:959), ONE item, not its stack. */
+/** borg_drop_slow (borg-junk.c:959-1144) releases one item. */
 export function borgDropSlow(ctx: BorgContext, d?: SpaceDeps): AgentCommand | null {
   if (danger(d) > Math.trunc(trait(ctx, BI.CURHP) / 20) || !trait(ctx, BI.CDEPTH)
     || trait(ctx, BI.SPEED) >= 110 || ctx.world.self.munchkinMode || !d?.dropEval) return null;
@@ -215,8 +205,8 @@ export function borgDropSlow(ctx: BorgContext, d?: SpaceDeps): AgentCommand | nu
   let best: ItemView | null = null;
   let bestPower = 0;
   const digger = ctx.view.equipment()[0]?.tval === TV.DIGGING;
-  // inventory() already contains quivered handles. Do not count them twice.
-  for (const item of ctx.view.inventory()) {
+  // borg-junk.c:1002-1011 visits pack entries before quiver entries on ties.
+  for (const item of [...packItems(ctx), ...(ctx.view.quiver?.() ?? [])]) {
     if (item.number <= 0 || d.protectedHandles?.includes(item.handle)) continue;
     if (!isIdent(item, d) && ((d.worthId?.(item) ?? false) || item.tval === TV.BOOTS)) continue;
     if (d.randarts && item.artifact && !isIdent(item, d)) continue;
@@ -226,7 +216,7 @@ export function borgDropSlow(ctx: BorgContext, d?: SpaceDeps): AgentCommand | nu
       && (item.sval === SVAL.rod.healing || (item.sval === SVAL.rod.light && trait(ctx, BI.LIGHT) <= 0))) continue;
     const simulated = d.dropEval(item, 1);
     if (simulated === null) continue;
-    let price = Math.min(itemValue(item, d), 30000);
+    let price = Math.min(d?.itemValue ? itemValue(item, d) : perItemValue(item), 30000);
     if (price < greed) price = 0;
     const power = simulated - price + item.weight * 100;
     if (power < bestPower) continue;
@@ -237,7 +227,7 @@ export function borgDropSlow(ctx: BorgContext, d?: SpaceDeps): AgentCommand | nu
   return borgConsume(ctx, best, d) ?? ctx.act.drop(best.handle, 1);
 }
 
-/** FORK (#50), DEFECT: borg_dump_quiver (junk.c:1154), earliest bad stack. */
+/** borg_dump_quiver (borg-junk.c:1154-1242) selects the earliest bad stack. */
 export function borgDumpQuiver(ctx: BorgContext, d?: SpaceDeps): AgentCommand | null {
   if (trait(ctx, BI.ISHUNGRY) || trait(ctx, BI.ISWEAK) || !onFloor(ctx)) return null;
   if ((d?.clock ?? ctx.world.clock) - (d?.began ?? 0) > 2000 || ctx.world.self.timeThisPanel > 150) return null;
@@ -248,7 +238,7 @@ export function borgDumpQuiver(ctx: BorgContext, d?: SpaceDeps): AgentCommand | 
   for (let i = quiver.length - 1; i >= 0; i--) {
     const item = quiver[i]!;
     if (item.number <= 0) continue;
-    if (item.curses.length === 0 && item.tval === trait(ctx, BI.AMMO_TVAL)) {
+    if (!isCursed(item) && item.tval === trait(ctx, BI.AMMO_TVAL)) {
       if (item.toD > 0 && item.toH > 0) continue;
       if (needsIdent(item, d)) continue;
       if (trait(ctx, BI.AMISSILES) <= capacity && item.toD >= 0 && item.toH >= 0) continue;

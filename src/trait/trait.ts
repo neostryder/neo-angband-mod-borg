@@ -141,6 +141,11 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
   borgNoticePlayer(c);
   borgNoticeEquipment(c);
   borgNoticeInventory(c);
+  /* borg-trait.c:1122-1129 counts occupied quiver entries for power penalties.
+   * Engine packSlotsUsed (game/gear.ts:551-575) instead charges one pack slot
+   * per 40 weighted missiles; pack capacity keeps that engine calculation. */
+  const carried = new Set(c.inven.filter(present).map((item) => item.handle));
+  t[BI.QUIVER_SLOTS] = (view.quiver?.() ?? []).filter((item) => present(item) && carried.has(item.handle)).length;
   finishNotice(c);
 
   /* Publish the finished buffer. */

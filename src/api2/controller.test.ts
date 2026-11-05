@@ -20,7 +20,7 @@ import { createBorg } from "../controller.js";
 import * as Think from "../think.js";
 import { buildItemDeps, getThinkSession } from "../think-session.js";
 import { borgWearRecharge } from "../item/item-wear.js";
-import { TV } from "../item/svals.js";
+import { TV, SVAL } from "../item/svals.js";
 
 describe("the act verbs", () => {
   it("turn a command into the intent the game takes", () => {
@@ -100,7 +100,7 @@ async function publishedGame() {
   return { game, host, status };
 }
 
-describe("recharge continuation across API2 retries (#76)", () => {
+describe("recharge continuation across API2 retries", () => {
   it.each([false, true])("preserves wear/rest order when a loadout retry starts with pending rest=%s", async (pendingRest) => {
     const game = fakeGame();
     const amulet: ItemView = {
@@ -110,17 +110,17 @@ describe("recharge continuation across API2 retries (#76)", () => {
       modifiers: [], brands: [], slays: [], resists: [], curses: [], egoName: null,
       artifactName: null, activation: true, timeout: 10, inscription: null,
     };
-    const view = { ...game.view, inventory: () => [amulet] };
+    const food = { ...amulet, handle: 8, tval: TV.FOOD, sval: SVAL.food.ration!, number: 5, timeout: 0 };
+    const view = { ...game.view, inventory: () => pendingRest ? [food] : [food, amulet], equipment: () => pendingRest ? [amulet] : [] };
     const borg = createBorg({ rngSeed: 1 });
     const session = getThinkSession(borg.world);
-    session.rechargeRest = pendingRest;
-    const realThink = Think.think;
-    // Isolate selection of this late rung. The real controller snapshot,
-    // real queued-rest consumer, item selector and API2 retry all run.
+    session.rechargeRest = pendingRest ? amulet.handle : false;
+    const decide = Think.think;
+    // The controller and queued-rest consumer share the production item deps.
     const selection = vi.spyOn(Think, "think").mockImplementation((ctx) => {
       const state = getThinkSession(ctx.world);
-      return state.rechargeRest ? realThink(ctx)
-        : borgWearRecharge(ctx, { ...buildItemDeps(state), canRest: true });
+      return state.rechargeRest ? decide(ctx)
+        : borgWearRecharge(ctx, buildItemDeps(state));
     });
     let pending = true;
     let rounds = 0;
@@ -138,6 +138,8 @@ describe("recharge continuation across API2 retries (#76)", () => {
           : { code: "wield", args: { handle: 7 } } },
       ]);
       if (!pendingRest) {
+        view.inventory = () => [food];
+        view.equipment = () => [amulet];
         await tick(game.mod, game.input());
         expect(game.submitted[1]!.intent).toEqual({ kind: "command", command: { code: "rest", args: { count: 75 } } });
       }

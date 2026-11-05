@@ -44,6 +44,8 @@ import {
 } from "./danger/index.js";
 import type { Flow, FlowHooks } from "./flow/index.js";
 import type { WearDeps, SpaceDeps, RechargeDeps } from "./item/index.js";
+import { guessedValue, hasRandomPower, isCursed, isIdent, needsIdent, perItemValue } from "./item/deps.js";
+import { borgItemWorthId } from "./item/item-wear.js";
 import { borgCheckRest, createFlow } from "./flow/index.js";
 import { BI } from "./trait/index.js";
 import { borgCfg, borgPrepared } from "./trait/index.js";
@@ -152,8 +154,8 @@ export interface ThinkSession {
   readonly resolvers: BorgResolvers;
   /** The live decision context for this think (refreshed by the controller). */
   ctx: BorgContext | null;
-  /** FORK (#50): continuation of the C's queued wear + R75 input sequence. */
-  rechargeRest?: boolean;
+  /** Gear handle for the queued R75 (borg-item-wear.c:1516-1528). */
+  rechargeRest?: number | false;
   /**
    * Is the Borg still in the arrival moment on this grid? True from the think
    * after it steps somewhere new, until it issues any command other than a
@@ -304,7 +306,7 @@ function powerOf(
 }
 
 /** Per-think memo for the simulated baseline (see powerOf). */
-const BASELINES = new WeakMap<ThinkSession, { clock: number; base: number | null }>();
+const BASELINES = new WeakMap<ThinkSession, { ctx: BorgContext; base: number | null }>();
 
 function simulationBaseline(
   session: ThinkSession,
@@ -312,9 +314,9 @@ function simulationBaseline(
   resolve: (c: BorgContext, change: BorgLoadoutChange) => number | null,
 ): number | null {
   const cached = BASELINES.get(session);
-  if (cached && cached.clock === ctx.world.clock) return cached.base;
+  if (cached && cached.ctx === ctx) return cached.base;
   const base = resolve(ctx, {}) ?? null;
-  BASELINES.set(session, { clock: ctx.world.clock, base });
+  BASELINES.set(session, { ctx, base });
   return base;
 }
 
@@ -338,6 +340,17 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
   const res = session.resolvers;
   return {
     danger: dangerHere,
+    isIdent,
+    needsIdent,
+    worthId: borgItemWorthId,
+    randomPower: hasRandomPower,
+    /* borg-item-analyze.c:611-622 selects kind cost for aware, unknown gear. */
+    itemValue: (item) => {
+      if (isCursed(item)) return perItemValue(item);
+      if (!item.aware) return guessedValue(item);
+      if (!isIdent(item)) return res.kindCost?.(item.tval, item.sval)?.cost ?? perItemValue(item);
+      return perItemValue(item);
+    },
     avoidance: w.self.trait[BI.CURHP] ?? 0,
     /* borg_check_rest(borg.c.y, borg.c.x): the real gate, not a constant. Every
      * rest in borg-recover.c is behind it, so a hardcoded `true` is the Borg
@@ -346,7 +359,7 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
     clock: w.clock,
     /* borg_began, for borg_wear_stuff's "sitting on this level forever" guard. */
     began: session.flow.state.borgBegan,
-    restAfterWear: () => { session.rechargeRest = true; },
+    restAfterWear: (handle) => { session.rechargeRest = handle; },
     fearRegion: fear.region(py, px),
     ...(res.resolveActivation
       ? {
@@ -366,8 +379,7 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
             powerOf(session, c, {
               wield: [{ from: "gear", handle: item.handle }],
             }),
-          /* FORK (#50), DEFECT: the C reruns notice/power after releasing
-           * a stack (hole) or one item (slow). A missing derive declines. */
+          /* borg-junk.c:659-668,1047-1057 scores the reduced inventory. */
           dropEval: (item: ItemView, quantity: number) => {
             const score = res.loadoutPower!(c, { release: [{ handle: item.handle, number: quantity }] });
             if (score === null) return null;

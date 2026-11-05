@@ -31,7 +31,7 @@ import type { AgentView, CellView, GameConstants, ItemView, LoadoutSimulation as
 import type { MessageFeed } from "./feed.js";
 import type { ActivationBook, LoadoutBook, RaceBook } from "./caches.js";
 import { gearSignature } from "./caches.js";
-import { TIMED_RECORDS, valueOf, type GradeFloors } from "./records.js";
+import { TIMED_RECORDS, itemAnalyzer, valueOf, type GradeFloors, type ItemAnalyzer } from "./records.js";
 import type { BorgTruth } from "./truth.js";
 
 /** Removes `readonly` all the way down, so known-world data can stand in for the API 1 view types. */
@@ -96,15 +96,16 @@ export function playerView(known: KnownPlayer, floors: GradeFloors): PlayerView 
 
 /* Items. */
 
-export function itemView(item: KnownItem): ItemView {
-  const { charging, fuel, unknownRunes: _unknownRunes, ...rest } = writable(item);
+export function itemView(item: KnownItem, analyze?: ItemAnalyzer): ItemView & Pick<KnownItem, "unknownRunes"> & { borgAnalysis?: ReturnType<ItemAnalyzer> } {
+  const { charging, fuel, ...rest } = writable(item);
   /* A light's fuel and a rod's recharge both read as the timeout, as they did under API 1. */
-  return { ...rest, timeout: fuel ?? charging };
+  const view = { ...rest, timeout: fuel ?? charging };
+  return analyze ? { ...view, borgAnalysis: analyze(view) } : view;
 }
 
-function storeItemView(item: KnownStoreItem): StoreItemView {
+function storeItemView(item: KnownStoreItem, analyze?: ItemAnalyzer): StoreItemView {
   const { index, price } = item;
-  return { ...itemView(item), index, ...(price === undefined ? {} : { price }) };
+  return { ...itemView(item, analyze), index, ...(price === undefined ? {} : { price }) };
 }
 
 /* Monsters. */
@@ -197,7 +198,7 @@ export function simulationView(floors: GradeFloors): (simulation: LoadoutSimulat
   const loadout = (view: LoadoutSimulation["before"]) => ({
     player: playerView(view.player, floors),
     equipment: view.equipment.map((item) => (item === null ? null : itemView(item))),
-    inventory: view.inventory.map(itemView),
+    inventory: view.inventory.map((item) => itemView(item)),
     stats: writable(view.stats),
   });
   return (simulation) =>
@@ -224,10 +225,12 @@ export async function readWorld(api: Api2Reads, reads: WorldReads): Promise<Worl
 
   const { statics } = reads;
   const player = playerView(known.player, statics.floors);
-  const inventory = (known.inventory ?? []).map(itemView);
-  const equipment = (known.equipment ?? []).map((item) => (item === null ? null : itemView(item)));
-  const quiver = (known.quiver ?? []).map(itemView);
-  const floorHere = (known.floorHere ?? []).map(itemView);
+  const analyze = await itemAnalyzer(api);
+  const adapt = (item: KnownItem) => itemView(item, analyze);
+  const inventory = (known.inventory ?? []).map(adapt);
+  const equipment = (known.equipment ?? []).map((item) => (item === null ? null : adapt(item)));
+  const quiver = (known.quiver ?? []).map(adapt);
+  const floorHere = (known.floorHere ?? []).map(adapt);
   const monsters = await monsterViews(known, reads);
   if (reads.truth !== null) await reads.races.ensure(reads.truth, monsters.map((monster) => monster.raceIndex));
   await reads.activations.ensure(api, equipment);
@@ -277,9 +280,9 @@ export async function readWorld(api: Api2Reads, reads: WorldReads): Promise<Worl
   noteKinds(inventory);
   noteKinds(quiver);
   noteKinds(floorHere);
-  noteKinds(equipment.filter((item): item is ItemView => item !== null));
-  const floorOf = (x: number, y: number): ItemView[] => (cells.get(y * width + x)?.remembered.items ?? []).map(itemView);
-  for (const remembered of cells.values()) noteKinds((remembered.remembered.items ?? []).map(itemView));
+  noteKinds(equipment.filter((item) => item !== null));
+  const floorOf = (x: number, y: number): ItemView[] => (cells.get(y * width + x)?.remembered.items ?? []).map(adapt);
+  for (const remembered of cells.values()) noteKinds((remembered.remembered.items ?? []).map(adapt));
 
   const view: AgentView = {
     apiVersion: "2.0.0",
@@ -294,7 +297,7 @@ export async function readWorld(api: Api2Reads, reads: WorldReads): Promise<Worl
     floorItems: (x, y) => (x === player.grid.x && y === player.grid.y ? [...floorHere] : floorOf(x, y)),
     target: () => (known.target === null ? null : { midx: known.target.monster ?? 0, grid: { x: known.target.grid.x, y: known.target.grid.y } }),
     messages: () => reads.messages?.drain() ?? [],
-    stores: () => (known.stores ?? []).map((store): StoreView => ({ ...writable(store), stock: store.stock.map(storeItemView) })),
+    stores: () => (known.stores ?? []).map((store): StoreView => ({ ...writable(store), stock: store.stock.map((item) => storeItemView(item, analyze)) })),
     spellbooks: () => (known.spellbooks ?? []).map((book) => writable(book)),
     constants: () => ({ ...statics.constants }),
     inputToken: () => ({ epoch: known.token.epoch, revision: known.token.revision }),

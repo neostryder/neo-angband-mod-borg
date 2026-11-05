@@ -15,7 +15,7 @@ import type { BorgContext, ItemView, AgentCommand } from "./types.js";
 import { BI } from "../trait/trait-index.js";
 import { TV } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
-import { trait, isAware, isIdent, itemValue, canRest } from "./deps.js";
+import { trait, isAware, isIdent, itemValue, canRest, needsIdent, packItems } from "./deps.js";
 import { SVAL } from "./svals.js";
 import { mod as modOf } from "../trait/item-util.js";
 
@@ -37,16 +37,17 @@ export interface WearDeps extends ItemDeps {
 
 export interface RechargeDeps extends WearDeps {
   /** Continue the C's queued wear + R75 sequence on the next command. */
-  restAfterWear?: () => void;
+  restAfterWear?: (handle: number) => void;
 }
 
-/** FORK (Mandos #50), DEFECT: borg_wear_recharge (wear.c:1449), omitted rung. */
+/** borg_wear_recharge (borg-item-wear.c:1449-1535) queues wearing and R75. */
 export function borgWearRecharge(ctx: BorgContext, d?: RechargeDeps): AgentCommand | null {
   if (!canRest(d) || trait(ctx, BI.ISWEAK)) return null;
   let best: ItemView | null = null;
   let worn = false;
-  // C scans the pack before equipment and keeps the LAST uncharged item.
-  for (const [items, equipped] of [[ctx.view.inventory(), false], [ctx.view.equipment(), true]] as const) {
+  // borg-item-wear.c:1464 scans pack and equipment through INVEN_TOTAL.
+  const pack = packItems(ctx);
+  for (const [items, equipped] of [[pack, false], [ctx.view.equipment(), true]] as const) {
     for (const item of items) {
       if (!item || item.number <= 0 || !item.timeout) continue;
       // Preserve the C condition, even though its comment describes a narrower rod rule.
@@ -59,7 +60,7 @@ export function borgWearRecharge(ctx: BorgContext, d?: RechargeDeps): AgentComma
   if (!best) return null;
   if (worn || best.tval === TV.ROD) return ctx.act.rest(75);
   if (!wieldSlot(best)) return null;
-  d?.restAfterWear?.();
+  d?.restAfterWear?.(best.handle);
   return ctx.act.wear(best.handle);
 }
 
@@ -115,6 +116,11 @@ function wieldSlot(item: ItemView): Slot | null {
     default:
       return null;
   }
+}
+
+/** borg-inventory.c:274-290 keeps wieldable items with unknown runes. */
+export function borgItemWorthId(item: ItemView): boolean {
+  return needsIdent(item) && wieldSlot(item) !== null;
 }
 
 /** The item currently worn in the same category, or null. */

@@ -361,10 +361,9 @@ export function canBrowse(item: ItemView, d?: StoreDeps): boolean {
 
 /** PACK_SLOTS = z_info->pack_size - BI_QUIVER_SLOTS (borg-item.h:153). */
 export function packSlots(ctx: BorgContext, d?: StoreDeps): number {
-  /* FORK (Mandos #50), DEFECT: the inventory master list includes quivered
-   * handles. Derive their occupied pack slots from the separate known view;
-   * BI_QUIVER_SLOTS was never populated by this port. 40/5 are the stock
-   * quiver-slot size / thrown-item multiplier at our content pin. */
+  /* Engine packSlotsUsed (game/gear.ts:551-575) charges weighted quantities
+   * in groups of 40, with a multiplier of 5 for thrown items at this content
+   * pin. BI_QUIVER_SLOTS counts entries for borg-power.c:1610,1625 penalties. */
   const quiver = ctx.view.quiver?.();
   const slots = quiver === undefined ? st(ctx, BI.QUIVER_SLOTS) : Math.ceil(quiver.reduce((count, item) =>
     count + item.number * (([TV.SHOT, TV.ARROW, TV.BOLT] as readonly number[]).includes(item.tval) ? 1 : 5), 0) / 40);

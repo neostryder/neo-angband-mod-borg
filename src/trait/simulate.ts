@@ -160,6 +160,17 @@ function shadowView(view: BorgView, answer: BorgLoadoutAnswer): BorgView {
   };
 }
 
+/** borg-junk.c:659-688 reads inventory traits with the candidate stack absent. */
+export function borgNoticeWithout(ctx: BorgContext, handle: number): BorgContext {
+  const reduced: BorgContext = {
+    ...ctx,
+    world: shadowWorld(ctx.world),
+    view: { ...ctx.view, inventory: () => ctx.view.inventory().filter((item) => item.handle !== handle) },
+  };
+  borgNotice(reduced);
+  return reduced;
+}
+
 /**
  * borg.power for the loadout `change` would produce, or null when the view has
  * no live derive behind it (a worldless harness). The agent API declares the
