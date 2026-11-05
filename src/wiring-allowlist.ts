@@ -18,8 +18,6 @@ export const WIRING_ALLOWLIST: readonly {
   { name: "BI.WK_DRAGON", kind: "constant", reason: "Upstream also leaves the dragon kill flag zero and writes the WS_DRAGON slay trait instead.", c: "borg-trait.c:2829 (blanket zeroing only); borg-fight-attack.c:149 (read)" },
   { name: "BI.WK_UNDEAD", kind: "constant", reason: "Upstream also leaves the undead kill flag zero and writes the WS_UNDEAD slay trait instead.", c: "borg-trait.c:2829 (blanket zeroing only); borg-fight-attack.c:147 (read)" },
   { name: "BI.WORN_NEED_ID", kind: "bug", reason: "The port never counts unidentified worn gear for the equipment power bonus.", c: "borg-trait.c:1437" },
-  { name: "facts.vaultOnLevel", kind: "bug", reason: "The port never marks a vault after perceiving interior permanent walls.", c: "borg-update.c:420" },
-  { name: "self.goal.doBest", kind: "bug", reason: "The port never requests the best home loadout when the best-item list is cleared.", c: "borg-item-wear.c:1441" },
   { name: "self.goal.fleeingLunal", kind: "constant", reason: "Lunal mode is deliberately disabled in think-ladder.ts, so its fleeing flag stays false.", c: "borg-think-dungeon.c:230 (disabled mode)" },
   { name: "self.goal.fleeingMunchkin", kind: "constant", reason: "Munchkin mode is deliberately disabled in think-ladder.ts, so its fleeing flag stays false.", c: "borg-think-dungeon.c:583 (disabled mode)" },
   { name: "self.lunalMode", kind: "constant", reason: "The port deliberately omits the optional lunal-mode entry block in think-ladder.ts.", c: "borg-think-dungeon.c:1476 (disabled mode)" },
