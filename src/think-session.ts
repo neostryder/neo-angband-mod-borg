@@ -209,11 +209,11 @@ function buildFlowHooks(session: ThinkSession): FlowHooks {
     layGlyph: (c) =>
       borgSpell(c, Spell.GLYPH_OF_WARDING) ??
       borgReadScroll(c, SVAL.scroll.rune_of_protection!),
-    /* borg_play_step's trap and door magic (borg-flow.c:901-924, 963-987),
-     * each aimed at the step grid the way the C's borg_target(goal.g) /
-     * direction keypress aims it. */
+    /* borg-flow.c:903, 969, 977 resolves charged equipment through
+     * borg_activate_item (borg-item-use.c:936-948). The session supplies
+     * that lookup; borg_target at :911 and the direction at :979 aim it. */
     disableTrap: (c, y, x, spellOk) => {
-      const activation = borgActivateItem(c, "act_disable_traps");
+      const activation = borgActivateItem(c, "act_disable_traps", buildItemDeps(session));
       if (activation !== null) {
         borgTarget(c, y, x);
         return activation;
@@ -221,13 +221,13 @@ function buildFlowHooks(session: ThinkSession): FlowHooks {
       return spellOk ? borgSpell(c, Spell.DISABLE_TRAPS_DESTROY_DOORS) : null;
     },
     forceDoor: (c, y, x) => {
-      const destroy = borgSpell(c, Spell.DISABLE_TRAPS_DESTROY_DOORS) ?? borgActivateItem(c, "act_destroy_doors");
+      const destroy = borgSpell(c, Spell.DISABLE_TRAPS_DESTROY_DOORS) ?? borgActivateItem(c, "act_destroy_doors", buildItemDeps(session));
       if (destroy !== null) return { cmd: destroy, via: "destroy" as const };
       const melt =
         borgSpell(c, Spell.TURN_STONE_TO_MUD) ??
         borgSpell(c, Spell.SHATTER_STONE) ??
         borgActivateRing(c, SVAL.ring.digging!) ??
-        borgActivateItem(c, "act_stone_to_mud");
+        borgActivateItem(c, "act_stone_to_mud", buildItemDeps(session));
       if (melt === null) return null;
       borgTarget(c, y, x);
       return { cmd: melt, via: "melt" as const };

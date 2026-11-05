@@ -19,10 +19,8 @@
  *   faithful degenerate value) and traits read 0 until filled. The BFS, cost
  *   model, fear thresholds, goal ordering, AUTO_FLOW_MAX (1536), the 250-grid
  *   path assumption and the play-step branch order are ported verbatim.
- * - Spell/ring/activation branches inside borg_play_step (stone-to-mud melting,
- *   disable-traps, etc.) need magic/item subsystems not yet ported; the port
- *   keeps the surrounding structure and falls through to the physical action
- *   (tunnel / disarm / open), which is the same grid the borg would end on.
+ * - Trap and door magic uses the session's spell/item hooks (borg-flow.c:903-987).
+ *   Wall melting falls through to tunneling.
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
@@ -739,8 +737,8 @@ export function borgPlayStep(
       if (ag2.kill && trait(w, BI.CLEVEL) < 15 && !trait(w, BI.ISAFRAID))
         return null;
     }
-    /* "Use other techniques from time to time" (borg-flow.c:963-987). The
-     * draw happens on every door, as the C's `!randint0(100) || ...` does. */
+    /* The second draw follows the monster guard even at 500 panel turns
+     * (borg-flow.c:966); the first draw above is the paranoia check at :941. */
     if (ctx.rng.randint0(100) === 0 || w.self.timeThisPanel >= 500) {
       const forced = flow.hooks.forceDoor(ctx, y, x);
       if (forced !== null) {
