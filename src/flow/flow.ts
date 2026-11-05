@@ -21,7 +21,7 @@
  *   model, fear thresholds, goal ordering, AUTO_FLOW_MAX (1536), the 250-grid
  *   path assumption and the play-step branch order are ported verbatim.
  * - Trap and door magic uses the session's spell/item hooks (borg-flow.c:903-987).
- *   Wall melting falls through to tunneling.
+ *   Wall melting uses the same session item dependencies (borg-flow.c:1034-1044).
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
@@ -137,6 +137,8 @@ export interface FlowHooks {
    * stone-to-mud activation, aimed at the door. Null when none applies.
    */
   forceDoor: (ctx: BorgContext, y: number, x: number) => { readonly cmd: AgentCommand; readonly via: "destroy" | "melt" } | null;
+  /** Melt a wall before tunneling (borg-flow.c:1034-1044). */
+  meltWall: (ctx: BorgContext, y: number, x: number) => AgentCommand | null;
   /** OPT(player, birth_force_descend): the level cannot be climbed. */
   forceDescend: boolean;
   /** borg_prepared(depth + 1) == NULL: safe to dive one level deeper. */
@@ -178,6 +180,7 @@ export function defaultFlowHooks(): FlowHooks {
     layGlyph: () => null,
     disableTrap: () => null,
     forceDoor: () => null,
+    meltWall: () => null,
     forceDescend: false,
     preparedToDescend: () => true,
     countSell: () => 0,
@@ -783,6 +786,13 @@ export function borgPlayStep(
       w.self.goal.type = 0;
       return null;
     }
+    const magic = flow.hooks.meltWall(ctx, y, x);
+    if (magic !== null) {
+      flow.vein.wipe();
+      return magic;
+    }
+    /* Vault digging keeps the draw but ignores its abort (borg-flow.c:1048). */
+    if (ctx.rng.randint0(500) <= 5 && !w.facts.vaultOnLevel) return null;
     flow.vein.wipe();
     return act.tunnel(dir);
   }

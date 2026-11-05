@@ -131,6 +131,7 @@ var BORG_GLOW = 2;
 var BORG_DARK = 4;
 var BORG_LIGHT = 16;
 var BORG_VIEW = 32;
+var BORG_IGNORE_MAP = 256;
 function makeBorgGrid() {
   return {
     feat: 0,
@@ -628,81 +629,6 @@ function makeBorgRng(seed = BORG_LOCAL_SEED) {
   return new Rng(seed >>> 0);
 }
 
-// src/trait/trait-index.ts
-var BI_MAX = 265 /* MAX */;
-var CLASS_WARRIOR = 0;
-var CLASS_MAGE = 1;
-var CLASS_DRUID = 2;
-var CLASS_PRIEST = 3;
-var CLASS_NECROMANCER = 4;
-var CLASS_PALADIN = 5;
-var CLASS_ROGUE = 6;
-var CLASS_RANGER = 7;
-var CLASS_BLACKGUARD = 8;
-var STAT_STR = 0;
-var STAT_INT = 1;
-var STAT_WIS = 2;
-var STAT_DEX = 3;
-var STAT_CON = 4;
-var STAT_MAX = 5;
-var BORG_INVEN = 1;
-var BORG_EQUIP = 2;
-var BORG_QUILL = 4;
-function classIndexFromName(name) {
-  switch (name.toLowerCase()) {
-    case "warrior":
-      return CLASS_WARRIOR;
-    case "mage":
-      return CLASS_MAGE;
-    case "druid":
-      return CLASS_DRUID;
-    case "priest":
-      return CLASS_PRIEST;
-    case "necromancer":
-      return CLASS_NECROMANCER;
-    case "paladin":
-      return CLASS_PALADIN;
-    case "rogue":
-      return CLASS_ROGUE;
-    case "ranger":
-      return CLASS_RANGER;
-    case "blackguard":
-      return CLASS_BLACKGUARD;
-    default:
-      return CLASS_WARRIOR;
-  }
-}
-function spellStatForClass(cls) {
-  switch (cls) {
-    case CLASS_MAGE:
-      return STAT_INT;
-    /* arcane */
-    case CLASS_ROGUE:
-      return STAT_INT;
-    /* arcane */
-    case CLASS_NECROMANCER:
-      return STAT_INT;
-    /* shadow */
-    case CLASS_BLACKGUARD:
-      return STAT_INT;
-    /* shadow */
-    case CLASS_PRIEST:
-      return STAT_WIS;
-    /* divine */
-    case CLASS_PALADIN:
-      return STAT_WIS;
-    /* divine */
-    case CLASS_DRUID:
-      return STAT_WIS;
-    /* nature */
-    case CLASS_RANGER:
-      return STAT_WIS;
-    /* nature */
-    default:
-      return -1;
-  }
-}
-
 // src/core-api.ts
 var FEAT;
 var TV;
@@ -880,6 +806,81 @@ function borgActions(host) {
 }
 function hostController(decide) {
   return (view, act) => decide(borgView(view), borgActions(act));
+}
+
+// src/trait/trait-index.ts
+var BI_MAX = 265 /* MAX */;
+var CLASS_WARRIOR = 0;
+var CLASS_MAGE = 1;
+var CLASS_DRUID = 2;
+var CLASS_PRIEST = 3;
+var CLASS_NECROMANCER = 4;
+var CLASS_PALADIN = 5;
+var CLASS_ROGUE = 6;
+var CLASS_RANGER = 7;
+var CLASS_BLACKGUARD = 8;
+var STAT_STR = 0;
+var STAT_INT = 1;
+var STAT_WIS = 2;
+var STAT_DEX = 3;
+var STAT_CON = 4;
+var STAT_MAX = 5;
+var BORG_INVEN = 1;
+var BORG_EQUIP = 2;
+var BORG_QUILL = 4;
+function classIndexFromName(name) {
+  switch (name.toLowerCase()) {
+    case "warrior":
+      return CLASS_WARRIOR;
+    case "mage":
+      return CLASS_MAGE;
+    case "druid":
+      return CLASS_DRUID;
+    case "priest":
+      return CLASS_PRIEST;
+    case "necromancer":
+      return CLASS_NECROMANCER;
+    case "paladin":
+      return CLASS_PALADIN;
+    case "rogue":
+      return CLASS_ROGUE;
+    case "ranger":
+      return CLASS_RANGER;
+    case "blackguard":
+      return CLASS_BLACKGUARD;
+    default:
+      return CLASS_WARRIOR;
+  }
+}
+function spellStatForClass(cls) {
+  switch (cls) {
+    case CLASS_MAGE:
+      return STAT_INT;
+    /* arcane */
+    case CLASS_ROGUE:
+      return STAT_INT;
+    /* arcane */
+    case CLASS_NECROMANCER:
+      return STAT_INT;
+    /* shadow */
+    case CLASS_BLACKGUARD:
+      return STAT_INT;
+    /* shadow */
+    case CLASS_PRIEST:
+      return STAT_WIS;
+    /* divine */
+    case CLASS_PALADIN:
+      return STAT_WIS;
+    /* divine */
+    case CLASS_DRUID:
+      return STAT_WIS;
+    /* nature */
+    case CLASS_RANGER:
+      return STAT_WIS;
+    /* nature */
+    default:
+      return -1;
+  }
 }
 
 // src/trait/tables.ts
@@ -3363,6 +3364,16 @@ function borgUpdateMonsterFear(ctx) {
   for (const [i, kill] of world.kills.entries()) {
     if (g.resolveFacts(ctx, i).flags.has("NEVER_MOVE")) continue;
     if (borgDistance(kill.pos.y, kill.pos.x, py, px) >= 20) continue;
+    if (world.facts.vaultOnLevel) {
+      let inVault = false;
+      for (let ii = 0; ii < 8; ii++) {
+        const x = kill.pos.x + ddx_ddd2[ii];
+        const y = kill.pos.y + ddy_ddd2[ii];
+        if (!squareInBoundsFully(x, y)) continue;
+        if (world.map.at(x, y).feat === FEAT.PERM) inVault = true;
+      }
+      if (inVault) continue;
+    }
     const p = Math.trunc(borgDanger(ctx, kill.pos.y, kill.pos.x, 1, false, false) / 10);
     borgFearGrid(world, g, st2.fear, kill.pos.y, kill.pos.x, p);
   }
@@ -4004,6 +4015,7 @@ function defaultFlowHooks() {
     layGlyph: () => null,
     disableTrap: () => null,
     forceDoor: () => null,
+    meltWall: () => null,
     forceDescend: false,
     preparedToDescend: () => true,
     countSell: () => 0,
@@ -4327,6 +4339,12 @@ function borgPlayStep(ctx, flow, y2, x2) {
       w.self.goal.type = 0;
       return null;
     }
+    const magic = flow.hooks.meltWall(ctx, y, x);
+    if (magic !== null) {
+      flow.vein.wipe();
+      return magic;
+    }
+    if (ctx.rng.randint0(500) <= 5 && !w.facts.vaultOnLevel) return null;
     flow.vein.wipe();
     return act.tunnel(dir);
   }
@@ -14611,6 +14629,11 @@ function buildFlowHooks(session) {
       borgTarget(c, y, x);
       return { cmd: melt, via: "melt" };
     },
+    meltWall: (c, y, x) => {
+      const melt = borgSpell(c, 38 /* TURN_STONE_TO_MUD */) ?? borgSpell(c, 121 /* SHATTER_STONE */) ?? borgActivateRing(c, SVAL.ring.digging) ?? borgActivateItem(c, "act_stone_to_mud", buildItemDeps(session));
+      if (melt !== null) borgTarget(c, y, x);
+      return melt;
+    },
     forceDescend: session.resolvers.forceDescend ?? false,
     preparedToDescend: (world) => borgPrepared(ctx(), (world.self.trait[105 /* CDEPTH */] ?? 0) + 1) === null,
     countSell: (_world) => borgCountSell(ctx(), buildStoreDeps(session)),
@@ -15100,6 +15123,14 @@ function borgLeaveLevel(ctx, session, bored) {
   if (bored && T(ctx, 36 /* MAXCLEVEL */) >= 26 && sellCount >= 12) g.rising = true;
   if (T(ctx, 124 /* ISFIXLEV */)) g.rising = true;
   if (bored && T(ctx, 125 /* ISFIXEXP */) && T(ctx, 35 /* CLEVEL */) !== 50) g.rising = true;
+  const fight = getFightState(w);
+  const timeAway = fight.timeTown + w.clock - flow.state.borgBegan;
+  if (!g.rising && bored && !w.facts.vaultOnLevel && !fight.fightingUnique && timeAway > 8e3 || timeAway > 12e3) {
+    if (T(ctx, 106 /* MAXDEPTH */) < 99 || !w.facts.uniqueOnLevel) g.rising = true;
+  }
+  if (!w.facts.vaultOnLevel && T(ctx, 264 /* PREP_BIG_FIGHT */) && (T(ctx, 215 /* AEZHEAL */) >= 3 || T(ctx, 216 /* ALIFE */) >= 1)) {
+    g.rising = true;
+  }
   if (T(ctx, 107 /* KING */)) dir = 1;
   if (T(ctx, 105 /* CDEPTH */) < 100 && borgPrepared(ctx, 99) === null) dir = 1;
   if (!dir && g.rising) dir = -1;
@@ -15203,6 +15234,50 @@ function borgThinkDungeonLight(ctx, session) {
       const lit2 = session.flow.toLight(ctx, GOAL_FLEE);
       if (lit2) return lit2;
     }
+  }
+  return null;
+}
+function borgExcavateVault(ctx, session, range) {
+  const w = ctx.world;
+  const st2 = session.flow.state;
+  st2.tempN = 0;
+  if (!w.facts.vaultOnLevel) return null;
+  if (!borgSpellOkayFail(ctx, 38 /* TURN_STONE_TO_MUD */, 30) && !borgSpellOkayFail(ctx, 121 /* SHATTER_STONE */, 30)) return null;
+  for (let y = 0; y < w.map.height; y++) {
+    for (let x = 0; x < w.map.width; x++) {
+      if (distance2(w.self.c.x, w.self.c.y, x, y) > range) continue;
+      const feat = w.map.at(x, y).feat;
+      if (feat !== FEAT.GRANITE && feat !== FEAT.RUBBLE && feat !== FEAT.QUARTZ && feat !== FEAT.MAGMA && feat !== FEAT.QUARTZ_K && feat !== FEAT.MAGMA_K) continue;
+      for (let i = 0; i < 8; i++) {
+        const bx = x + ddx_ddd[i];
+        const by = y + ddy_ddd[i];
+        if (!inBoundsFully(bx, by) || w.map.at(bx, by).feat !== FEAT.PERM) continue;
+        let ii = 0;
+        for (; ii < st2.tempN; ii++) {
+          if (st2.tempY[ii] === y && st2.tempX[ii] === x) break;
+        }
+        if (ii === st2.tempN && ii < AUTO_TEMP_MAX) {
+          st2.tempX[ii] = x;
+          st2.tempY[ii] = y;
+          st2.tempN++;
+        }
+      }
+    }
+  }
+  const deps = buildItemDeps(session);
+  for (let i = 0; i < st2.tempN; i++) {
+    const x = st2.tempX[i];
+    const y = st2.tempY[i];
+    if (!st2.hooks.los(w, w.self.c.y, w.self.c.x, y, x)) continue;
+    borgTarget(ctx, y, x);
+    const cmd = borgSpell(ctx, 38 /* TURN_STONE_TO_MUD */) ?? borgActivateRing(ctx, SVAL.ring.digging) ?? borgActivateItem(ctx, "act_stone_to_mud", deps) ?? (distance2(w.self.c.x, w.self.c.y, x, y) === 1 ? borgSpell(ctx, 121 /* SHATTER_STONE */) : null);
+    if (!cmd) continue;
+    const grid = w.map.at(x, y);
+    grid.info &= ~BORG_GLOW;
+    grid.info |= BORG_GLOW | BORG_IGNORE_MAP;
+    grid.feat = FEAT.FLOOR;
+    st2.vein.wipe();
+    return cmd;
   }
   return null;
 }
@@ -15566,6 +15641,20 @@ function borgThinkDungeon(ctx, session) {
   }
   {
     const cmd = borgFlowOld(ctx, st2, GOAL_VAULT);
+    if (cmd) return cmd;
+  }
+  if (w.facts.vaultOnLevel) {
+    let cmd = flow.toKills(ctx, (ctx.view.constants().maxRange ?? 20) + 1, false);
+    if (cmd) return cmd;
+    cmd = flow.toTakes(ctx, false, 35);
+    if (cmd) return cmd;
+    cmd = flow.toVein(ctx, false, 35);
+    if (cmd) return cmd;
+    cmd = borgExcavateVault(ctx, session, (ctx.view.constants().maxRange ?? 20) - 2);
+    if (cmd) return cmd;
+    cmd = flow.toVault(ctx, 35);
+    if (cmd) return cmd;
+    cmd = flow.toDark(ctx, true);
     if (cmd) return cmd;
   }
   {
@@ -16300,8 +16389,14 @@ function ingestMap(world, view) {
       if (!c) continue;
       if (!c.known && !c.inView) continue;
       const g = world.map.at(x, y);
-      g.feat = c.feat;
+      if (c.feat !== FEAT.NONE && (c.inView || !(g.info & BORG_IGNORE_MAP))) {
+        g.feat = c.feat;
+        if (c.inView) g.info &= ~BORG_IGNORE_MAP;
+      }
       g.trap = c.trap;
+      if (g.feat === FEAT.PERM && world.facts.depth && x && y && x !== bounds.width - 1 && y !== bounds.height - 1) {
+        world.facts.vaultOnLevel = true;
+      }
       let info = g.info | BORG_MARK;
       if (c.inView) info |= BORG_VIEW;
       else info &= ~BORG_VIEW;

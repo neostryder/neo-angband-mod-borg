@@ -25,11 +25,12 @@
  */
 
 import type { ItemView } from "@rpgm-tools/neo-angband-core";
-import type { BorgView } from "./core-api.js";
+import { FEAT, type BorgView } from "./core-api.js";
 import {
   AUTO_MAX_X,
   AUTO_MAX_Y,
   BORG_GLOW,
+  BORG_IGNORE_MAP,
   BORG_LIGHT,
   BORG_MARK,
   BORG_VIEW,
@@ -177,8 +178,17 @@ function ingestMap(world: BorgWorld, view: BorgView): void {
       if (!c.known && !c.inView) continue;
 
       const g = world.map.at(x, y);
-      g.feat = c.feat;
+      /* Unseen terrain keeps the excavation result (borg-update.c:287-295). */
+      if (c.feat !== FEAT.NONE && (c.inView || !(g.info & BORG_IGNORE_MAP))) {
+        g.feat = c.feat;
+        if (c.inView) g.info &= ~BORG_IGNORE_MAP;
+      }
       g.trap = c.trap;
+
+      /* Interior permanent walls mark vault levels (borg-update.c:418-420). */
+      if (g.feat === FEAT.PERM && world.facts.depth && x && y && x !== bounds.width - 1 && y !== bounds.height - 1) {
+        world.facts.vaultOnLevel = true;
+      }
 
       let info = g.info | BORG_MARK;
       if (c.inView) info |= BORG_VIEW;

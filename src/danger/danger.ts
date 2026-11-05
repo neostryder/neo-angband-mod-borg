@@ -1660,8 +1660,7 @@ export function borgDanger(
  * a cache that eventually gets read stale. Call once per think, after perception
  * has refreshed the monster list and before anything reads borg_danger.
  *
- * The vault checks are omitted for the reason fear.ts documents: the remembered
- * map carries no vault flag, so they can only ever add fear the C would skip.
+ * Permanent walls identify vault monsters (borg-update.c:2957-2983).
  */
 export function borgUpdateMonsterFear(ctx: BorgContext): void {
   const world = ctx.world;
@@ -1680,6 +1679,18 @@ export function borgUpdateMonsterFear(ctx: BorgContext): void {
 
     /* Skip monsters that are far away */
     if (borgDistance(kill.pos.y, kill.pos.x, py, px) >= 20) continue;
+
+    /* Vault monsters do not add grid fear (borg-update.c:2957-2983). */
+    if (world.facts.vaultOnLevel) {
+      let inVault = false;
+      for (let ii = 0; ii < 8; ii++) {
+        const x = kill.pos.x + ddx_ddd[ii]!;
+        const y = kill.pos.y + ddy_ddd[ii]!;
+        if (!squareInBoundsFully(x, y)) continue;
+        if (world.map.at(x, y).feat === FEAT.PERM) inVault = true;
+      }
+      if (inVault) continue;
+    }
 
     /* Obtain some danger */
     const p = Math.trunc(borgDanger(ctx, kill.pos.y, kill.pos.x, 1, false, false) / 10);

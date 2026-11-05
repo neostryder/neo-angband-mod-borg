@@ -238,6 +238,15 @@ function buildFlowHooks(session: ThinkSession): FlowHooks {
       borgTarget(c, y, x);
       return { cmd: melt, via: "melt" as const };
     },
+    meltWall: (c, y, x) => {
+      const melt =
+        borgSpell(c, Spell.TURN_STONE_TO_MUD) ??
+        borgSpell(c, Spell.SHATTER_STONE) ??
+        borgActivateRing(c, SVAL.ring.digging!) ??
+        borgActivateItem(c, "act_stone_to_mud", buildItemDeps(session));
+      if (melt !== null) borgTarget(c, y, x);
+      return melt;
+    },
     forceDescend: session.resolvers.forceDescend ?? false,
     preparedToDescend: (world) =>
       borgPrepared(ctx(), (world.self.trait[BI.CDEPTH] ?? 0) + 1) === null,

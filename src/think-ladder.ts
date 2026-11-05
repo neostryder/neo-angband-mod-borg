@@ -55,8 +55,8 @@ import {
   GOAL_RECOVER,
 } from "./world/model.js";
 import { borgFlowOld } from "./flow/index.js";
-import { ddx_ddd, ddy_ddd, inBoundsFully } from "./flow/flow-consts.js";
-import { BORG_DARK, BORG_GLOW, BORG_MARK } from "./world/grid.js";
+import { AUTO_TEMP_MAX, ddx_ddd, ddy_ddd, inBoundsFully } from "./flow/flow-consts.js";
+import { BORG_DARK, BORG_GLOW, BORG_IGNORE_MAP, BORG_MARK } from "./world/grid.js";
 import { CLASS_NECROMANCER } from "./trait/trait-index.js";
 import {
   borgAttack,
@@ -68,6 +68,7 @@ import {
   borgDimensionDoor,
   borgShadowShift,
   getFightState,
+  borgTarget,
 } from "./fight/index.js";
 import { getDangerGlobals, getFearCaches, borgDanger } from "./danger/index.js";
 import {
@@ -91,6 +92,8 @@ import {
   borgCheckLight,
   borgLightBeam,
   borgSpell,
+  borgSpellOkayFail,
+  borgActivateRing,
   borgReadScroll,
   borgUseStaff,
   borgActivateItem,
@@ -370,6 +373,21 @@ export function borgLeaveLevel(
   if (T(ctx, BI.ISFIXLEV)) g.rising = true;
   if (bored && T(ctx, BI.ISFIXEXP) && T(ctx, BI.CLEVEL) !== 50) g.rising = true;
 
+  /* Vaults defer bored town trips until 12000 turns (borg-think-dungeon-util.c:832-840). */
+  const fight = getFightState(w);
+  const timeAway = fight.timeTown + w.clock - flow.state.borgBegan;
+  if (
+    (!g.rising && bored && !w.facts.vaultOnLevel && !fight.fightingUnique && timeAway > 8000) ||
+    timeAway > 12000
+  ) {
+    if (T(ctx, BI.MAXDEPTH) < 99 || !w.facts.uniqueOnLevel) g.rising = true;
+  }
+
+  /* Vaults defer potion delivery (borg-think-dungeon-util.c:851-855). */
+  if (!w.facts.vaultOnLevel && T(ctx, BI.PREP_BIG_FIGHT) && (T(ctx, BI.AEZHEAL) >= 3 || T(ctx, BI.ALIFE) >= 1)) {
+    g.rising = true;
+  }
+
   /* Power dive if King / prepared for 99 (util:868). */
   if (T(ctx, BI.KING)) dir = 1;
   if (T(ctx, BI.CDEPTH) < 100 && borgPrepared(ctx, 99) === null) dir = 1;
@@ -540,6 +558,58 @@ export function borgThinkDungeonLight(
 export function borgMoneyScum(ctx: BorgContext): AgentCommand | null {
   void ctx;
   return null; /* BORG_MONEY_SCUM_AMOUNT == 0 in the stock port config */
+}
+
+/** Excavate vault walls from range (borg-think-dungeon-util.c:986-1108). */
+function borgExcavateVault(ctx: BorgContext, session: ThinkSession, range: number): AgentCommand | null {
+  const w = ctx.world;
+  const st = session.flow.state;
+  st.tempN = 0;
+  if (!w.facts.vaultOnLevel) return null;
+  if (!borgSpellOkayFail(ctx, Spell.TURN_STONE_TO_MUD, 30) && !borgSpellOkayFail(ctx, Spell.SHATTER_STONE, 30)) return null;
+
+  for (let y = 0; y < w.map.height; y++) {
+    for (let x = 0; x < w.map.width; x++) {
+      if (distance(w.self.c.x, w.self.c.y, x, y) > range) continue;
+      const feat = w.map.at(x, y).feat;
+      if (feat !== FEAT.GRANITE && feat !== FEAT.RUBBLE && feat !== FEAT.QUARTZ && feat !== FEAT.MAGMA && feat !== FEAT.QUARTZ_K && feat !== FEAT.MAGMA_K) continue;
+      for (let i = 0; i < 8; i++) {
+        const bx = x + ddx_ddd[i]!;
+        const by = y + ddy_ddd[i]!;
+        if (!inBoundsFully(bx, by) || w.map.at(bx, by).feat !== FEAT.PERM) continue;
+        let ii = 0;
+        for (; ii < st.tempN; ii++) {
+          if (st.tempY[ii] === y && st.tempX[ii] === x) break;
+        }
+        if (ii === st.tempN && ii < AUTO_TEMP_MAX) {
+          st.tempX[ii] = x;
+          st.tempY[ii] = y;
+          st.tempN++;
+        }
+      }
+    }
+  }
+
+  const deps = buildItemDeps(session);
+  for (let i = 0; i < st.tempN; i++) {
+    const x = st.tempX[i]!;
+    const y = st.tempY[i]!;
+    if (!st.hooks.los(w, w.self.c.y, w.self.c.x, y, x)) continue;
+    borgTarget(ctx, y, x);
+    const cmd =
+      borgSpell(ctx, Spell.TURN_STONE_TO_MUD) ??
+      borgActivateRing(ctx, SVAL.ring.digging!) ??
+      borgActivateItem(ctx, "act_stone_to_mud", deps) ??
+      (distance(w.self.c.x, w.self.c.y, x, y) === 1 ? borgSpell(ctx, Spell.SHATTER_STONE) : null);
+    if (!cmd) continue;
+    const grid = w.map.at(x, y);
+    grid.info &= ~BORG_GLOW;
+    grid.info |= BORG_GLOW | BORG_IGNORE_MAP;
+    grid.feat = FEAT.FLOOR;
+    st.vein.wipe();
+    return cmd;
+  }
+  return null;
 }
 
 /* ---------------------------------------------- borg_think_dungeon (LADDER) */
@@ -1095,6 +1165,22 @@ export function borgThinkDungeon(
   }
   {
     const cmd = borgFlowOld(ctx, st, GOAL_VAULT);
+    if (cmd) return cmd;
+  }
+
+  /* Vaults prefer close targets, excavation and exploration (borg-think-dungeon.c:1973-1995). */
+  if (w.facts.vaultOnLevel) {
+    let cmd = flow.toKills(ctx, (ctx.view.constants().maxRange ?? 20) + 1, false);
+    if (cmd) return cmd;
+    cmd = flow.toTakes(ctx, false, 35);
+    if (cmd) return cmd;
+    cmd = flow.toVein(ctx, false, 35);
+    if (cmd) return cmd;
+    cmd = borgExcavateVault(ctx, session, (ctx.view.constants().maxRange ?? 20) - 2);
+    if (cmd) return cmd;
+    cmd = flow.toVault(ctx, 35);
+    if (cmd) return cmd;
+    cmd = flow.toDark(ctx, true);
     if (cmd) return cmd;
   }
 

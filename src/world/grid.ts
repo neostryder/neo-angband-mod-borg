@@ -32,6 +32,7 @@ export const BORG_LIGHT = 0x10; /* lit by the torch */
 export const BORG_VIEW = 0x20; /* in line of sight */
 export const BORG_TEMP = 0x40; /* temporary flag */
 export const BORG_XTRA = 0x80; /* extra flag */
+export const BORG_IGNORE_MAP = 0x100; /* prefer remembered terrain while unseen */
 
 /**
  * A single grid in the Borg's remembered dungeon (struct borg_grid). `feat` is
