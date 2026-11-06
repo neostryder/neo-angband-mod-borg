@@ -28,7 +28,7 @@ jobs:
         run: |
           tag="${{ github.ref_name }}"
           version="${tag#v}"
-          if [[ "$version" == 0.* ]]; then
+          if [[ "$version" == 0.* || "$version" == *-* ]]; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "Neo Angband: Borg $version" --notes-file release-notes.md --prerelease --verify-tag
           else
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "Neo Angband: Borg $version" --notes-file release-notes.md --verify-tag
