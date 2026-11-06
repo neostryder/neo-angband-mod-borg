@@ -20,6 +20,8 @@ were not retagged.
 
 ## [Unreleased]
 
+## 1.4.0-beta.3 - 2026-11-05
+
 ### Fixed
 
 - [Visible] **The Borg now takes the up staircase when an escape calls for it.** The escape steps for danger levels 3, 4, 5, 6, and 8 checked whether a staircase was available and then threw the stair command away, so the ascent never started. They now keep the command and run it before the phase door checks, as the original does (neostryder/neo-angband#463).
