@@ -20,6 +20,10 @@ were not retagged.
 
 ## [Unreleased]
 
+### Fixed
+
+- [Visible] **The Borg now carries a spare weapon and can fetch one from the home.** Before this, it gave a carried backup weapon no value, so its home-shopping step never picked a backup and a good weapon sat in the home forever. It now scores a carried weapon the way the original Borg does, counting damage, blows, to-hit and to-dam, slays and brands it lacks, resistances, immunities, a digger early on, and penalties for aggravation and bad curses, and its overall power includes the backup. At the home it takes a weapon only when that weapon scores strictly higher than its current backup, so a tie keeps the old one, and it needs one free pack slot to fetch it because the game cannot swap an occupied backup slot in one step. It skips any cursed weapon, since the game shows the Borg a curse's name but not its strength. Switching weapons during a fight and backup armour are not part of this change.
+
 ## 1.4.0-beta.3 - 2026-11-05
 
 ### Fixed
