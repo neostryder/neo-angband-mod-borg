@@ -1,3 +1,4 @@
+import { registeredLanternFixture } from "../test/fixtures/known-light.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentView, ItemView, SpellbookView } from "@rpgm-tools/neo-angband-core";
 import { makeScenarioView, makeFakeActions, type Scenario } from "./harness.js";
@@ -41,10 +42,14 @@ function scenario(options: {
   monsters?: Scenario["monsters"];
   stairs?: boolean;
   age?: number;
+  /** Explicit model radius for recall-policy isolation; not equipment proof. */
+  modelLightRadius?: number;
+  /** Repeated-controller cases use actual registered gear, not a model override. */
+  withLantern?: boolean;
 } = {}) {
   const source = makeScenarioView({
     width: 22, height: 22,
-    player: { grid: { x: 10, y: 10 }, level: 50, maxLevel: 50, depth: 5, maxDepth: 5, hp: 800, maxHp: 800, light: 3, speed: 130,
+    player: { grid: { x: 10, y: 10 }, level: 50, maxLevel: 50, depth: 5, maxDepth: 5, hp: 800, maxHp: 800, speed: 130,
       stats: [118, 118, 118, 118, 118], ...options.player },
     cells: options.stairs === false ? {} : { "11,10": { feat: FEAT.LESS }, "10,11": { feat: FEAT.MORE } },
     monsters: options.monsters ?? [],
@@ -56,9 +61,11 @@ function scenario(options: {
     item({ handle: 13, tval: TV.SCROLL, sval: SVAL.scroll.teleport!, number: 6 }),
     item({ handle: 14, tval: TV.POTION, sval: SVAL.potion.healing!, number: 5 }),
   ];
-  const equipment = options.equipment ?? [item({ handle: 20, flags: ["SEE_INVIS", "FREE_ACT", "TELEPATHY", "PROT_CONF", "PROT_BLIND"],
+  const equipment: Array<ItemView | null> = options.equipment ?? [item({ handle: 20, flags: ["SEE_INVIS", "FREE_ACT", "TELEPATHY", "PROT_CONF", "PROT_BLIND"],
     resists: ["FIRE", "COLD", "ACID", "ELEC", "POIS", "CHAOS", "DISEN"].map((element) => ({ element, level: 1 })) })];
-  const view: AgentView = { ...source, inventory: () => inventory, equipment: () => equipment,
+  const lit = options.withLantern ? registeredLanternFixture() : null;
+  if (lit) { while (equipment.length < 6) equipment.push(null); equipment[5] = lit.lantern; }
+  const view: AgentView = { ...source, ...(lit ? { player: () => ({ ...source.player(), light: lit.light }) } : {}), inventory: () => inventory, equipment: () => equipment,
     spellbooks: () => options.books ?? [],
     stores: () => options.home ? [{ feat: 0, featName: "Home", isHome: true, owner: { name: "", purse: 0 },
       stock: options.home.map((gear, index) => ({ ...gear, index })) }] : [] };
@@ -67,6 +74,7 @@ function scenario(options: {
   const ctx = { world, view, act: createActFacade().act, rng: makeBorgRng(),
     bookKind: (tval: number, name: string) => options.books?.some((book) => book.tval === tval && book.name === name) ? { tval, sval: 1 } : null };
   borgNotice(ctx);
+  world.self.trait[BI.LIGHT] = options.modelLightRadius ?? 3;
   perceive(world, view, makePerceiveMemo());
   const session = buildThinkSession({ ...makeCoreResolvers({ objects: {
     lookupKind: () => null, findEgo: () => null, findArtifact: (name) => ({ activation: { name } }),
@@ -75,7 +83,9 @@ function scenario(options: {
   primeSession(session, ctx);
   session.flow.state.borgBegan = world.clock - (options.age ?? 0);
   getFightState(world).began = session.flow.state.borgBegan;
-  return { ctx, world, session, inventory, leave: (bored = false) => borgLeaveLevel(ctx, session, bored),
+  return { ctx, world, session, inventory,
+    notice: () => { borgNotice(ctx); world.self.trait[BI.LIGHT] = options.modelLightRadius ?? 3; },
+    leave: (bored = false) => borgLeaveLevel(ctx, session, bored),
     think: () => borgThinkDungeon(ctx, session), caution: () => borgCaution(ctx, session.flow.state) };
 }
 
@@ -95,7 +105,7 @@ describe("town recall decisions", () => {
     ]) {
       const stocked = scenario({ player: { depth: 0, maxDepth: 100 }, age });
       stocked.inventory.push(item({ tval: TV.POTION, sval: SVAL.potion.star_healing!, number: heals }));
-      borgNotice(stocked.ctx);
+      stocked.notice();
       expect(stocked.leave(true)?.code).toBe(code);
     }
   });
@@ -134,14 +144,14 @@ describe("upward recall decisions", () => {
   });
   it("gates rising recall at trip age 200", () => {
     for (const age of [200, 201]) {
-      const s = scenario({ player: { depth: 9, maxDepth: 9, light: 1 }, age });
+      const s = scenario({ modelLightRadius: 1, player: { depth: 9, maxDepth: 9 }, age });
       s.world.self.goal.rising = true;
       expect(s.leave()?.code).toBe(age === 200 ? "walk" : "read");
     }
   });
 
   it("includes time spent on previous dungeon levels", () => {
-    const s = scenario({ player: { depth: 9, maxDepth: 9, light: 1 } });
+    const s = scenario({ modelLightRadius: 1, player: { depth: 9, maxDepth: 9 } });
     s.world.self.goal.rising = true;
     getFightState(s.world).timeTown = 201;
     expect(s.leave()?.code).toBe("read");
@@ -150,7 +160,7 @@ describe("upward recall decisions", () => {
   it("recalls immediately for restocking after the 100-turn level grace", () => {
     const s = scenario({ age: 100 });
     s.inventory.splice(1, 1);
-    borgNotice(s.ctx);
+    s.notice();
     expect(s.leave()?.code).toBe("read");
   });
 
@@ -162,13 +172,13 @@ describe("upward recall decisions", () => {
   });
 
   it("recalls from a shallow level after 1000 turns without up stairs", () => {
-    const s = scenario({ player: { depth: 3, maxDepth: 3, light: 1, level: 2, maxLevel: 2 }, stairs: false, age: 1000 });
+    const s = scenario({ modelLightRadius: 1, player: { depth: 3, maxDepth: 3, level: 2, maxLevel: 2 }, stairs: false, age: 1000 });
     s.world.self.goal.rising = true;
     expect(s.leave(true)?.code).toBe("read");
   });
 
   it("stays on depth 1 for 200 turns to rotate shops", () => {
-    const s = scenario({ player: { depth: 1, maxDepth: 1, light: 1, level: 11, maxLevel: 11 }, age: 199 });
+    const s = scenario({ modelLightRadius: 1, player: { depth: 1, maxDepth: 1, level: 11, maxLevel: 11 }, age: 199 });
     s.inventory.splice(4, 1);
     s.world.self.goal.rising = true;
     /* Low food keeps the stay-on-level limit above 200 turns for this character level. */
@@ -196,7 +206,7 @@ describe("upward recall decisions", () => {
     const s = scenario({ player: { depth: 98, maxDepth: 100 },
       home: [item({ tval: TV.POTION, sval: SVAL.potion.star_healing!, number: 20 })] });
     s.inventory.push(item({ handle: 15, tval: TV.POTION, sval: SVAL.potion.star_healing!, number: 10 }));
-    borgNotice(s.ctx);
+    s.notice();
     s.world.facts.vaultOnLevel = true;
     expect(borgPrepared(s.ctx, 98)).toBe("Collect from house (20 potions).");
     expect(s.leave()?.code).toBe("read");
@@ -205,7 +215,7 @@ describe("upward recall decisions", () => {
   it("returns to store battle potions", () => {
     const s = scenario({ player: { depth: 80, maxDepth: 99 } });
     s.inventory.push(item({ handle: 15, tval: TV.POTION, sval: SVAL.potion.star_healing!, number: 3 }));
-    borgNotice(s.ctx);
+    s.notice();
     expect(s.world.self.trait[BI.PREP_BIG_FIGHT]).toBe(1);
     s.leave();
     expect(s.world.self.goal.rising).toBe(true);
@@ -215,7 +225,7 @@ describe("upward recall decisions", () => {
     const s = scenario({ player: { depth: 99, maxDepth: 97, speed: 120 } });
     s.inventory.push(item({ handle: 15, tval: TV.POTION, sval: SVAL.potion.star_healing!, number: 30 }),
       item({ handle: 16, tval: TV.POTION, sval: SVAL.potion.speed!, number: 15 }));
-    borgNotice(s.ctx);
+    s.notice();
     s.world.self.trait[BI.SAURON_DEAD] = 1;
     s.world.facts.uniqueOnLevel = 1;
     expect(s.leave()?.code).toBe("walk");
@@ -233,7 +243,7 @@ describe("upward recall decisions", () => {
   it("stops boredom and rising while Morgoth was recently seen", () => {
     const s = scenario({ player: { depth: 100, maxDepth: 100 } });
     s.inventory.push(item({ tval: TV.POTION, sval: SVAL.potion.star_healing!, number: 15 }));
-    borgNotice(s.ctx);
+    s.notice();
     s.world.facts.morgothOnLevel = true;
     s.world.facts.vaultOnLevel = true;
     s.world.self.goal.rising = true;
@@ -254,7 +264,7 @@ describe("upward recall decisions", () => {
 
 describe("recall means and waiting", () => {
   it("rests 100 turns to recharge a recall rod", () => {
-    const s = scenario();
+    const s = scenario({ withLantern: true });
     s.inventory.push(item({ handle: 42, tval: TV.ROD, sval: SVAL.rod.recall!, pval: 0 }));
     s.world.self.inShop = true;
     expect(s.think()).toEqual({ code: "rest", args: { count: 100 } });
@@ -283,13 +293,13 @@ describe("recall means and waiting", () => {
   });
 
   it("rests 500 turns while safe in the dungeon", () => {
-    const s = scenario();
+    const s = scenario({ withLantern: true });
     s.world.self.goal.recalling = 10000;
     expect(s.think()).toEqual({ code: "rest", args: { count: 500 } });
   });
 
   it("rests nine turns without light while recalling", () => {
-    const s = scenario({ player: { light: 0 } });
+    const s = scenario({ modelLightRadius: 0 });
     s.world.self.goal.recalling = 10000;
     expect(s.think()).toEqual({ code: "rest", args: { count: 9 } });
     expect(borgThinkDungeonLight(s.ctx, s.session)).toEqual({ code: "rest", args: { count: 9 } });
@@ -396,7 +406,7 @@ describe("forced level updates", () => {
       { depth: 0, age: 800, reset: false }, { depth: 0, age: 801, reset: true },
       { depth: 4, age: 27000, reset: false }, { depth: 4, age: 27001, reset: true },
     ]) {
-      const s = scenario({ player: { depth, light: 1 }, inventory: [], stairs: false, age });
+      const s = scenario({ modelLightRadius: 1, player: { depth }, inventory: [], stairs: false, age });
       s.world.clock = 1000 + age;
       s.session.flow.state.borgBegan = 1000;
       getFightState(s.world).began = 1000;
@@ -437,7 +447,7 @@ describe("recall depth prompts", () => {
     { depth: 80, maxDepth: 99, hunted: 80, live: 0, sauron: true, answer: true },
     { depth: 40, maxDepth: 99, hunted: 40, live: 0, munchkin: true, answer: true },
   ])("answers through the tick using the recall decision: %j", async (options) => {
-    const s = scenario({ player: { depth: options.depth, maxDepth: options.maxDepth, winner: "winner" in options } });
+    const s = scenario({ withLantern: true, player: { depth: options.depth, maxDepth: options.maxDepth, winner: "winner" in options } });
     const borg = createBorg();
     borg.controller(s.ctx.view, createActFacade().act);
     const ctx = getThinkSession(borg.world).ctx!;

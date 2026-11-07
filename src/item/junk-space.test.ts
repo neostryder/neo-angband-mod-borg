@@ -1,3 +1,4 @@
+import { registeredTorchFixture } from "../../test/fixtures/known-light.js";
 import { describe, expect, it } from "vitest";
 import type { AgentView, ItemView, PlayerView } from "@rpgm-tools/neo-angband-core";
 import type { BorgContext } from "../context.js";
@@ -135,12 +136,14 @@ function production(
   equipment: Array<ItemView | null> = [],
   quiver: ItemView[] = [],
   player: Partial<PlayerView> = {},
+  withTorch = false,
 ) {
   const base = makeScenarioView({ width: 3, height: 3, player: {
     grid: { x: 1, y: 1 }, depth: 1, maxDepth: 1, level: 20, maxLevel: 20,
     hp: 100, maxHp: 100, stats: [118, 118, 118, 118, 118], status: { image: 0, amnesia: 0, terror: 0 }, ...player,
   } });
-  const known = knownWorld(base).player!;
+  const lit = withTorch ? registeredTorchFixture() : null;
+  const known = { ...knownWorld(base).player!, ...(lit ? { light: lit.light } : {}) };
   const adapt = (entry: ItemView & { unknownRunes?: boolean }) => {
     const { timeout, ...rest } = entry;
     return itemView({ ...rest, charging: timeout, unknownRunes: entry.unknownRunes ?? false,
@@ -148,6 +151,7 @@ function production(
   };
   const items = inventory.map(adapt);
   const worn = equipment.map((entry) => entry === null ? null : adapt(entry));
+  if (lit) { while (worn.length < 6) worn.push(null); worn[5] = lit.torch; }
   const missiles = quiver.map(adapt);
   const view: AgentView = { ...base, player: () => playerView(known, new Map()),
     inventory: () => items, equipment: () => worn, quiver: () => missiles,
@@ -254,7 +258,7 @@ describe("production inventory decisions", () => {
     const amulet = item({ handle: 7, tval: TV.AMULET, timeout: 10 });
     const ammo = item({ handle: 8, tval: TV.ARROW, timeout: 1 });
     const food = item({ handle: 9, tval: TV.FOOD, sval: SVAL.food.ration!, number: 5 });
-    const { ctx, session, worn, items } = production([food, amulet, ammo], [], [ammo]);
+    const { ctx, session, worn, items } = production([food, amulet, ammo], [], [ammo], {}, true);
     expect(borgWearRecharge(ctx, buildItemDeps(session))).toMatchObject({ code: "wield", args: { handle: 7 } });
     expect(session.rechargeRest).toBe(7);
     worn.push(items.splice(items.findIndex((entry) => entry.handle === amulet.handle), 1)[0]!);
@@ -331,7 +335,7 @@ describe("production inventory decisions", () => {
     const amulet = item({ handle: 7, tval: TV.AMULET, timeout: 10, value: 100 });
     const food = item({ handle: 8, tval: TV.FOOD, sval: SVAL.food.ration!, number: 5, value: 50 });
     const weapon = item({ handle: 9, value: 100 });
-    const { view, worn, items } = production([food, amulet], [weapon]);
+    const { view, worn, items } = production([food, amulet], [weapon], [], {}, true);
     const cell = view.cell;
     view.cell = (x, y) => {
       const grid = cell(x, y);

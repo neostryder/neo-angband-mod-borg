@@ -1,3 +1,4 @@
+import { registeredTorchFixture } from "../../test/fixtures/known-light.js";
 /**
  * The decision tick and the verbs it submits through.
  *
@@ -111,7 +112,11 @@ describe("recharge continuation across API2 retries", () => {
       artifactName: null, activation: true, timeout: 10, inscription: null,
     };
     const food = { ...amulet, handle: 8, tval: TV.FOOD, sval: SVAL.food.ration!, number: 5, timeout: 0 };
-    const view = { ...game.view, inventory: () => pendingRest ? [food] : [food, amulet], equipment: () => pendingRest ? [amulet] : [] };
+    const lit = registeredTorchFixture();
+    const equipment = Array<ItemView | null>(12).fill(null); equipment[5] = lit.torch;
+    if (pendingRest) equipment[2] = amulet;
+    const view = { ...game.view, player: () => ({ ...game.view.player(), light: lit.light }),
+      inventory: () => pendingRest ? [food] : [food, amulet], equipment: () => equipment };
     const borg = createBorg({ rngSeed: 1 });
     const session = getThinkSession(borg.world);
     session.rechargeRest = pendingRest ? amulet.handle : false;

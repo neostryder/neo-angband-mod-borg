@@ -242,7 +242,7 @@ describe("equipment removal (borg-junk.c:1259-1397)", () => {
 });
 
 describe("glyph and re-aim capability chains", () => {
-  function capabilities(cls: string, spell?: Spell, fail = 5, scroll = false) {
+  function capabilities(cls: string, spell?: Spell, fail = 5, scroll = false, modelLightRadius = 1) {
     const source = makeScenarioView({
       player: { cls, grid: { x: 20, y: 12 }, level: 20, maxLevel: 20, sp: 100, maxSp: 100, depth: 10 },
       monsters: [{ grid: { x: 25, y: 12 } }],
@@ -261,6 +261,8 @@ describe("glyph and re-aim capability chains", () => {
         ...(scroll ? [item({ handle: 2, tval: TV.SCROLL, sval: SVAL.scroll.rune_of_protection! })] : [])],
       spellbooks: () => books };
     borgNotice(ctx);
+    // These model capability-chain inputs isolate scoring from equipment notice.
+    world.self.trait[BI.LIGHT] = modelLightRadius;
     perceive(world, ctx.view, makePerceiveMemo());
     const session = buildThinkSession(makeCoreResolvers({ objects: {
       lookupKind: () => null, findEgo: () => null, findArtifact: () => ({ activation: { name: "GLYPH" } }),

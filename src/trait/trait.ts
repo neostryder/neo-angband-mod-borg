@@ -8,7 +8,7 @@
  * of value are handled differently, both faithfully:
  *
  *  1. Values the C re-derives only to reproduce a number the game already knows
- *     (net speed, final AC-less skills, light radius, infravision, blows/shots,
+ *     (net speed, final AC-less skills, infravision, blows/shots,
  *     max-HP) are taken straight from the corresponding already-derived
  *     PlayerView field. This is the value the C code is building toward, so the
  *     result is identical without needing race/class base tables AgentView does
@@ -251,9 +251,12 @@ function borgNoticePlayer(c: Ctx): void {
     t[BI.ISFIXSTR + i] = drained?.[i] ? 1 : 0;
   }
 
-  /* Net speed, light, infravision, shots: game-derived (see fidelity note). */
+  /* Net speed and infravision: game-derived (see fidelity note). */
   t[BI.SPEED] = p.speed;
-  t[BI.LIGHT] = p.light;
+  /* FORK diegoami/neo-angband-borg-mod-tracker#41: BI_LIGHT starts at zero
+   * as in C borg_notice (borg-trait.c:2825). The
+   * equipment loop below rebuilds it; public p.light already includes gear.
+   * Keep the separate original-C238 duplicate modifier unchanged here. */
   t[BI.INFRA] = p.seeInfra;
 
   /* Neither AgentView nor API 2 exposes a race death counter. History has

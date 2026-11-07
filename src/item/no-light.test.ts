@@ -45,6 +45,8 @@ function scenario(options: {
   glow?: boolean;
   food?: number;
   forceDescend?: boolean;
+  /** Model-level policy input; actual equipment light is tested separately. */
+  lightRadius?: number;
 } = {}) {
   const base = makeScenarioView({
     player: { cls: "Mage", grid: { x: 10, y: 10 }, depth: 5, level: 25, maxLevel: 25,
@@ -75,6 +77,10 @@ function scenario(options: {
   const { act } = createActFacade();
   const ctx: BorgContext = { world, view, act, rng: makeBorgRng(), bookKind: (tval) => ({ tval, sval: 1 }) };
   borgNotice(ctx);
+  // These beam/recovery unit cases supply a model radius independently of gear.
+  // Do not obtain it from synthetic PlayerView.light: Notice now starts at the C
+  // zero base. Registered same-loadout light calculation is in light-base.test.ts.
+  if (options.lightRadius !== undefined) world.self.trait[BI.LIGHT] = options.lightRadius;
   perceive(world, view, makePerceiveMemo());
   world.clock = 100;
   const session = buildThinkSession({
@@ -226,7 +232,7 @@ describe("caution fuel timeout (borg-caution.c:810)", () => {
 
 describe("corridor beams (borg-light.c:673-904; borg-fight-defend.c:2802-2810)", () => {
   function corridor(options: Parameters<typeof scenario>[0] = {}) {
-    return scenario({ player: { light: 1, sp: 20 }, spells: [],
+    return scenario({ lightRadius: 1, player: { sp: 20 }, spells: [],
       cells: { "10,8": { known: false, feat: FEAT.NONE }, "9,10": { feat: FEAT.GRANITE, passable: false },
         "11,10": { feat: FEAT.GRANITE, passable: false } },
       inventory: [item({ handle: 42, tval: TV.WAND, sval: SVAL.wand.light!, pval: 1 })], ...options });
@@ -244,7 +250,7 @@ describe("corridor beams (borg-light.c:673-904; borg-fight-defend.c:2802-2810)",
 
   it("uses the C's 20 percent spell failure limit", () => {
     for (const fail of [20, 21]) {
-      const s = corridor({ player: { cls: "Priest", light: 1, level: 1, maxLevel: 1 },
+      const s = corridor({ player: { cls: "Priest", level: 1, maxLevel: 1 },
         spells: [Spell.SPEAR_OF_LIGHT], inventory: [], fail });
       s.world.self.temp.needSeeInvis = 100;
       expect(borgDefend(s.ctx, 0)).toEqual(fail === 20 ? { code: "cast", args: { spell: 7 }, dir: 8 } : null);
@@ -253,7 +259,7 @@ describe("corridor beams (borg-light.c:673-904; borg-fight-defend.c:2802-2810)",
 
   it("rejects the C's north and south panel-edge rows", () => {
     for (const [y, dy, dir, blocked] of [[12, -1, 8, false], [13, -1, 8, true], [17, 1, 2, false], [18, 1, 2, true]] as const) {
-      const s = scenario({ player: { grid: { x: 10, y }, light: 1 }, spells: [],
+      const s = scenario({ lightRadius: 1, player: { grid: { x: 10, y } }, spells: [],
         cells: { [`10,${y + dy * 2}`]: { feat: FEAT.NONE, known: false } },
         inventory: [item({ handle: 42, tval: TV.WAND, sval: SVAL.wand.light!, pval: 1 })] });
       expect(light.borgLightBeam(s.ctx, buildItemDeps(s.session))).toEqual(blocked ? null : { code: "aim-wand", args: { handle: 42 }, dir });
@@ -262,7 +268,7 @@ describe("corridor beams (borg-light.c:673-904; borg-fight-defend.c:2802-2810)",
 
   it("chooses east and west after north and south are known", () => {
     for (const [x, dir] of [[12, 6], [8, 4]] as const) {
-      const s = scenario({ player: { light: 1 }, spells: [], cells: { [`${x},10`]: { feat: FEAT.NONE, known: false } },
+      const s = scenario({ lightRadius: 1, spells: [], cells: { [`${x},10`]: { feat: FEAT.NONE, known: false } },
         inventory: [item({ handle: 42, tval: TV.WAND, sval: SVAL.wand.light!, pval: 1 })] });
       expect(light.borgLightBeam(s.ctx, buildItemDeps(s.session))).toEqual({ code: "aim-wand", args: { handle: 42 }, dir });
     }
@@ -286,14 +292,14 @@ describe("corridor beams (borg-light.c:673-904; borg-fight-defend.c:2802-2810)",
 
 describe("recovery illumination scans (borg-light.c:139-220)", () => {
   it("counts remembered diagonal walls before recovery rest", () => {
-    const s = scenario({ player: { light: 1, hp: 90 },
+    const s = scenario({ lightRadius: 1, player: { hp: 90 },
       equipment: [item({ artifact: true, artifactName: "ILLUMINATION", activation: true, handle: 42 })] });
     for (const [x, y] of [[9, 9], [11, 9], [9, 11]] as const) s.world.map.at(x, y).feat = FEAT.GRANITE;
     expect(borgRecover(s.ctx, buildItemDeps(s.session))?.code).toBe("rest");
   });
 
   it("counts torchlight flags instead of visible floors before recovery rest", () => {
-    const s = scenario({ player: { light: 2, hp: 90 },
+    const s = scenario({ lightRadius: 2, player: { hp: 90 },
       equipment: [item({ artifact: true, artifactName: "ILLUMINATION", activation: true, handle: 42 })] });
     for (let y = 8; y <= 12; y++) for (let x = 8; x <= 12; x++) s.world.map.at(x, y).info &= ~BORG_LIGHT;
     expect(borgRecover(s.ctx, buildItemDeps(s.session))?.code).toBe("rest");

@@ -1,3 +1,4 @@
+import { registeredTorchFixture } from "../../test/fixtures/known-light.js";
 /**
  * Combat/defense/escape tests (P8.4). Golden values are derived by hand from
  * reference/src/borg/borg-fight-attack.c, feeding the ported damage estimators
@@ -359,9 +360,10 @@ describe("borgBackAway (caution.c:1664)", () => {
 });
 
 
-/** The same notice, perception and race-fact paths the controller uses. */
+/** Real notice/perception/race-fact paths with an explicit model light input.
+ * The separate controller case supplies registered known light gear instead. */
 function defenseScenario(
-  scenario: Scenario & { inventory?: ItemView[] } = {},
+  scenario: Scenario & { inventory?: ItemView[]; modelLightRadius?: number } = {},
   spells: Spell[] = [],
   symbols: Record<number, string> = {},
   blows = 0,
@@ -394,6 +396,8 @@ function defenseScenario(
   const ctx: BorgContext = { world, view, act, rng: makeBorgRng(), bookKind: () => ({ tval: TV.MAGIC_BOOK, sval: 1 }) };
   installThinkSession(world, buildThinkSession(resolvers));
   borgNotice(ctx);
+  // Model-only defense scores assume a lit character; real light math has registered tests.
+  world.self.trait[BI.LIGHT] = scenario.modelLightRadius ?? 1;
   const memo = makePerceiveMemo();
   perceive(world, view, memo, undefined, undefined, (i) => resolvers.resolveMonsterFacts!(ctx, i).dChar);
   getDangerGlobals(world).resolveFacts = resolvers.resolveMonsterFacts!;
@@ -487,7 +491,10 @@ describe("genocide defences through notice and perceive", () => {
       bookKind: ctx.bookKind,
       resolveMonsterFacts: getDangerGlobals(ctx.world).resolveFacts,
     } });
-    expect(borg.controller(view, act)).toEqual({ code: "cast", args: { spell: 27, tgtsymbol: "Z" } });
+    const lit = registeredTorchFixture();
+    const equipment = Array<ItemView | null>(12).fill(null); equipment[5] = lit.torch;
+    const controllerView = { ...view, player: () => ({ ...view.player(), light: lit.light }), equipment: () => equipment };
+    expect(borg.controller(controllerView, act)).toEqual({ code: "cast", args: { spell: 27, tgtsymbol: "Z" } });
     expect(borg.world.facts.nastiesCount[0]).toBe(0);
   });
 

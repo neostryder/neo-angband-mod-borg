@@ -251,7 +251,7 @@ suite("the Borg's ladder reaches rest and the store", () => {
       });
       /* Empty supplies make borg_check_rest reject the grid (borg-flow-misc.c:1288).
        * The town stair then reaches borg-think-dungeon.c:1652-1707 directly. */
-      const view = { ...base, inventory: () => onStairs ? [] : engine.inventory().filter((item) => item.tval === TV.FOOD) };
+      const view = { ...base, equipment: () => engine.equipment(), inventory: () => onStairs ? [] : engine.inventory().filter((item) => item.tval === TV.FOOD) };
       const session = getThinkSession(borg.world);
       const act = makeFakeActions();
       const ctx = { world: borg.world, view, act, rng: borg.rng };

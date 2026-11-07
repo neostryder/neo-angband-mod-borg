@@ -27,7 +27,7 @@ const classes = [
   ["Blackguard", false, 20],
 ] as const;
 
-function lowSp(cls: string, player: Scenario["player"] = {}): BorgContext {
+function lowSp(cls: string, player: Scenario["player"] = {}, modelLightRadius = 1): BorgContext {
   const world = new BorgWorld();
   const base = makeScenarioView({
     floorFeat: FEAT.GRANITE,
@@ -48,6 +48,8 @@ function lowSp(cls: string, player: Scenario["player"] = {}): BorgContext {
   const ctx: BorgContext = { world, view, act: makeFakeActions(), rng: makeBorgRng() };
   world.clock = 1000;
   borgNotice(ctx);
+  // Model-only recovery policy starts lit; actual equipment light has its own proof.
+  world.self.trait[BI.LIGHT] = modelLightRadius;
   perceive(world, view, makePerceiveMemo());
   return ctx;
 }

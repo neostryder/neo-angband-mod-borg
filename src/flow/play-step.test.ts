@@ -49,6 +49,8 @@ function step(options: {
   inventory?: ItemView[];
   spells?: boolean;
   panelTime?: number;
+  /** Isolated flow policy input, not a game-derived equipment-light claim. */
+  modelLightRadius?: number;
 } = {}) {
   const source = makeScenarioView({
     player: { grid: { x: 10, y: 10 }, level: 25, maxLevel: 25, depth: 5, sp: 100, maxSp: 100, ...options.player },
@@ -91,6 +93,7 @@ function step(options: {
   };
   const ctx = { world, view, act, rng: makeBorgRng(), bookKind };
   borgNotice(ctx);
+  world.self.trait[BI.LIGHT] = options.modelLightRadius ?? 1;
   perceive(world, view, makePerceiveMemo());
   const session = buildThinkSession(makeCoreResolvers({
     objects: {
@@ -153,11 +156,11 @@ describe("borg_play_step through the session item dependencies", () => {
   });
 
   it.each([
-    { light: 0 },
-    { status: { blind: 1 } },
-    { status: { confused: 1 } },
-  ])("walks across a trap when the player guard rejects disarming: %j", (player) => {
-    const { ctx, act, play } = step({ trap: true, player, equipment: [activation("DISABLE_TRAPS")] });
+    { modelLightRadius: 0, player: {} },
+    { player: { status: { blind: 1 } } },
+    { player: { status: { confused: 1 } } },
+  ])("walks across a trap when the player guard rejects disarming: %j", (options) => {
+    const { ctx, act, play } = step({ trap: true, ...options, equipment: [activation("DISABLE_TRAPS")] });
     expect(play()).toEqual({ code: "walk", dir: 6 });
     expect(ctx.world.map.at(11, 10).trap).toBe(true);
     expect(ctx.world.self.noRestPrep).toBe(0);

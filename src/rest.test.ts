@@ -55,7 +55,7 @@ const BLOWS = buildHitByTable(["hits {target}", "touches {target}"]);
  */
 const AWAY = { x: 30, y: 20 };
 
-function ctxFor(scenario: Scenario): { ctx: BorgContext; world: BorgWorld } {
+function ctxFor(scenario: Scenario & { modelLightRadius?: number }): { ctx: BorgContext; world: BorgWorld } {
   const world = new BorgWorld();
   const view = makeScenarioView(scenario);
   const ctx: BorgContext = {
@@ -65,6 +65,8 @@ function ctxFor(scenario: Scenario): { ctx: BorgContext; world: BorgWorld } {
     rng: makeBorgRng(),
   };
   borgNotice(ctx);
+  // Rest-policy unit input, independent of the separately tested equipment scan.
+  world.self.trait[BI.LIGHT] = scenario.modelLightRadius ?? 1;
   perceive(world, view, makePerceiveMemo(), BLOWS);
   return { ctx, world };
 }
@@ -363,6 +365,7 @@ describe("the breeder-rest guard (when_last_kill_mult)", () => {
      * (misc.c:1288). Set it clear of that arm so this test isolates the one
      * guard it is about. */
     world.self.trait[BI.FOOD] = 10;
+    world.self.trait[BI.LIGHT] = 1; // Isolate the multiplier-deletion rest guard.
     perceive(world, liveView, memo, BLOWS);
     expect(world.self.whenLastKillMult).toBe(0);
 

@@ -1,3 +1,4 @@
+import { registeredTorchFixture } from "../test/fixtures/known-light.js";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentView, ItemView, SpellbookView } from "@rpgm-tools/neo-angband-core";
 import { FEAT } from "./core-api.js";
@@ -59,8 +60,10 @@ function run(options: {
   })) : [];
   const equipment: Array<ItemView | null> = new Array<ItemView | null>(12).fill(null);
   for (const [i, gear] of (options.equipment ?? []).entries()) equipment[i + 2] = gear;
+  // The ladder re-notices equipment; give this lit-gate fixture a real known Torch.
+  const lit = registeredTorchFixture(); equipment[5] = lit.torch;
   const view: AgentView = {
-    ...source, player: () => playerView(knownWorld(source).player!, new Map()),
+    ...source, player: () => playerView({ ...knownWorld(source).player!, light: lit.light }, new Map()),
     inventory: () => [item({ handle: 99, tval: TV.FOOD, sval: SVAL.food.ration!, number: 5, value: 100 }),
       ...books.map((b, i) => item({ tval: b.tval, sval: i + 1, handle: i + 1 }))],
     equipment: () => equipment, spellbooks: () => books,

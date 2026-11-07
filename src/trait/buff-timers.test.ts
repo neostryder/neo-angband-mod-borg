@@ -18,6 +18,7 @@ import { makeScenarioView, makeFakeActions, type Scenario } from "../harness.js"
 import { makeBorgRng } from "../rng.js";
 import type { BorgContext } from "../context.js";
 import { borgNotice } from "./trait.js";
+import { BI } from "./trait-index.js";
 import { borgCheatBuffTimers, borgHasBuffTimers } from "./buff-timers.js";
 import { setBuffTimerSafetyNet, resetBuffTimerSafetyNet } from "./config.js";
 import { getDangerGlobals } from "../danger/index.js";
@@ -281,7 +282,7 @@ function blessingScroll(): ItemView {
 function tick(
   world: BorgWorld,
   memo: ReturnType<typeof makePerceiveMemo>,
-  scenario: Scenario,
+  scenario: Scenario & { modelLightRadius?: number },
   pack: ItemView[] = [],
 ): BorgContext {
   const base = makeScenarioView(scenario);
@@ -293,6 +294,8 @@ function tick(
     rng: makeBorgRng(),
   };
   borgNotice(ctx);
+  // Isolate buff expiry from equipment-light calculation.
+  world.self.trait[BI.LIGHT] = scenario.modelLightRadius ?? 1;
   perceive(world, view, memo);
   return ctx;
 }
