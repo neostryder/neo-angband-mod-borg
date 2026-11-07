@@ -247,6 +247,12 @@ export interface BorgTraitOpts {
   home?: BorgHomeSeam;
   frame?: BorgFrame;
   svals?: BorgSvals;
+  /**
+   * borg_notice(bool notice_swap) (borg-trait.c:2825). Default true. False keeps
+   * the weapon backup the last full notice found instead of recomputing it; the
+   * C passes false for its hypothetical loadouts (borg-item-wear.c:339, 602, 667).
+   */
+  noticeSwap?: boolean;
   /** Curse powers are absent from ItemView; the equipment loop assumes removable curses. */
   uncursable?: (item: ItemView) => boolean;
 }

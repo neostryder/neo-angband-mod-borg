@@ -60,6 +60,18 @@ export function resetDerived(world: BorgWorld): BorgDerived {
   return d;
 }
 
+/**
+ * Give a scratch world the weapon backup the live world last found, so a
+ * hypothetical notice (borg_notice(false)) reads it as the C's globals do.
+ */
+export function inheritWeaponSwap(scratch: BorgWorld, live: BorgWorld): void {
+  const from = getDerived(live);
+  const d = makeDerived();
+  d.weaponSwap = from.weaponSwap;
+  d.weaponSwapOpts = from.weaponSwapOpts;
+  store.set(scratch, d);
+}
+
 /** borg.has[role] read helper (0 when absent). */
 export function has(d: BorgDerived, role: string): number {
   return d.has.get(role) ?? 0;

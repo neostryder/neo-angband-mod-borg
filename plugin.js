@@ -4526,6 +4526,13 @@ function resetDerived(world) {
   store.set(world, d);
   return d;
 }
+function inheritWeaponSwap(scratch, live) {
+  const from = getDerived(live);
+  const d = makeDerived();
+  d.weaponSwap = from.weaponSwap;
+  d.weaponSwapOpts = from.weaponSwapOpts;
+  store.set(scratch, d);
+}
 function has(d, role) {
   return d.has.get(role) ?? 0;
 }
@@ -7230,6 +7237,7 @@ function borgNotice(ctx, opts = {}) {
   const view = ctx.view;
   const p = view.player();
   const t = new Array(BI_MAX).fill(0);
+  const previous = getDerived(ctx.world);
   const d = resetDerived(ctx.world);
   t[146 /* BLOWS */] = 1;
   t[44 /* SPEED */] = 110;
@@ -7258,12 +7266,17 @@ function borgNotice(ctx, opts = {}) {
   borgNoticeInventory(c);
   finishNotice(c);
   ctx.world.self.trait = t;
-  d.weaponSwapOpts = {
-    cfg: { ...R2.cfg },
-    ...opts.spells ? { spells: { ...opts.spells } } : {},
-    ...opts.weaponSwap ? { weaponSwap: { ...opts.weaponSwap } } : {}
-  };
-  d.weaponSwap = borgWeaponSwap(ctx, d.weaponSwapOpts);
+  if (opts.noticeSwap ?? true) {
+    d.weaponSwapOpts = {
+      cfg: { ...R2.cfg },
+      ...opts.spells ? { spells: { ...opts.spells } } : {},
+      ...opts.weaponSwap ? { weaponSwap: { ...opts.weaponSwap } } : {}
+    };
+    d.weaponSwap = borgWeaponSwap(ctx, d.weaponSwapOpts);
+  } else {
+    d.weaponSwapOpts = previous.weaponSwapOpts;
+    d.weaponSwap = previous.weaponSwap;
+  }
   const speed = t[44 /* SPEED */] ?? 110;
   ctx.world.self.gameRatio = speed > 110 ? Math.trunc(1e5 / ((speed - 110) * 10 + 100)) : 1e3;
 }
@@ -9458,14 +9471,16 @@ function borgSimulatePower(ctx, change, opts = {}) {
     world: shadowWorld(ctx.world),
     view: shadowView(ctx.view, answer)
   };
-  borgNotice(simCtx, opts);
+  inheritWeaponSwap(simCtx.world, ctx.world);
+  borgNotice(simCtx, { ...opts, noticeSwap: false });
   return borgPower(simCtx, opts);
 }
 function borgSimulateDanger(ctx, change) {
   const answer = ctx.view.simulateLoadout?.(change);
   if (!answer) return null;
   const simCtx = { ...ctx, world: shadowWorld(ctx.world), view: shadowView(ctx.view, answer) };
-  borgNotice(simCtx);
+  inheritWeaponSwap(simCtx.world, ctx.world);
+  borgNotice(simCtx, { noticeSwap: false });
   const live = getDangerState(ctx.world);
   const scratch = getDangerState(simCtx.world);
   scratch.globals = { ...live.globals, tpOtherIndices: [...live.globals.tpOtherIndices] };

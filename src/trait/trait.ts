@@ -66,7 +66,7 @@ import {
   type BorgTraitOpts,
   type ResolvedOpts,
 } from "./config.js";
-import { resetDerived, addHas, type BorgDerived } from "./state.js";
+import { getDerived, resetDerived, addHas, type BorgDerived } from "./state.js";
 import { borgWeaponSwap } from "./weapon-swap.js";
 import { borgCheatBuffTimers } from "./buff-timers.js";
 import type { Temp } from "../world/model.js";
@@ -121,6 +121,7 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
 
   /* Fresh trait buffer sized to BI_MAX (memset borg.trait, trait.c:2829). */
   const t = new Array<number>(BI_MAX).fill(0);
+  const previous = getDerived(ctx.world);
   const d = resetDerived(ctx.world);
 
   /* Start with a single blow, base speed 110, ammo defaults (trait.c:2833). */
@@ -155,13 +156,19 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
 
   /* Publish the finished buffer. */
   ctx.world.self.trait = t;
-  // borg_notice(true), trait.c:2861: carried backup selection/value.
-  d.weaponSwapOpts = {
-    cfg: { ...R.cfg },
-    ...(opts.spells ? { spells: { ...opts.spells } } : {}),
-    ...(opts.weaponSwap ? { weaponSwap: { ...opts.weaponSwap } } : {}),
-  };
-  d.weaponSwap = borgWeaponSwap(ctx, d.weaponSwapOpts);
+  if (opts.noticeSwap ?? true) {
+    // borg_notice(true), trait.c:2861: carried backup selection/value.
+    d.weaponSwapOpts = {
+      cfg: { ...R.cfg },
+      ...(opts.spells ? { spells: { ...opts.spells } } : {}),
+      ...(opts.weaponSwap ? { weaponSwap: { ...opts.weaponSwap } } : {}),
+    };
+    d.weaponSwap = borgWeaponSwap(ctx, d.weaponSwapOpts);
+  } else {
+    // borg_notice(false): the backup stays whatever the last full notice found.
+    d.weaponSwapOpts = previous.weaponSwapOpts;
+    d.weaponSwap = previous.weaponSwap;
+  }
 
   /* borg_game_ratio (trait.c:2926): game-turns per borg-turn, from the FINAL
    * speed, so it is computed here rather than inside finishNotice. Every timed

@@ -72,6 +72,7 @@ import type { BorgView } from "../core-api.js";
 import type { BorgContext } from "../context.js";
 import type { BorgWorld } from "../world/model.js";
 import { borgNotice } from "./trait.js";
+import { inheritWeaponSwap } from "./state.js";
 import { borgPower } from "./power.js";
 import type { BorgTraitOpts } from "./config.js";
 import { borgDanger } from "../danger/danger.js";
@@ -201,11 +202,13 @@ export function borgSimulatePower(
     world: shadowWorld(ctx.world),
     view: shadowView(ctx.view, answer),
   };
+  inheritWeaponSwap(simCtx.world, ctx.world);
 
   /* The same two calls, in the same order, the controller makes every think
    * (controller.ts): notice fills the trait array from the view, power scores
    * it. Running anything less here would score a half-built self-model. */
-  borgNotice(simCtx, opts);
+  /* borg_notice(false) at borg-item-wear.c:339, 602: the backup is not rescored. */
+  borgNotice(simCtx, { ...opts, noticeSwap: false });
   return borgPower(simCtx, opts);
 }
 
@@ -214,7 +217,9 @@ export function borgSimulateDanger(ctx: BorgContext, change: BorgLoadoutChange):
   const answer = (ctx.view as LoadoutCapableView).simulateLoadout?.(change);
   if (!answer) return null;
   const simCtx: BorgContext = { ...ctx, world: shadowWorld(ctx.world), view: shadowView(ctx.view, answer) };
-  borgNotice(simCtx);
+  inheritWeaponSwap(simCtx.world, ctx.world);
+  /* borg_notice(false) at borg-item-wear.c:667. */
+  borgNotice(simCtx, { noticeSwap: false });
   const live = getDangerState(ctx.world);
   const scratch = getDangerState(simCtx.world);
   scratch.globals = { ...live.globals, tpOtherIndices: [...live.globals.tpOtherIndices] };
