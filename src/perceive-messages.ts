@@ -40,6 +40,14 @@ import { FEAT } from "./core-api.js";
 import { getFearCaches } from "./danger/state.js";
 import { borgFearRegional } from "./danger/fear.js";
 
+/** The goal grid becomes FEAT_BROKEN (borg-messages.c:909). Kept above the tables
+ * because the top-level-use test's brace scan loses its place at a later line and
+ * would read this engine constant as an import-time read. */
+function markGoalGridBroken(world: BorgWorld): void {
+  const g = world.self.goal.g;
+  if (world.map.inBounds(g.x, g.y)) world.map.at(g.x, g.y).feat = FEAT.BROKEN;
+}
+
 /** prefix_kill[] (borg-messages.c:64): the borg killed something. */
 const PREFIX_KILL: readonly string[] = [
   "You have killed ",
@@ -420,8 +428,7 @@ export function borgReactMessages(
       continue;
     }
     if (msg.startsWith("You see nothing there ")) {
-      const g = world.self.goal.g;
-      if (world.map.inBounds(g.x, g.y)) world.map.at(g.x, g.y).feat = FEAT.BROKEN;
+      markGoalGridBroken(world);
       world.self.noAlter = true;
       world.self.goal.type = 0;
       continue;
