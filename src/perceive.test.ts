@@ -26,6 +26,8 @@ import {
 } from "./flow/index.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { makeBorgRng } from "./rng.js";
+import { borgTrackStairs } from "./flow/flow-stairs.js";
+import { getThinkSession } from "./think-session.js";
 import { borgView } from "./core-api.js";
 import type { BorgContext } from "./context.js";
 import { getFearCaches } from "./danger/state.js";
@@ -584,5 +586,38 @@ describe("a monster that is not where the Borg left it", () => {
     }
     const world = twoTicks({ monsters: [], cells: dark });
     expect([...world.kills.entries()]).toHaveLength(1);
+  });
+});
+
+describe("stair tracks during perception", () => {
+  it("lists each remembered staircase once, in scan order, and stops at the size", () => {
+    const world = new BorgWorld();
+    const flow = createFlowState();
+    world.map.at(9, 4).feat = FEAT.LESS;
+    world.map.at(3, 6).feat = FEAT.MORE;
+    world.map.at(5, 2).feat = FEAT.LESS;
+    borgTrackStairs(world, flow);
+    borgTrackStairs(world, flow);
+    expect([flow.less.num, flow.more.num]).toEqual([2, 1]);
+    expect([flow.less.y[0], flow.less.x[0], flow.less.y[1], flow.less.x[1]]).toEqual([2, 5, 4, 9]);
+    for (let x = 10; x < 40; x++) world.map.at(x, 20).feat = FEAT.MORE;
+    borgTrackStairs(world, flow);
+    expect(flow.more.num).toBe(flow.more.size);
+  });
+
+  it("fills the tracks for the controller on every decision, before any flow routine runs", () => {
+    /* A store decision runs no flow routine, so only perception can have filled the tracks. */
+    const { world, controller } = createBorg({ resolvers: { inShop: () => 0 } });
+    const act = makeFakeActions();
+    const view = (stair: boolean) => makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      cells: stair ? { "12,7": { feat: FEAT.LESS }, "14,9": { feat: FEAT.MORE } } : {},
+    });
+    controller(view(false), act);
+    const flow = getThinkSession(world).flow.state;
+    expect([flow.less.num, flow.more.num]).toEqual([0, 0]);
+    controller(view(true), act);
+    expect([flow.less.num, flow.more.num]).toEqual([1, 1]);
+    expect([flow.less.x[0], flow.less.y[0]]).toEqual([12, 7]);
   });
 });

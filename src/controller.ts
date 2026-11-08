@@ -30,6 +30,7 @@ import { buildHitByTable, buildSpellTable } from "./perceive-messages.js";
 import { borgUpdateMonsterFear } from "./danger/index.js";
 import { borgFollowMissingKills } from "./flow/index.js";
 import { borgTrackStep } from "./flow/flow.js";
+import { borgTrackStairs } from "./flow/flow-stairs.js";
 import { think } from "./think.js";
 import { borgNotice, borgPower, borgCfg, setBorgCfg, BI, type BorgCfg } from "./trait/index.js";
 import { getFightState } from "./fight/index.js";
@@ -214,6 +215,9 @@ export function createBorg(opts: BorgOptions = {}): Borg {
       kindCost: session.resolvers.kindCost,
       junked: session.junked,
     }, (i) => session.resolvers.resolveMonsterFacts?.(ctx, i).dChar);
+
+    /* borg-update.c:491-525 tracks newly known stairs on every decision. */
+    borgTrackStairs(world, session.flow.state);
 
     /* borg-update.c:2466-2479 records after the map update. Loadout retries
      * share the decision's entry, matching one borg_update per dungeon decision

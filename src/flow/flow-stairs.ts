@@ -11,6 +11,7 @@
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
 import type { BorgContext } from "../context.js";
+import type { BorgWorld } from "../world/model.js";
 import {
   Spell,
   borgHeroismLevel,
@@ -28,20 +29,27 @@ import {
 } from "./flow.js";
 
 /**
- * Rebuild track_less / track_more from the remembered map. Faithful to the set
- * of stairs the borg has seen (grids marked with FEAT_LESS / FEAT_MORE).
+ * Track the stairs the remembered map shows (borg-update.c:491-525). Each staircase is
+ * added once, in the order the scan finds it, and a full list takes no more. The level
+ * arrival empties both lists (borg-update.c:2166). The C runs this scan for the visible
+ * panel on every decision; this port has no panel, so it scans the whole remembered map.
  */
-export function syncStairsFromMap(ctx: BorgContext, flow: FlowState): void {
-  const w = ctx.world;
-  flow.less.wipe();
-  flow.more.wipe();
+export function borgTrackStairs(world: BorgWorld, flow: FlowState): void {
   for (let y = 0; y < AUTO_MAX_Y; y++) {
     for (let x = 0; x < AUTO_MAX_X; x++) {
-      const feat = w.map.at(x, y).feat;
-      if (feat === FEAT.LESS) flow.less.add(y, x);
-      else if (feat === FEAT.MORE) flow.more.add(y, x);
+      const feat = world.map.at(x, y).feat;
+      const track = feat === FEAT.LESS ? flow.less : feat === FEAT.MORE ? flow.more : null;
+      if (!track) continue;
+      let i = 0;
+      while (i < track.num && !(track.x[i] === x && track.y[i] === y)) i++;
+      if (i === track.num && i < track.size) track.add(y, x);
     }
   }
+}
+
+/** The flow routines call this before they read the tracks; perception has already run it. */
+export function syncStairsFromMap(ctx: BorgContext, flow: FlowState): void {
+  borgTrackStairs(ctx.world, flow);
 }
 
 /**
