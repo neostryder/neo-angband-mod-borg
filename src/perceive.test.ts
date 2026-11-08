@@ -337,6 +337,83 @@ describe("message-stream reaction", () => {
   });
 });
 
+describe("blocked-step and mis-alter messages (borg-messages.c:841-915)", () => {
+  const noOne = new Set<number>();
+
+  it("asks for an alter after a wall or a closed door, and drops the goal", () => {
+    for (const msg of ["There is a wall in the way!", "There is a closed door blocking your way."]) {
+      const world = new BorgWorld();
+      world.self.goal.type = GOAL_KILL;
+      borgReactMessages(world, [msg], noOne);
+      expect(world.self.needAlter).toBe(true);
+      expect(world.self.goal.type).toBe(0);
+    }
+  });
+
+  it("ignores the blocking messages when confused, and the door one when hallucinating", () => {
+    const confused = new BorgWorld();
+    confused.self.trait[BI.ISCONFUSED] = 1;
+    borgReactMessages(confused, ["There is a wall in the way!", "There is a closed door blocking your way."], noOne);
+    expect(confused.self.needAlter).toBe(false);
+
+    const imagined = new BorgWorld();
+    imagined.self.trait[BI.ISIMAGE] = 1;
+    borgReactMessages(imagined, ["There is a closed door blocking your way."], noOne);
+    expect(imagined.self.needAlter).toBe(false);
+    borgReactMessages(imagined, ["There is a wall in the way!"], noOne);
+    expect(imagined.self.needAlter).toBe(true);
+  });
+
+  it("deletes monster records within three grids on a spin, and keeps far ones", () => {
+    const world = new BorgWorld();
+    world.self.c = { x: 10, y: 10 };
+    const near = world.kills.alloc();
+    world.kills.at(near).rIdx = 1;
+    world.kills.at(near).pos = { x: 13, y: 10 };
+    const far = world.kills.alloc();
+    world.kills.at(far).rIdx = 1;
+    world.kills.at(far).pos = { x: 14, y: 10 };
+    const deleted = borgReactMessages(world, ["You spin around."], noOne);
+    expect(deleted).toBe(1);
+    expect(world.self.noAlter).toBe(true);
+    expect([...world.kills.entries()].map(([, k]) => k.pos.x)).toEqual([14]);
+
+    const dazed = new BorgWorld();
+    dazed.self.trait[BI.ISCONFUSED] = 1;
+    borgReactMessages(dazed, ["You spin around."], noOne);
+    expect(dazed.self.noAlter).toBe(false);
+  });
+
+  it("breaks the goal grid when there is nothing to alter", () => {
+    const world = new BorgWorld();
+    world.self.goal.g = { x: 7, y: 8 };
+    world.map.at(7, 8).feat = FEAT.FLOOR;
+    borgReactMessages(world, ["You see nothing there to disarm."], noOne);
+    expect(world.map.at(7, 8).feat).toBe(FEAT.BROKEN);
+    expect(world.self.noAlter).toBe(true);
+  });
+
+  it("restores the flags when a decision is rewound", () => {
+    const { world, controller, rewind } = createBorg();
+    const view = makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      messages: ["There is a wall in the way!"],
+    });
+    const cmd = controller(view, makeFakeActions());
+    /* The flag is set by perception and the same decision's step may use it up;
+     * either way a rewound decision must leave it as it found it. */
+    expect(cmd).not.toBeNull();
+    rewind();
+    expect(world.self.needAlter).toBe(false);
+
+    world.self.noAlter = true;
+    controller(makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 3 } }), makeFakeActions());
+    world.self.noAlter = false;
+    rewind();
+    expect(world.self.noAlter).toBe(true);
+  });
+});
+
 describe("buff on/off messages (borg-messages.c:772-1025)", () => {
   it("believes a buff active from its on-message, and gone from its own off-message", () => {
     const world = new BorgWorld();

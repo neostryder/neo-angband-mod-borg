@@ -130,7 +130,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   let retry = false;
   let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
     rechargeRest: session.rechargeRest ?? false, ringTakeoff: session.ringTakeoff ?? false,
-    panel: 0, store: false, resetLevel: world.resetLevel, junked: new Set(session.junked) };
+    panel: 0, store: false, resetLevel: world.resetLevel, junked: new Set(session.junked),
+    needAlter: false, noAlter: false };
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
@@ -139,7 +140,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
       rechargeRest: session.rechargeRest ?? false, ringTakeoff: session.ringTakeoff ?? false,
-      panel: world.self.timeThisPanel, store: false, resetLevel: world.resetLevel, junked: new Set(session.junked) };
+      panel: world.self.timeThisPanel, store: false, resetLevel: world.resetLevel, junked: new Set(session.junked),
+      needAlter: world.self.needAlter, noAlter: world.self.noAlter };
 
     /* Unknown recall effects keep the depth (borg-messages-react.c:229-242). */
     world.resetRecallDepth = false;
@@ -286,6 +288,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
      * A store decision never advanced the clock, so there is nothing to give back. */
     if (!before.store) world.clock -= 1;
     world.self.timeThisPanel = before.panel;
+    world.self.needAlter = before.needAlter;
+    world.self.noAlter = before.noAlter;
     session.lastGrid = before.lastGrid;
     session.arrivalPickup = before.arrival;
     /* borg-junk.c:1224-1241 and borg-item-wear.c:1516-1528 queue side

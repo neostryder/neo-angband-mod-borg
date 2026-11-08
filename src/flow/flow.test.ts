@@ -328,4 +328,23 @@ describe("borg_play_step's trap and door magic", () => {
     const { flow } = hooked(null, null);
     expect(code(borgPlayStep(ctx, flow, 10, 11))).toBe("open");
   });
+
+  it("alters the door instead of opening it after a blocked step, once", () => {
+    const ctx = makeCtx({ player: { grid: { x: 10, y: 10 } }, cells: { "11,10": { feat: FEAT.CLOSED } } }, { CLEVEL: 25, CDEPTH: 5, LIGHT: 1 });
+    ctx.world.self.timeThisPanel = 500;
+    ctx.world.self.needAlter = true;
+    const { flow } = hooked(null, null);
+    expect(borgPlayStep(ctx, flow, 10, 11)).toEqual({ code: "alter", dir: 6 });
+    expect(ctx.world.self.needAlter).toBe(false);
+    expect(code(borgPlayStep(ctx, flow, 10, 11))).toBe("open");
+  });
+
+  it("alters a plain step after a blocked step, then walks again", () => {
+    const ctx = makeCtx({ player: { grid: { x: 10, y: 10 } } }, { CLEVEL: 25, CDEPTH: 5, LIGHT: 1 });
+    ctx.world.self.needAlter = true;
+    const { flow } = hooked(null, null);
+    expect(borgPlayStep(ctx, flow, 10, 11)).toEqual({ code: "alter", dir: 6 });
+    expect(ctx.world.self.needAlter).toBe(false);
+    expect(code(borgPlayStep(ctx, flow, 10, 11))).toBe("walk");
+  });
 });

@@ -620,6 +620,11 @@ export function borgFlowCommit(
   return true;
 }
 
+/** The alter command (do_cmd_alter): the host facade has no typed builder for it. */
+function alterCommand(dir: number): AgentCommand {
+  return { code: "alter", dir };
+}
+
 /**
  * borg_play_step (borg-flow.c): take one step toward (x2, y2), returning the
  * AgentCommand that realises it (or null when there is nothing to do). The
@@ -712,6 +717,10 @@ export function borgPlayStep(
     ) {
       return null;
     }
+    /* borg-flow.c:759-765 sends the walk key instead of the alter key after a
+     * mis-alter. The melee builder is already a walk into the monster's grid, so
+     * both arms issue it; only the flag's consumption is kept. */
+    w.self.noAlter = false;
     return act.melee(dir);
   }
 
@@ -772,6 +781,12 @@ export function borgPlayStep(
       }
     }
     if (flow.closed.num) flow.closed.wipe();
+    /* After "There is a closed door blocking your way." the alter command goes
+     * instead of open (borg-flow.c:993-996). */
+    if (w.self.needAlter) {
+      w.self.needAlter = false;
+      return alterCommand(dir);
+    }
     return act.open(dir);
   }
 
@@ -802,8 +817,12 @@ export function borgPlayStep(
     return act.move(dir);
   }
 
-  /* Plain move */
+  /* Plain move; a blocked step alters the grid first (borg-flow.c:1076-1079). */
   w.self.inShop = false;
+  if (w.self.needAlter) {
+    w.self.needAlter = false;
+    return alterCommand(dir);
+  }
   return act.move(dir);
 }
 

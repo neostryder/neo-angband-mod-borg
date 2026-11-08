@@ -175,6 +175,10 @@ export interface BorgSelf {
   whenDetectObj: number;
   whenLastKillMult: number;
   noRestPrep: number;
+  /** my_need_alter (borg-flow.c:104): the last step hit a wall or door, so the next uses alter. */
+  needAlter: boolean;
+  /** my_no_alter (borg-flow.c:105): the last alter found nothing, so the next attack walks. */
+  noAlter: boolean;
 
   /* anti-loop counters (load-bearing thresholds; preserved verbatim) */
   timesTwitch: number;
@@ -213,6 +217,8 @@ export function makeBorgSelf(): BorgSelf {
     whenDetectObj: 0,
     whenLastKillMult: 0,
     noRestPrep: 0,
+    needAlter: false,
+    noAlter: false,
     timesTwitch: 0,
     escapes: 0,
   };
