@@ -527,6 +527,8 @@ function makeBorgSelf() {
     whenDetectObj: 0,
     whenLastKillMult: 0,
     noRestPrep: 0,
+    needAlter: false,
+    noAlter: false,
     timesTwitch: 0,
     escapes: 0
   };
@@ -772,10 +774,11 @@ function borgView(host) {
     // timers, and every race flag and spell, learned or not. API 2: truth.monsters(), which also lists
     // unseen monsters and has no "perceived" flag to filter them by.
     monsters: () => host.monsters(),
-    // truth: one grid. feat and passable give the live terrain rather than the remembered one, so a
-    // secret door reads as FEAT_SECRET where the player sees granite, and a door that changed out of
-    // sight shows its new state. glow is live too. known, inView, monster, objectCount and trap follow
-    // what the player sees. API 2: truth.level().
+    // view: one grid, read through rememberedCell. On a host that reports knownFeat, feat and passable
+    // come from what the player remembers (an undiscovered hidden door reads as granite, a door changed
+    // out of sight keeps its old state) and glow counts only while the grid is in view. A host without
+    // knownFeat passes the live grid through, where those fields are truth. known, inView, monster,
+    // objectCount and trap follow what the player sees. API 2: view.world() map cells.
     cell: (x, y) => rememberedCell(host.cell(x, y))
   };
   const simulate = host.simulateLoadout;
@@ -5332,6 +5335,9 @@ function borgFlowCommit(ctx, flow, why) {
   w.self.goal.type = why;
   return true;
 }
+function alterCommand(dir) {
+  return { code: "alter", dir };
+}
 function borgPlayStep(ctx, flow, y2, x2) {
   const w = ctx.world;
   const act = ctx.act;
@@ -5394,6 +5400,7 @@ function borgPlayStep(ctx, flow, y2, x2) {
     if (flow.hooks.monsterHasFlag(w, ag.kill, "UNIQUE") && trait(w, 105 /* CDEPTH */) === 0 && trait(w, 35 /* CLEVEL */) < 5) {
       return null;
     }
+    w.self.noAlter = false;
     return act.melee(dir);
   }
   if (ag.take && w.takes.has(ag.take)) {
@@ -5430,6 +5437,10 @@ function borgPlayStep(ctx, flow, y2, x2) {
       }
     }
     if (flow.closed.num) flow.closed.wipe();
+    if (w.self.needAlter) {
+      w.self.needAlter = false;
+      return alterCommand(dir);
+    }
     return act.open(dir);
   }
   if (ag.feat === FEAT.PERM) return null;
@@ -5453,6 +5464,10 @@ function borgPlayStep(ctx, flow, y2, x2) {
     return act.move(dir);
   }
   w.self.inShop = false;
+  if (w.self.needAlter) {
+    w.self.needAlter = false;
+    return alterCommand(dir);
+  }
   return act.move(dir);
 }
 function borgFlowOld(ctx, flow, why) {
@@ -5494,17 +5509,20 @@ function borgFlowOld(ctx, flow, why) {
 }
 
 // src/flow/flow-stairs.ts
-function syncStairsFromMap(ctx, flow) {
-  const w = ctx.world;
-  flow.less.wipe();
-  flow.more.wipe();
+function borgTrackStairs(world, flow) {
   for (let y = 0; y < AUTO_MAX_Y; y++) {
     for (let x = 0; x < AUTO_MAX_X; x++) {
-      const feat = w.map.at(x, y).feat;
-      if (feat === FEAT.LESS) flow.less.add(y, x);
-      else if (feat === FEAT.MORE) flow.more.add(y, x);
+      const feat = world.map.at(x, y).feat;
+      const track = feat === FEAT.LESS ? flow.less : feat === FEAT.MORE ? flow.more : null;
+      if (!track) continue;
+      let i = 0;
+      while (i < track.num && !(track.x[i] === x && track.y[i] === y)) i++;
+      if (i === track.num && i < track.size) track.add(y, x);
     }
   }
+}
+function syncStairsFromMap(ctx, flow) {
+  borgTrackStairs(ctx.world, flow);
 }
 function borgFlowCostStair(ctx, flow, y, x, bStair) {
   borgFlowClear(flow);
@@ -5735,18 +5753,31 @@ function borgCheckRest(ctx, flow, y, x) {
   const t = w.self.temp;
   if ((t.bless || t.hero || t.berserk || t.fastcast || t.regen || t.smiteEvil) && !w.self.munchkinMode && trait(w, 27 /* CURHP */) >= Math.trunc(trait(w, 28 /* MAXHP */) * 8 / 10) && trait(w, 30 /* CURSP */) >= Math.trunc(trait(w, 31 /* MAXSP */) * 7 / 10))
     return false;
+  let inVault = false;
+  if (w.facts.vaultOnLevel) {
+    for (let i = -1; i < 1; i++) {
+      for (let ii = -1; ii < 1; ii++) {
+        const gx = w.self.c.x + ii;
+        const gy = w.self.c.y + i;
+        if (!inBoundsFully(gx, gy)) continue;
+        if (w.map.at(gx, gy).feat === FEAT.PERM) inVault = true;
+      }
+    }
+  }
   if (w.self.noRestPrep >= 1 && !w.self.munchkinMode && trait(w, 30 /* CURSP */) > Math.trunc(trait(w, 31 /* MAXSP */) / 4) && trait(w, 105 /* CDEPTH */) < 85)
     return false;
   if (w.map.at(x, y).feat === FEAT.LAVA && !trait(w, 64 /* IFIRE */)) return false;
-  const fear = getFearCaches(w);
-  if (fear.region(y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 20) && trait(w, 105 /* CDEPTH */) !== 100)
-    return false;
-  if (fear.monsters(y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 10) && trait(w, 105 /* CDEPTH */) !== 100)
-    return false;
-  if (flow.hooks.danger(w, y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 40) && trait(w, 105 /* CDEPTH */) >= 85)
-    return false;
-  if ((trait(w, 26 /* LIGHT */) === 0 || trait(w, 108 /* ISWEAK */) || trait(w, 39 /* FOOD */) < 2) && !w.self.munchkinMode)
-    return false;
+  if (!inVault) {
+    const fear = getFearCaches(w);
+    if (fear.region(y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 20) && trait(w, 105 /* CDEPTH */) !== 100)
+      return false;
+    if (fear.monsters(y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 10) && trait(w, 105 /* CDEPTH */) !== 100)
+      return false;
+    if (flow.hooks.danger(w, y, x) > Math.trunc(trait(w, 27 /* CURHP */) / 40) && trait(w, 105 /* CDEPTH */) >= 85)
+      return false;
+    if ((trait(w, 26 /* LIGHT */) === 0 || trait(w, 108 /* ISWEAK */) || trait(w, 39 /* FOOD */) < 2) && !w.self.munchkinMode)
+      return false;
+  }
   for (const [i, kill] of w.kills.entries()) {
     const x9 = kill.pos.x;
     const y9 = kill.pos.y;
@@ -5760,13 +5791,13 @@ function borgCheckRest(ctx, flow, y, x) {
     if (d < 10 && has2("MULTIPLY")) return false;
     if (!kill.awake && d > 8 && !w.self.munchkinMode) continue;
     const p = flow.hooks.dangerOneKill(w, y9, x9, i);
-    if (d < 5 && p > Math.trunc(flow.avoidance / 3) && !w.self.munchkinMode)
+    if (!inVault && d < 5 && p > Math.trunc(flow.avoidance / 3) && !w.self.munchkinMode)
       return false;
     if (flow.hooks.los(w, y9, x9, y, x) && kill.rangedAttack) return false;
     if (w.self.munchkinMode && flow.hooks.los(w, y9, x9, y, x) && kill.awake && !has2("NEVER_MOVE"))
       return false;
-    if (has2("PASS_WALL")) return false;
-    if (has2("KILL_WALL")) return false;
+    if (has2("PASS_WALL") && !inVault) return false;
+    if (has2("KILL_WALL") && !inVault) return false;
   }
   return true;
 }
@@ -16947,6 +16978,10 @@ function think(ctx) {
 }
 
 // src/perceive-messages.ts
+function markGoalGridBroken(world) {
+  const g = world.self.goal.g;
+  if (world.map.inBounds(g.x, g.y)) world.map.at(g.x, g.y).feat = FEAT.BROKEN;
+}
 var PREFIX_KILL = [
   "You have killed ",
   "You have slain ",
@@ -17129,6 +17164,37 @@ function borgReactMessages(world, messages, visibleIds, names = /* @__PURE__ */ 
         world.kills.delete(k, world);
         deleted += 1;
       }
+      continue;
+    }
+    const confused = (world.self.trait[114 /* ISCONFUSED */] ?? 0) !== 0;
+    const imagined = (world.self.trait[120 /* ISIMAGE */] ?? 0) !== 0;
+    if (msg.startsWith("There is a wall ") && !confused) {
+      world.self.needAlter = true;
+      world.self.goal.type = 0;
+      continue;
+    }
+    if (msg.startsWith("There is a closed door blocking your way.") && !confused && !imagined) {
+      world.self.needAlter = true;
+      world.self.goal.type = 0;
+      continue;
+    }
+    if (msg.startsWith("You spin around.") && !confused) {
+      const px = world.self.c.x;
+      const py = world.self.c.y;
+      for (const [i, k] of [...world.kills.entries()]) {
+        if (Math.max(Math.abs(k.pos.x - px), Math.abs(k.pos.y - py)) < 4) {
+          world.kills.delete(i, world);
+          deleted += 1;
+        }
+      }
+      world.self.noAlter = true;
+      world.self.goal.type = 0;
+      continue;
+    }
+    if (msg.startsWith("You see nothing there ")) {
+      markGoalGridBroken(world);
+      world.self.noAlter = true;
+      world.self.goal.type = 0;
       continue;
     }
     if (msg.startsWith("The air about you becomes ")) {
@@ -17455,9 +17521,6 @@ function borgUpdateLight(world, view) {
 }
 function ingestMonsters(world, view, raceSymbol) {
   for (const [, k] of world.kills.entries()) {
-    if (world.map.inBounds(k.pos.x, k.pos.y)) {
-      world.map.at(k.pos.x, k.pos.y).kill = 0;
-    }
     k.seen = false;
     k.used = false;
   }
@@ -17487,6 +17550,9 @@ function ingestMonsters(world, view, raceSymbol) {
     k.known = true;
     k.ox = k.pos.x;
     k.oy = k.pos.y;
+    if (world.map.inBounds(k.pos.x, k.pos.y) && world.map.at(k.pos.x, k.pos.y).kill === idx) {
+      world.map.at(k.pos.x, k.pos.y).kill = 0;
+    }
     k.pos.x = m.grid.x;
     k.pos.y = m.grid.y;
     k.awake = !m.asleep;
@@ -17638,8 +17704,11 @@ function createBorg(opts = {}) {
     rechargeRest: session.rechargeRest ?? false,
     ringTakeoff: session.ringTakeoff ?? false,
     panel: 0,
+    store: false,
     resetLevel: world.resetLevel,
-    junked: new Set(session.junked)
+    junked: new Set(session.junked),
+    needAlter: false,
+    noAlter: false
   };
   const controller = hostController((view, act) => {
     const ctx = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect };
@@ -17651,10 +17720,20 @@ function createBorg(opts = {}) {
       rechargeRest: session.rechargeRest ?? false,
       ringTakeoff: session.ringTakeoff ?? false,
       panel: world.self.timeThisPanel,
+      store: false,
       resetLevel: world.resetLevel,
-      junked: new Set(session.junked)
+      junked: new Set(session.junked),
+      needAlter: world.self.needAlter,
+      noAlter: world.self.noAlter
     };
     world.resetRecallDepth = false;
+    const shopNum = session.resolvers.inShop?.(ctx) ?? null;
+    if (shopNum !== null && shopNum >= 0) {
+      before.store = true;
+      borgNotice(ctx);
+      world.self.power = borgPower(ctx);
+      return think(ctx);
+    }
     world.clock += 1;
     world.self.timeThisPanel += 1;
     const depth = view.player().depth;
@@ -17702,8 +17781,8 @@ function createBorg(opts = {}) {
       kindCost: session.resolvers.kindCost,
       junked: session.junked
     }, (i) => session.resolvers.resolveMonsterFacts?.(ctx, i).dChar);
-    const shopNum = session.resolvers.inShop?.(ctx) ?? null;
-    if (recordStep && (shopNum === null || shopNum < 0)) {
+    borgTrackStairs(world, session.flow.state);
+    if (recordStep) {
       borgTrackStep(session.flow.state.step, world.self.c.y, world.self.c.x);
     }
     primeSession(session, ctx);
@@ -17726,8 +17805,10 @@ function createBorg(opts = {}) {
   });
   const rewind = () => {
     retry = true;
-    world.clock -= 1;
+    if (!before.store) world.clock -= 1;
     world.self.timeThisPanel = before.panel;
+    world.self.needAlter = before.needAlter;
+    world.self.noAlter = before.noAlter;
     session.lastGrid = before.lastGrid;
     session.arrivalPickup = before.arrival;
     session.rechargeRest = before.rechargeRest;
@@ -18263,7 +18344,7 @@ function playerView(known, floors) {
   const timed = {};
   for (const [field, record] of Object.entries(TIMED_RECORDS)) {
     const grade = status[field];
-    timed[field] = grade === null ? 0 : floors.get(record)?.get(grade) ?? 1;
+    timed[field] = grade == null ? 0 : floors.get(record)?.get(grade) ?? 1;
   }
   return { ...rest, status: { ...timed, food: status.food * 100, fearful: status.fearful }, recall: recall ? 1 : 0, descent: descent ? 1 : 0 };
 }

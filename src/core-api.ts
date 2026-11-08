@@ -440,10 +440,11 @@ export function borgView(host: AgentView): BorgView {
     // timers, and every race flag and spell, learned or not. API 2: truth.monsters(), which also lists
     // unseen monsters and has no "perceived" flag to filter them by.
     monsters: () => host.monsters(),
-    // truth: one grid. feat and passable give the live terrain rather than the remembered one, so a
-    // secret door reads as FEAT_SECRET where the player sees granite, and a door that changed out of
-    // sight shows its new state. glow is live too. known, inView, monster, objectCount and trap follow
-    // what the player sees. API 2: truth.level().
+    // view: one grid, read through rememberedCell. On a host that reports knownFeat, feat and passable
+    // come from what the player remembers (an undiscovered hidden door reads as granite, a door changed
+    // out of sight keeps its old state) and glow counts only while the grid is in view. A host without
+    // knownFeat passes the live grid through, where those fields are truth. known, inView, monster,
+    // objectCount and trap follow what the player sees. API 2: view.world() map cells.
     cell: (x, y) => rememberedCell(host.cell(x, y)),
   };
   const simulate = host.simulateLoadout;
