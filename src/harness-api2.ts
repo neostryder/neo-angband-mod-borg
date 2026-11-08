@@ -25,6 +25,7 @@ import type {
 } from "@rpgm-tools/neo-angband-mod-sdk";
 import type { AgentView, ItemView, MonsterView } from "@rpgm-tools/neo-angband-core";
 import { makeScenarioView, type Scenario } from "./harness.js";
+import { TIMED_RECORDS } from "./api2/records.js";
 
 const ok = <T,>(value: T): Promise<{ readonly ok: true; readonly value: T }> => Promise.resolve({ ok: true as const, value });
 const refused = (message: string) => Promise.resolve({ ok: false as const, reason: "refused" as const, code: "refused", message });
@@ -93,7 +94,7 @@ function knownMonster(monster: MonsterView): KnownMonster {
 export function knownWorld(view: AgentView, noscore = 0): KnownWorldData {
   const player = view.player();
   const clear = { timed: {}, foodGrade: null, food: player.status.food / 100, fearful: false } as Record<string, unknown>;
-  for (const key of Object.keys(player.status)) if (!(key in clear)) clear[key] = null;
+  for (const key of [...Object.keys(TIMED_RECORDS), ...Object.keys(player.status)]) if (!(key in clear)) clear[key] = null;
   const known = {
     ...player,
     status: clear,

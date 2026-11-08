@@ -88,8 +88,9 @@ export function playerView(known: KnownPlayer, floors: GradeFloors): PlayerView 
   const timed = {} as Record<keyof typeof TIMED_RECORDS, number>;
   for (const [field, record] of Object.entries(TIMED_RECORDS) as [keyof typeof TIMED_RECORDS, string][]) {
     const grade = status[field];
-    /* A grade the records do not name (an older or patched file) still says the effect is on. */
-    timed[field] = grade === null ? 0 : (floors.get(record)?.get(grade) ?? 1);
+    /* A field the source view omits reads as off, like null; only a grade the records do not
+     * name (an older or patched file) still says the effect is on. */
+    timed[field] = grade == null ? 0 : (floors.get(record)?.get(grade) ?? 1);
   }
   return { ...rest, status: { ...timed, food: status.food * 100, fearful: status.fearful }, recall: recall ? 1 : 0, descent: descent ? 1 : 0 };
 }

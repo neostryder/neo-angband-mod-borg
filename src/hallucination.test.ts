@@ -15,7 +15,8 @@ import { borgFollowMissingKills, createFlowState } from "./flow/index.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
 import { makeBorgRng } from "./rng.js";
 import { playerView } from "./api2/world.js";
-import type { GradeFloors } from "./api2/records.js";
+import { TIMED_RECORDS, type GradeFloors } from "./api2/records.js";
+import { knownWorld } from "./harness-api2.js";
 import type { BorgContext } from "./context.js";
 import { BORG_LIGHT, BORG_VIEW } from "./world/grid.js";
 
@@ -167,5 +168,22 @@ describe("goals are forgotten while impaired", () => {
     ctx.world.self.goal.type = GOAL_KILL;
     borgForgetGoalWhileImpaired(ctx.world);
     expect(ctx.world.self.goal.type).toBe(GOAL_KILL);
+  });
+});
+
+describe("a status the source view omits", () => {
+  it("reads as off in playerView, not as an active effect", () => {
+    const status = { timed: {}, food: 50, foodGrade: null, fearful: false };
+    const known = { status, recall: false, descent: false } as unknown as KnownPlayer;
+    const view = playerView(known, new Map()).status;
+    expect(view.terror).toBe(0);
+    expect(view.amnesia).toBe(0);
+    expect(view.image).toBe(0);
+  });
+
+  it("is cleared by the harness known world for every timed field", () => {
+    const scenario = makeScenarioView({ player: { status: {} } });
+    const known = knownWorld(scenario).player as unknown as { status: Record<string, unknown> };
+    for (const field of Object.keys(TIMED_RECORDS)) expect(known.status[field]).toBeNull();
   });
 });
