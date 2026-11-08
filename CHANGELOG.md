@@ -20,6 +20,8 @@ were not retagged.
 
 ## [Unreleased]
 
+## 1.4.0-beta.5 - 2026-11-08
+
 ### Fixed
 
 - [Visible] **The Borg no longer overstates how far its light reaches.** It started its light value from the radius the game had already worked out for the player and then added the equipped light again, so a fueled Wooden Torch counted as radius 4 instead of 2, and its lighting and recovery checks used the inflated radius. It now builds the value from zero out of its own equipment, as the original does. A Phial of Galadriel now reads 8 instead of 12 and a Necromancer's unlight radius 7 instead of 10, because the original adds the light modifier twice and the port keeps that quirk (neostryder/neo-angband#478).
@@ -30,6 +32,7 @@ were not retagged.
 - [Visible] **The Borg no longer changes its clocks, map, or records while in a store.** In a store the Borg advanced its turn counters, ran its map update over the store screen, and could expire records it had remembered. It now does what the original does there: it checks the character, scores the world, and runs only the store decisions. Its clocks, its map, and its monster and object records stay as they were (neostryder/neo-angband#450).
 - [Visible] **The Borg now reacts when a step or an alter command fails.** The Borg ignored the messages the game prints when a step runs into a wall or a closed door, or when an alter command finds nothing, and it now reads "There is a wall", "There is a closed door blocking your way", "You spin around", and "You see nothing there". After a wall or door message it uses the alter command for its next step into that grid, as the original does. It ignores both of those messages while confused, and the door message also while hallucinating. "You spin around" drops monster records within three grids, and "You see nothing there" marks the grid as broken (neostryder/neo-angband#453).
 - [Visible] **The Borg can now rest inside a vault.** The Borg treated a vault like any other room, so it refused to rest there when it was low on food or light, or near a monster that walks through walls. It now counts itself in a vault when a permanent wall touches it on a level with vault walls, and then skips the fear, danger, food, light, nearby-monster, and wall-walker refusals, as the original does. The checks that need the game's own vault flag are not ported yet (neostryder/neo-angband#451).
+- [Visible] **The Borg now wears its backup equipment when it is in danger.** Previously, the emergency caution step never put on the backup item the Borg had selected, so that item stayed in the pack on dangerous turns. The step now wears it after the healing and defense choices and before the recall rest, as the original does. The resistance plan also counts the backup's resistances as available, even when the Borg is not noticing a monster (neostryder/neo-angband#486).
 
 ## 1.4.0-beta.4 - 2026-11-07
 
