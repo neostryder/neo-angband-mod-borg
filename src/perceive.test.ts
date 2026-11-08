@@ -605,12 +605,12 @@ describe("stair tracks during perception", () => {
     expect(flow.more.num).toBe(flow.more.size);
   });
 
-  it("fills the tracks for the controller on every decision, before any flow routine runs", () => {
-    /* A store decision runs no flow routine, so only perception can have filled the tracks. */
-    const { world, controller } = createBorg({ resolvers: { inShop: () => 0 } });
+  it("fills the tracks through the controller", () => {
+    const { world, controller } = createBorg();
     const act = makeFakeActions();
     const view = (stair: boolean) => makeScenarioView({
       player: { grid: { x: 5, y: 5 }, depth: 3 },
+      monsters: [{ grid: { x: 6, y: 5 } }],
       cells: stair ? { "12,7": { feat: FEAT.LESS }, "14,9": { feat: FEAT.MORE } } : {},
     });
     controller(view(false), act);
@@ -619,5 +619,32 @@ describe("stair tracks during perception", () => {
     controller(view(true), act);
     expect([flow.less.num, flow.more.num]).toEqual([1, 1]);
     expect([flow.less.x[0], flow.less.y[0]]).toEqual([12, 7]);
+  });
+});
+
+describe("store decisions", () => {
+  it("leave the clocks, the kill table, and the map untouched, as borg_think does", () => {
+    let inStore = false;
+    const { world, controller, rewind } = createBorg({ resolvers: { inShop: () => (inStore ? 0 : null) } });
+    const act = makeFakeActions();
+    const level = makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      monsters: [{ id: 9, grid: { x: 8, y: 5 }, raceFlags: ["MULTIPLY"] }],
+    });
+    controller(level, act);
+    const clock = world.clock;
+    const panel = world.self.timeThisPanel;
+    const slot = world.map.at(8, 5).kill;
+    expect(slot).toBeGreaterThan(0);
+    inStore = true;
+    /* The store screen shows no monsters; perceiving it would age and expire the records. */
+    const store = makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 3 } });
+    controller(store, act);
+    rewind();
+    controller(store, act);
+    expect(world.clock).toBe(clock);
+    expect(world.self.timeThisPanel).toBe(panel);
+    expect([...world.kills.entries()]).toHaveLength(1);
+    expect(world.map.at(8, 5).kill).toBe(slot);
   });
 });
