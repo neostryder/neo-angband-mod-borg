@@ -1,7 +1,7 @@
 /** Syntax trees keep assertions, whitespace and quoted URLs from hiding host reads. */
 
 import { describe, expect, it } from "vitest";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";

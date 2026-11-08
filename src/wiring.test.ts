@@ -4,7 +4,7 @@
  * Compiler symbols keep aliases of self, goal and facts tied to their types.
  */
 import { describe, expect, it } from "vitest";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
