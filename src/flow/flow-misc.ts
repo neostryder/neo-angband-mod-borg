@@ -199,8 +199,10 @@ export function borgHappyGridBold(ctx: BorgContext, flow: FlowState, y: number, 
  * CURHP/20 is zero, so any fear at all is enough to keep it on its feet.
  *
  * The PF_COMBAT_REGEN arm (misc.c:1218-1221) reads the class's player flags
- * from the view (classFlags). The vault arm is skipped for the reason danger/fear.ts documents: the
- * remembered map has no vault flag.
+ * from the view (classFlags). The vault arm (misc.c:1243-1258) does not need a
+ * vault flag: it is a test of the remembered map, an adjacent permanent wall on
+ * a vault level, so it is ported as written. The separate square_isvault tests
+ * in danger/fear.ts need the game's own vault flag and stay a documented gap.
  */
 export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: number): boolean {
   const w = ctx.world;
@@ -232,6 +234,21 @@ export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: n
   )
     return false;
 
+  /* Most of the time it is fine to rest in a vault (misc.c:1243-1258). The C
+   * scans the grids at offsets -1 and 0 (its `i < 1` bound leaves out +1), and the
+   * test is a permanent wall on a level that has vault walls. */
+  let inVault = false;
+  if (w.facts.vaultOnLevel) {
+    for (let i = -1; i < 1; i++) {
+      for (let ii = -1; ii < 1; ii++) {
+        const gx = w.self.c.x + ii;
+        const gy = w.self.c.y + i;
+        if (!inBoundsFully(gx, gy)) continue;
+        if (w.map.at(gx, gy).feat === FEAT.PERM) inVault = true;
+      }
+    }
+  }
+
   /* No resting right after a preparatory spell (misc.c:1262). */
   if (
     w.self.noRestPrep >= 1 &&
@@ -244,34 +261,37 @@ export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: n
   /* Don't rest on lava unless immune to fire */
   if (w.map.at(x, y).feat === FEAT.LAVA && !trait(w, BI.IFIRE)) return false;
 
-  /* Be concerned about the Regional Fear (misc.c:1272). */
-  const fear = getFearCaches(w);
-  if (
-    fear.region(y, x) > Math.trunc(trait(w, BI.CURHP) / 20) &&
-    trait(w, BI.CDEPTH) !== 100
-  )
-    return false;
+  /* Fear, danger, food and light are not a worry inside a vault (misc.c:1270). */
+  if (!inVault) {
+    /* Be concerned about the Regional Fear (misc.c:1272). */
+    const fear = getFearCaches(w);
+    if (
+      fear.region(y, x) > Math.trunc(trait(w, BI.CURHP) / 20) &&
+      trait(w, BI.CDEPTH) !== 100
+    )
+      return false;
 
-  /* Be concerned about the Monster Fear (misc.c:1277). */
-  if (
-    fear.monsters(y, x) > Math.trunc(trait(w, BI.CURHP) / 10) &&
-    trait(w, BI.CDEPTH) !== 100
-  )
-    return false;
+    /* Be concerned about the Monster Fear (misc.c:1277). */
+    if (
+      fear.monsters(y, x) > Math.trunc(trait(w, BI.CURHP) / 10) &&
+      trait(w, BI.CDEPTH) !== 100
+    )
+      return false;
 
-  /* Concerned about danger at deep depth */
-  if (
-    flow.hooks.danger(w, y, x) > Math.trunc(trait(w, BI.CURHP) / 40) &&
-    trait(w, BI.CDEPTH) >= 85
-  )
-    return false;
+    /* Concerned about danger at deep depth */
+    if (
+      flow.hooks.danger(w, y, x) > Math.trunc(trait(w, BI.CURHP) / 40) &&
+      trait(w, BI.CDEPTH) >= 85
+    )
+      return false;
 
-  /* Concerned if low on food/light */
-  if (
-    (trait(w, BI.LIGHT) === 0 || trait(w, BI.ISWEAK) || trait(w, BI.FOOD) < 2) &&
-    !w.self.munchkinMode
-  )
-    return false;
+    /* Concerned if low on food/light */
+    if (
+      (trait(w, BI.LIGHT) === 0 || trait(w, BI.ISWEAK) || trait(w, BI.FOOD) < 2) &&
+      !w.self.munchkinMode
+    )
+      return false;
+  }
 
   /* Examine the monsters */
   for (const [i, kill] of w.kills.entries()) {
@@ -299,7 +319,7 @@ export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: n
      * grid sums every monster and both fear caches, so asking it here would let
      * a busy level veto a rest next to something harmless. */
     const p = flow.hooks.dangerOneKill(w, y9, x9, i);
-    if (d < 5 && p > Math.trunc(flow.avoidance / 3) && !w.self.munchkinMode)
+    if (!inVault && d < 5 && p > Math.trunc(flow.avoidance / 3) && !w.self.munchkinMode)
       return false;
 
     /* Concerned for ranged attacks: it can reach the Borg without moving. */
@@ -315,8 +335,8 @@ export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: n
       return false;
 
     /* if it walks through walls, not safe */
-    if (has("PASS_WALL")) return false;
-    if (has("KILL_WALL")) return false;
+    if (has("PASS_WALL") && !inVault) return false;
+    if (has("KILL_WALL") && !inVault) return false;
   }
   return true;
 }

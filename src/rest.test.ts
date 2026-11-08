@@ -28,7 +28,7 @@ import {
   buildHitByTable,
   buildSpellTable,
 } from "./perceive-messages.js";
-import { RSF } from "./core-api.js";
+import { FEAT, RSF } from "./core-api.js";
 import { borgNotice, BI } from "./trait/index.js";
 import { getFearCaches } from "./danger/index.js";
 import { borgCheckRest, createFlowState } from "./flow/index.js";
@@ -450,5 +450,47 @@ describe("resting when SP only returns in combat", () => {
   it("still lets a class without the flag rest for SP at full HP", () => {
     const { ctx, world } = fed({ player: { ...blackguard, classFlags: [] } });
     expect(borgCheckRest(ctx, createFlowState(), world.self.c.y, world.self.c.x)).toBe(true);
+  });
+});
+
+/* borg_check_rest's vault arm (borg-flow-misc.c:1243-1258, :1270, :1336, :1356). */
+describe("resting beside a vault wall", () => {
+  /* No food on hand would normally refuse the rest (misc.c:1288). The clock is
+   * past the multiplier-kill window so the case isolates the vault arm. */
+  const hungry = (): { ctx: BorgContext; world: BorgWorld } => {
+    const made = ctxFor({ player: { grid: AWAY, hp: 20, maxHp: 20 } });
+    made.world.self.trait[BI.FOOD] = 0;
+    made.world.self.trait[BI.LIGHT] = 1;
+    made.world.clock = 10;
+    return made;
+  };
+  const rest = ({ ctx, world }: { ctx: BorgContext; world: BorgWorld }): boolean =>
+    borgCheckRest(ctx, createFlowState(), world.self.c.y, world.self.c.x);
+
+  it("refuses to rest without food outside a vault", () => {
+    expect(rest(hungry())).toBe(false);
+  });
+
+  it("rests anyway next to a permanent wall on a vault level", () => {
+    const made = hungry();
+    made.world.facts.vaultOnLevel = true;
+    made.world.map.at(AWAY.x - 1, AWAY.y).feat = FEAT.PERM;
+    expect(rest(made)).toBe(true);
+  });
+
+  it("needs the level to have vault walls", () => {
+    const made = hungry();
+    made.world.map.at(AWAY.x - 1, AWAY.y).feat = FEAT.PERM;
+    expect(rest(made)).toBe(false);
+  });
+
+  it("scans only the grids at offsets -1 and 0, as the C loop does", () => {
+    const made = hungry();
+    made.world.facts.vaultOnLevel = true;
+    made.world.map.at(AWAY.x + 1, AWAY.y).feat = FEAT.PERM;
+    made.world.map.at(AWAY.x, AWAY.y + 1).feat = FEAT.PERM;
+    expect(rest(made)).toBe(false);
+    made.world.map.at(AWAY.x - 1, AWAY.y - 1).feat = FEAT.PERM;
+    expect(rest(made)).toBe(true);
   });
 });
