@@ -135,6 +135,32 @@ describe("tracking deletion cleanup", () => {
     expect(world.self.goal.type).toBe(GOAL_KILL);
   });
 
+  it("keeps the grid pointer of a remembered monster that is out of view until it expires", () => {
+    const { world, memo } = tracked();
+    const slot = world.map.at(8, 5).kill;
+    expect(slot).toBeGreaterThan(0);
+    world.clock = 100;
+    perceive(world, makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 3 } }), memo);
+    expect([...world.kills.entries()]).toHaveLength(1);
+    expect(world.map.at(8, 5).kill).toBe(slot);
+    world.clock = BORG_EXPIRE_TURNS;
+    perceive(world, makeScenarioView({ player: { grid: { x: 5, y: 5 }, depth: 3 } }), memo);
+    expect([...world.kills.entries()]).toHaveLength(0);
+    expect(world.map.at(8, 5).kill).toBe(0);
+  });
+
+  it("moves the grid pointer with a visible monster", () => {
+    const { world, memo } = tracked();
+    const slot = world.map.at(8, 5).kill;
+    world.clock = 50;
+    perceive(world, makeScenarioView({
+      player: { grid: { x: 5, y: 5 }, depth: 3 },
+      monsters: [{ id: 9, grid: { x: 9, y: 5 }, raceFlags: ["MULTIPLY"] }],
+    }), memo);
+    expect(world.map.at(8, 5).kill).toBe(0);
+    expect(world.map.at(9, 5).kill).toBe(slot);
+  });
+
   it.each(["expiry", "pickup"])("clears an object grid and take goal on %s", (path) => {
     const { world, memo, pursue } = tracked();
     pursue(GOAL_TAKE, 9);

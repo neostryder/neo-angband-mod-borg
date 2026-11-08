@@ -335,11 +335,11 @@ function ingestMonsters(
   view: BorgView,
   raceSymbol?: (killIndex: number) => string | undefined,
 ): { ids: Set<number>; names: Map<number, string> } {
-  // Clear the grid.kill back-pointers; rebuilt below from live positions.
+  /* The grid.kill back-pointer of a remembered monster stays set until the record is
+   * deleted (BorgKills.delete clears it, as borg_delete_kill does,
+   * borg-flow-kill.c:415-435). A visible monster that moves takes the pointer to its new
+   * grid below. */
   for (const [, k] of world.kills.entries()) {
-    if (world.map.inBounds(k.pos.x, k.pos.y)) {
-      world.map.at(k.pos.x, k.pos.y).kill = 0;
-    }
     // Clear per-tick flags (borg-update.c:1549).
     k.seen = false;
     k.used = false;
@@ -382,6 +382,9 @@ function ingestMonsters(
     k.known = true;
     k.ox = k.pos.x;
     k.oy = k.pos.y;
+    if (world.map.inBounds(k.pos.x, k.pos.y) && world.map.at(k.pos.x, k.pos.y).kill === idx) {
+      world.map.at(k.pos.x, k.pos.y).kill = 0;
+    }
     k.pos.x = m.grid.x;
     k.pos.y = m.grid.y;
     k.awake = !m.asleep;
