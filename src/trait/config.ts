@@ -282,11 +282,14 @@ export interface ResolvedOpts {
  * Fill in defaults for any unsupplied seam. The frame comes from the caller,
  * else from the character's race/class records through `ctx.frame` (as the C
  * reads player->race and player->class), else the neutral frame.
+ * The spell seam comes from the caller, else from the context being noticed
+ * (the host's real predicates,
+ * as the C calls borg_spell_legal and friends directly), else the inert one.
  */
 export function resolveOpts(opts: BorgTraitOpts = {}, ctx?: BorgContext): ResolvedOpts {
   return {
     cfg: { ...borgCfg(), ...opts.cfg },
-    spells: opts.spells ?? defaultSpellSeam(),
+    spells: opts.spells ?? ctx?.spellSeam?.(ctx) ?? defaultSpellSeam(),
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? contextFrame(ctx) ?? defaultFrame(),
     svals: opts.svals ?? flatSvals(),

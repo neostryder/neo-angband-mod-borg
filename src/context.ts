@@ -8,7 +8,7 @@
 import type { Rng } from "./rng.js";
 import type { BorgActions, BorgView } from "./core-api.js";
 import type { BorgWorld } from "./world/model.js";
-import type { BorgFrame } from "./trait/config.js";
+import type { BorgFrame, BorgSpellSeam } from "./trait/config.js";
 
 /** Everything a decision subsystem needs, for one think. */
 export interface BorgContext {
@@ -26,4 +26,6 @@ export interface BorgContext {
   spellEffect?: ((cls: string, sidx: number) => { name: string; aim: boolean } | null) | undefined;
   /** The race/class frame by race and class name (player->race, player->class). */
   frame?: ((race: string, cls: string) => BorgFrame | null) | undefined;
+  /** The spell/device seam borg_notice reads, built for the context being noticed. */
+  spellSeam?: ((ctx: BorgContext) => BorgSpellSeam) | undefined;
 }

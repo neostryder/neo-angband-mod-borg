@@ -36,6 +36,7 @@ import { borgNotice, borgPower, borgCfg, setBorgCfg, BI, type BorgCfg } from "./
 import { getFightState } from "./fight/index.js";
 import type { BorgContext } from "./context.js";
 import { hostController } from "./core-api.js";
+import { contextSpellSeam } from "./trait/spell-seam.js";
 import {
   buildThinkSession,
   installThinkSession,
@@ -140,7 +141,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
   const controller: AgentController = hostController((view, act) => {
-    const ctx: BorgContext = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect, frame: session.resolvers.frame };
+    const ctx: BorgContext = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect, frame: session.resolvers.frame, spellSeam: (c) => contextSpellSeam(c, session.resolvers.resolveActivation) };
     const recordStep = !retry;
     retry = false;
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,

@@ -3953,7 +3953,7 @@ function contextFrame(ctx) {
 function resolveOpts(opts = {}, ctx) {
   return {
     cfg: { ...borgCfg(), ...opts.cfg },
-    spells: opts.spells ?? defaultSpellSeam(),
+    spells: opts.spells ?? ctx?.spellSeam?.(ctx) ?? defaultSpellSeam(),
     home: opts.home ?? defaultHomeSeam(),
     frame: opts.frame ?? contextFrame(ctx) ?? defaultFrame(),
     svals: opts.svals ?? flatSvals(),
@@ -18086,6 +18086,34 @@ function ingestFloor(world, view, oldX, oldY, valuation) {
   }
 }
 
+// src/trait/spell-seam.ts
+function spellNamed(name) {
+  const spell = Spell[name];
+  return typeof spell === "number" ? spell : null;
+}
+function contextSpellSeam(ctx, resolveActivation) {
+  const has2 = (flag) => playerHas(ctx, flag);
+  return {
+    spellLegal: (name) => {
+      const spell = spellNamed(name);
+      return spell !== null && borgSpellLegal(ctx, spell);
+    },
+    spellLegalFail: (name, fail) => {
+      const spell = spellNamed(name);
+      return spell !== null && borgSpellLegalFail(ctx, spell, fail, has2);
+    },
+    /* Every borg_notice call passes check_charge = false (borg-trait.c). */
+    equipsItem: (act) => resolveActivation?.(ctx, act, false) ?? false,
+    equipsRing: (sval) => borgEquipsRing(ctx, sval),
+    /* spell_chance(0): the class's first spell, scored as the Borg scores a cast. */
+    spellChance: () => {
+      const first = ratingsForClass(ctx.world.self.trait[25 /* CLASS */] ?? -1)?.[0];
+      return first ? borgSpellFailRate(ctx, first.spell, has2) : 100;
+    },
+    playerHas: has2
+  };
+}
+
 // src/controller.ts
 var CONTROLLER_WORLDS = /* @__PURE__ */ new WeakMap();
 function recallDepthAnswer(controller) {
@@ -18120,7 +18148,7 @@ function createBorg(opts = {}) {
     noAlter: false
   };
   const controller = hostController((view, act) => {
-    const ctx = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect, frame: session.resolvers.frame };
+    const ctx = { world, view, act, rng, bookKind: session.resolvers.bookKind, spellEffect: session.resolvers.spellEffect, frame: session.resolvers.frame, spellSeam: (c) => contextSpellSeam(c, session.resolvers.resolveActivation) };
     const recordStep = !retry;
     retry = false;
     before = {
