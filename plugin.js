@@ -7664,6 +7664,7 @@ function borgNotice(ctx, opts = {}) {
   const view = ctx.view;
   const p = view.player();
   const t = new Array(BI_MAX).fill(0);
+  ctx.world.self.trait = t;
   const previous = getDerived(ctx.world);
   const d = resetDerived(ctx.world);
   t[146 /* BLOWS */] = 1;
@@ -18105,8 +18106,14 @@ function contextSpellSeam(ctx, resolveActivation) {
     /* Every borg_notice call passes check_charge = false (borg-trait.c). */
     equipsItem: (act) => resolveActivation?.(ctx, act, false) ?? false,
     equipsRing: (sval) => borgEquipsRing(ctx, sval),
-    /* spell_chance(0): the class's first spell, scored as the Borg scores a cast. */
+    /* spell_chance(0) (borg-power.c:321): the game's own live failure for class
+     * spell 0 - mana shortfall, fear, stun and amnesia included - which the
+     * view carries as SpellView.chance. Without it, the Borg's own estimate. */
     spellChance: () => {
+      for (const book of ctx.view.spellbooks()) {
+        const first2 = book.spells.find((s) => s.sidx === 0);
+        if (first2 && typeof first2.chance === "number") return first2.chance;
+      }
       const first = ratingsForClass(ctx.world.self.trait[25 /* CLASS */] ?? -1)?.[0];
       return first ? borgSpellFailRate(ctx, first.spell, has2) : 100;
     },

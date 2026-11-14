@@ -37,8 +37,14 @@ export function contextSpellSeam(ctx: BorgContext, resolveActivation?: ResolveAc
     /* Every borg_notice call passes check_charge = false (borg-trait.c). */
     equipsItem: (act) => resolveActivation?.(ctx, act, false) ?? false,
     equipsRing: (sval) => borgEquipsRing(ctx, sval),
-    /* spell_chance(0): the class's first spell, scored as the Borg scores a cast. */
+    /* spell_chance(0) (borg-power.c:321): the game's own live failure for class
+     * spell 0 - mana shortfall, fear, stun and amnesia included - which the
+     * view carries as SpellView.chance. Without it, the Borg's own estimate. */
     spellChance: () => {
+      for (const book of ctx.view.spellbooks()) {
+        const first = book.spells.find((s) => s.sidx === 0);
+        if (first && typeof first.chance === "number") return first.chance;
+      }
       const first = ratingsForClass(ctx.world.self.trait[BI.CLASS] ?? -1)?.[0];
       return first ? borgSpellFailRate(ctx, first.spell, has) : 100;
     },
