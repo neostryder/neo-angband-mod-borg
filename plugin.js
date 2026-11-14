@@ -274,6 +274,7 @@ var BorgKills = class {
     if (!kill.rIdx) return;
     const world = this.world;
     if (world) {
+      world.invalidateDanger();
       const flow = world.flowTarget;
       if (world.self.goal.type === GOAL_KILL && flow?.flowX[0] === kill.pos.x && flow.flowY[0] === kill.pos.y)
         world.self.goal.type = 0;
@@ -571,6 +572,10 @@ var BorgWorld = class {
   liveUniques = 0;
   /** Recall queues its depth answer (borg-escape.c:63-115). */
   resetRecallDepth = false;
+  /** borg_danger_wipe: lazily clear flow know/icky on the next flow build. */
+  invalidateDanger() {
+    if (this.flowTarget) this.flowTarget.borgDangerWipe = true;
+  }
   /**
    * The item the Borg chose for an item-choice prompt its command will raise:
    * borg_recharging presses the chosen wand's or staff's letter after the read,
@@ -594,6 +599,7 @@ var BorgWorld = class {
    * it climb straight back up - a town/level-1 shuttle that never played a turn.
    */
   wipeLevel(depth) {
+    this.invalidateDanger();
     this.map.wipe();
     this.kills.wipe(false);
     this.takes.wipe(false);
@@ -6810,6 +6816,7 @@ function borgFollowKill(ctx, flow, i) {
   kill.pos.x = nx;
   kill.pos.y = ny;
   w.map.at(nx, ny).kill = i;
+  flow.borgDangerWipe = true;
   if (!trait(w, 37 /* ESP */) && w.self.goal.type === GOAL_KILL && w.self.goal.g.y === kill.pos.y && w.self.goal.g.x === kill.pos.x) {
     w.self.goal.type = 0;
   }
@@ -15276,6 +15283,138 @@ function borgPermaSpell(ctx) {
   return fs.pending;
 }
 
+// src/fight/retreat.ts
+function borgDesperateStairs(ctx, flow, posDanger) {
+  const w = ctx.world, self = w.self;
+  if (!(flow.less.num || flow.more.num) || !(self.goal.fleeing || w.facts.scaryGuyOnLevel || posDanger > getDangerGlobals(w).avoidance && trait3(ctx, 35 /* CLEVEL */) < 35)) return null;
+  const stairDistance = (track) => {
+    let best = -1;
+    for (let i = 0; i < track.num; i++) {
+      const x = track.x[i], y = track.y[i];
+      if (w.map.at(x, y).kill) continue;
+      const d = distance(self.c.y, self.c.x, y, x);
+      if (best >= d) continue;
+      best = d;
+    }
+    return best;
+  };
+  const up = stairDistance(flow.less), down = stairDistance(flow.more);
+  const attempt = (less) => {
+    flow.borgDesperate = true;
+    try {
+      return less ? borgFlowStairLess(ctx, flow, GOAL_FLEE, false) : borgFlowStairMore(ctx, flow, GOAL_FLEE, false, false);
+    } finally {
+      flow.borgDesperate = false;
+    }
+  };
+  if (up < 3 && up !== -1 && posDanger < trait3(ctx, 27 /* CURHP */)) {
+    const cmd = attempt(true);
+    if (cmd) return cmd;
+  }
+  if (up <= 2 && up !== -1) {
+    const cmd = attempt(true);
+    if (cmd) return cmd;
+  }
+  if (up < 20 && up !== -1 && w.facts.scaryGuyOnLevel && trait3(ctx, 35 /* CLEVEL */) < 20) {
+    let safe = true;
+    for (let i = 0; i < 8; i++) {
+      const x = self.c.x + ddx_ddd[i], y = self.c.y + ddy_ddd[i];
+      if (!w.map.inBounds(x, y)) continue;
+      const kill = w.map.at(x, y).kill;
+      if (kill && w.kills.at(kill).speed > trait3(ctx, 44 /* SPEED */)) safe = false;
+    }
+    if (!(trait3(ctx, 105 /* CDEPTH */) <= 5 && trait3(ctx, 105 /* CDEPTH */) !== 0 && getFightState(w).fightingUnique) && safe) {
+      const cmd = attempt(true);
+      if (cmd) return cmd;
+    }
+  }
+  if (down <= 2 && down !== -1) return attempt(false);
+  return null;
+}
+function* retreatView(ctx) {
+  const { x, y } = ctx.world.self.c;
+  const full = 20, over = idiv(full * 3, 2);
+  const visible = (xx, yy) => ctx.world.map.inBounds(xx, yy) && (ctx.world.map.at(xx, yy).info & BORG_VIEW) !== 0;
+  for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    for (let d = 1; d <= idiv(full * 2, 3); d++) {
+      const xx = x + sx * d, yy = y + sy * d;
+      if (visible(xx, yy)) yield { x: xx, y: yy };
+    }
+  }
+  for (const [sx, sy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+    for (let d = 1; d <= full; d++) {
+      const xx = x + sx * d, yy = y + sy * d;
+      if (visible(xx, yy)) yield { x: xx, y: yy };
+    }
+  }
+  for (let n = 1; n <= idiv(over, 2); n++) {
+    let z = Math.min(over - n - n, full - n);
+    while (z + n + (n >> 1) > full) z--;
+    for (const [sx, sy, vertical] of [
+      [1, 1, true],
+      [-1, 1, true],
+      [1, -1, true],
+      [-1, -1, true],
+      [1, 1, false],
+      [1, -1, false],
+      [-1, 1, false],
+      [-1, -1, false]
+    ]) {
+      for (let d = 1; d <= z; d++) {
+        const xx = x + sx * (vertical ? n : n + d), yy = y + sy * (vertical ? n + d : n);
+        if (visible(xx, yy)) yield { x: xx, y: yy };
+      }
+    }
+  }
+}
+function borgStrategicRetreat(ctx, flow, posDanger, nasty, surrounded) {
+  const w = ctx.world, self = w.self, g = getDangerGlobals(w);
+  if (!(posDanger > idiv(g.avoidance, 3) && !nasty && !self.noRetreat || surrounded && posDanger !== 0) || g.morgothPosition || w.clock - getFightState(w).tAntisummon < 50 || trait3(ctx, 114 /* ISCONFUSED */) || trait3(ctx, 27 /* CURHP */) >= 500) return null;
+  const bouncing = (x, y) => {
+    const st2 = flow.step;
+    return trait3(ctx, 27 /* CURHP */) >= idiv(trait3(ctx, 28 /* MAXHP */) * 7, 10) && st2.num > 2 && st2.y[st2.num - 2] === y && st2.x[st2.num - 2] === x && st2.y[st2.num - 3] === self.c.y && st2.x[st2.num - 3] === self.c.x || // FORK: the port's existing back-away anti-loop proxy; no distinct C antibounce counter is exposed.
+    self.timeThisPanel >= 300;
+  };
+  let bestRange = -1, bestX = self.c.x, bestY = self.c.y;
+  for (const target of retreatView(ctx)) {
+    if (!borgCaveFloorGrid(w.map.at(target.x, target.y)) || bouncing(target.x, target.y) || !borgHappyGridBold(ctx, flow, target.y, target.x)) continue;
+    if (bestRange >= 0 && (Math.abs(target.x - self.c.x) > bestRange || Math.abs(target.y - self.c.y) > bestRange)) continue;
+    let x = self.c.x, y = self.c.y, r = 0;
+    while (true) {
+      const d2 = borgGotoDir(w, y, x, target.y, target.x);
+      if (d2 === 0 || d2 === 5) break;
+      r++;
+      x += ddx[d2];
+      y += ddy[d2];
+      if (!w.map.inBounds(x, y) || bouncing(x, y)) break;
+      const ag = w.map.at(x, y);
+      if (!borgCaveFloorGrid(ag) || ag.feat === FEAT.LAVA && !trait3(ctx, 64 /* IFIRE */) || r >= 10) break;
+      const danger2 = borgDanger(ctx, y, x, 1, true, false);
+      if (danger2 >= posDanger) break;
+      if (r === 1) {
+        if (!surrounded || self.goal.ignoring) {
+          if (danger2 >= idiv(trait3(ctx, 27 /* CURHP */) * 4, 10) || danger2 > idiv(posDanger * 5, 10)) break;
+        } else if (trait3(ctx, 35 /* CLEVEL */) >= 20) {
+          if (danger2 >= (bestRange <= 5 ? idiv(trait3(ctx, 27 /* CURHP */) * 15, 10) : trait3(ctx, 27 /* CURHP */))) break;
+        } else if (danger2 >= trait3(ctx, 27 /* CURHP */) * 4) break;
+      }
+      if (ag.kill || ag.trap && !ag.glyph) break;
+      if (x === target.x && y === target.y) {
+        bestRange = r;
+        bestX = x;
+        bestY = y;
+        break;
+      }
+    }
+  }
+  if (bestRange < 0) return null;
+  const d = borgGotoDir(w, self.c.y, self.c.x, bestY, bestX);
+  self.goal.g.x = self.c.x + ddx[d];
+  self.goal.g.y = self.c.y + ddy[d];
+  self.goal.type = 0;
+  return ctx.act.move(d);
+}
+
 // src/fight/caution.ts
 function av2(ctx) {
   return getDangerGlobals(ctx.world).avoidance;
@@ -15637,6 +15776,10 @@ function borgCaution(ctx, flow) {
       ctx.world.self.goal.fleeing = true;
     }
   }
+  const stairs = borgDesperateStairs(ctx, flow, posDanger);
+  if (stairs) return stairs;
+  const retreat = borgStrategicRetreat(ctx, flow, posDanger, nasty, surrounded);
+  if (retreat) return retreat;
   const esc = borgEscape(ctx, posDanger);
   if (esc) {
     ctx.world.self.escapes += 1;
@@ -16005,21 +16148,21 @@ function getThinkSession(world) {
     s = buildThinkSession();
     SESSIONS.set(world, s);
   }
+  world.flowTarget = s.flow.state;
   return s;
 }
 function installThinkSession(world, session) {
   SESSIONS.set(world, session);
+  world.flowTarget = session.flow.state;
 }
 function primeSession(session, ctx) {
   session.ctx = ctx;
   const w = ctx.world;
   const g = getDangerGlobals(w);
-  const curhp = w.self.trait[27 /* CURHP */] ?? 0;
-  g.avoidance = curhp;
+  w.flowTarget = session.flow.state;
   if (session.resolvers.resolveMonsterFacts) {
     g.resolveFacts = session.resolvers.resolveMonsterFacts;
   }
-  session.flow.state.avoidance = curhp;
   session.flow.state.hooks.forceDescend = session.resolvers.forceDescend ?? false;
 }
 
@@ -17786,6 +17929,7 @@ function ingestMonsters(world, view, raceSymbol) {
     visibleIds.add(m.id);
     names.set(m.id, m.race);
     let idx = byMidx.get(m.id);
+    const isNew = idx === void 0;
     if (idx === void 0) {
       idx = world.kills.alloc();
       byMidx.set(m.id, idx);
@@ -17794,6 +17938,9 @@ function ingestMonsters(world, view, raceSymbol) {
       }
     }
     const k = world.kills.at(idx);
+    const moved = !isNew && (k.pos.x !== m.grid.x || k.pos.y !== m.grid.y);
+    const converted = !isNew && k.rIdx !== m.raceIndex;
+    const fellAsleep = !isNew && k.awake && m.asleep;
     k.mIdx = m.id;
     k.rIdx = m.raceIndex;
     k.isMorgoth = m.race.toLowerCase().startsWith("morgoth");
@@ -17805,6 +17952,15 @@ function ingestMonsters(world, view, raceSymbol) {
     }
     k.pos.x = m.grid.x;
     k.pos.y = m.grid.y;
+    if (isNew || moved || converted || fellAsleep) world.invalidateDanger();
+    if (converted || fellAsleep) world.self.goal.type = 0;
+    if (isNew && (world.self.trait[26 /* LIGHT */] ?? 0) && borgLos(world, k.pos.y, k.pos.x, world.self.c.y, world.self.c.x)) {
+      world.self.goal.type = 0;
+    }
+    const target = world.flowTarget;
+    if (moved && ((world.self.trait[37 /* ESP */] ?? 0) === 0 && world.self.goal.type === GOAL_KILL && (target?.flowY[0] === k.pos.y || target?.flowX[0] === k.pos.x) || world.self.goal.type === GOAL_TAKE && world.self.munchkinMode)) {
+      world.self.goal.type = 0;
+    }
     k.awake = !m.asleep;
     k.afraid = m.afraid;
     k.confused = m.confused;
