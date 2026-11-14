@@ -260,7 +260,7 @@ export class BorgWorld {
   readonly kills = new BorgKills(this);
   readonly takes = new BorgTakes(this);
   /** borg-flow-kill.c:423-424 reads the flow queue when deleting a target. */
-  flowTarget?: { readonly flowX: ArrayLike<number>; readonly flowY: ArrayLike<number> };
+  flowTarget?: { readonly flowX: ArrayLike<number>; readonly flowY: ArrayLike<number>; borgDangerWipe?: boolean };
   /** borg_detect_wall/trap/door/evil/obj (borg-update.c:82-86). See world/panel.ts. */
   readonly detect = new BorgDetectGrid();
   readonly self = makeBorgSelf();
@@ -294,6 +294,11 @@ export class BorgWorld {
    */
   itemChoice: number | null = null;
 
+  /** borg_danger_wipe: lazily clear flow know/icky on the next flow build. */
+  invalidateDanger(): void {
+    if (this.flowTarget) this.flowTarget.borgDangerWipe = true;
+  }
+
   /**
    * Reset everything for a new level (borg_init_cave + the new-level branch of
    * borg_update, borg-update.c:2050-2180). `depth` is the depth just ARRIVED at,
@@ -311,6 +316,8 @@ export class BorgWorld {
    * it climb straight back up - a town/level-1 shuttle that never played a turn.
    */
   wipeLevel(depth: number): void {
+    /* borg-update.c:2087: old coordinate danger belongs to the old level. */
+    this.invalidateDanger();
     this.map.wipe();
     this.kills.wipe(false);
     this.takes.wipe(false);

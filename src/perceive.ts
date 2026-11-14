@@ -44,6 +44,8 @@ import {
   emptyMessageTables,
   type BorgMessageTables,
 } from "./perceive-messages.js";
+import { borgLos } from "./danger/geometry.js";
+import { GOAL_KILL, GOAL_TAKE } from "./world/model.js";
 import { getFearCaches } from "./danger/state.js";
 import { FEAR_REGION_H, FEAR_REGION_W } from "./danger/fear.js";
 
@@ -364,6 +366,7 @@ function ingestMonsters(
     names.set(m.id, m.race);
 
     let idx = byMidx.get(m.id);
+    const isNew = idx === undefined;
     if (idx === undefined) {
       idx = world.kills.alloc();
       byMidx.set(m.id, idx);
@@ -376,6 +379,9 @@ function ingestMonsters(
       }
     }
     const k = world.kills.at(idx);
+    const moved = !isNew && (k.pos.x !== m.grid.x || k.pos.y !== m.grid.y);
+    const converted = !isNew && k.rIdx !== m.raceIndex;
+    const fellAsleep = !isNew && k.awake && m.asleep;
     k.mIdx = m.id;
     k.rIdx = m.raceIndex;
     k.isMorgoth = m.race.toLowerCase().startsWith("morgoth");
@@ -387,6 +393,22 @@ function ingestMonsters(
     }
     k.pos.x = m.grid.x;
     k.pos.y = m.grid.y;
+    /* borg-flow-kill.c:789,1069,1500: invalidate only when the belief changes. */
+    if (isNew || moved || converted || fellAsleep) world.invalidateDanger();
+    /* borg_sleep_kill:444 and race conversion:1503 cancel the active goal. */
+    if (converted || fellAsleep) world.self.goal.type = 0;
+    if (isNew && (world.self.trait[BI.LIGHT] ?? 0) &&
+        borgLos(world, k.pos.y, k.pos.x, world.self.c.y, world.self.c.x)) {
+      /* borg_new_kill:822-825 cancels a flow into a newly seen lit threat. */
+      world.self.goal.type = 0;
+    }
+    const target = world.flowTarget;
+    if (moved && (((world.self.trait[BI.ESP] ?? 0) === 0 && world.self.goal.type === GOAL_KILL &&
+        (target?.flowY[0] === k.pos.y || target?.flowX[0] === k.pos.x)) ||
+        (world.self.goal.type === GOAL_TAKE && world.self.munchkinMode))) {
+      /* Preserve C's OR of the flow coordinates (borg-flow-kill.c:1072). */
+      world.self.goal.type = 0;
+    }
     k.awake = !m.asleep;
     k.afraid = m.afraid;
     k.confused = m.confused;

@@ -575,6 +575,7 @@ export function getThinkSession(world: BorgWorld): ThinkSession {
     s = buildThinkSession();
     SESSIONS.set(world, s);
   }
+  world.flowTarget = s.flow.state;
   return s;
 }
 
@@ -584,22 +585,23 @@ export function installThinkSession(
   session: ThinkSession,
 ): void {
   SESSIONS.set(world, session);
+  world.flowTarget = session.flow.state;
 }
 
 /**
  * Set the per-think danger globals the C toggles around maneuvers
- * (avoidance = current HP, the facts resolver, the flow avoidance mirror), then
- * refresh the session ctx holder. Call at the top of every think.
+ * (the facts resolver and flow hooks), then refresh the session ctx holder.
+ * Leave avoidance untouched: borg-think-dungeon.c:1375 compares its previous
+ * value with current HP to invalidate cached danger before replacing it.
+ * Call at the top of every think.
  */
 export function primeSession(session: ThinkSession, ctx: BorgContext): void {
   session.ctx = ctx;
   const w = ctx.world;
   const g = getDangerGlobals(w);
-  const curhp = w.self.trait[BI.CURHP] ?? 0;
-  g.avoidance = curhp;
+  w.flowTarget = session.flow.state;
   if (session.resolvers.resolveMonsterFacts) {
     g.resolveFacts = session.resolvers.resolveMonsterFacts;
   }
-  session.flow.state.avoidance = curhp;
   session.flow.state.hooks.forceDescend = session.resolvers.forceDescend ?? false;
 }

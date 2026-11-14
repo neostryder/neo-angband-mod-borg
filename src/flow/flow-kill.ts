@@ -660,6 +660,8 @@ function borgFollowKill(ctx: BorgContext, flow: FlowState, i: number): void {
   kill.pos.x = nx;
   kill.pos.y = ny;
   w.map.at(nx, ny).kill = i;
+  /* borg-flow-kill.c:697: an inferred move changes cached danger too. */
+  flow.borgDangerWipe = true;
 
   /* Clear goals (borg-flow-kill.c:717): chasing a monster the Borg cannot see
    * to where it used to be is the loop this whole function exists to break. */

@@ -171,6 +171,8 @@ export class BorgKills {
     if (!kill.rIdx) return;
     const world = this.world;
     if (world) {
+      /* borg-flow-kill.c:418, including expiry and unseen deletions. */
+      world.invalidateDanger();
       /* borg-flow-kill.c:422-428 compares the flow queue's first grid. */
       const flow = world.flowTarget;
       if (

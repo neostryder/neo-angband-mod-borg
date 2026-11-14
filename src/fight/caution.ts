@@ -10,14 +10,15 @@
  * borg_caution (caution.c:799) is a ~1200-line orchestrator. Ported here:
  * nasty-situation detection, the surrounded check, the flee/leave goal flags,
  * the class-ordered heal/defend attempt, the restock check, the *** Stairs ***
- * section, starvation relief, the escape attempt, *** Back away ***, and the
+ * section, starvation relief, desperate stairs, strategic retreat, the escape
+ * attempt, *** Back away ***, and the
  * final emergency ez-heal, recall and recall waiting. What is left to later stages of the think ladder is
  * the cure ladder from caution.c:1846 and the food/light maintenance flows,
  * which belong to the item and flow subsystems that own those commands.
  *
  * Back away is the one that matters most in ordinary play and it is the easiest
  * to mistake for flow's business: it is not pathfinding, it is a single step
- * away from a monster, and it is the only tactical retreat the Borg has.
+ * away from a monster, after the strategic-retreat and escape passes.
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
@@ -63,6 +64,7 @@ import { borgSlot } from "../item/deps.js";
 import { borgMaintainLight, currentLight, BorgNeed } from "../item/light.js";
 import { getFightState, idiv } from "./state.js";
 import { borgSurrounded, borgEscape, borgFreedom, borgRecall, borgCautionPhase } from "./escape.js";
+import { borgDesperateStairs, borgStrategicRetreat } from "./retreat.js";
 import { borgDefend } from "./defend.js";
 
 function av(ctx: BorgContext): number {
@@ -625,6 +627,12 @@ export function borgCaution(
       ctx.world.self.goal.fleeing = true;
     }
   }
+
+  /* borg-caution.c:1280-1649: these precede spending an escape resource. */
+  const stairs = borgDesperateStairs(ctx, flow, posDanger);
+  if (stairs) return stairs;
+  const retreat = borgStrategicRetreat(ctx, flow, posDanger, nasty, surrounded);
+  if (retreat) return retreat;
 
   /* Teleport from danger (caution.c:1653). borg_escape takes the danger of the
    * grid the Borg is STANDING ON; see the note on borgEscape for why its `b_q`
