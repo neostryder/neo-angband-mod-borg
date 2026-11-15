@@ -12,7 +12,7 @@ A game that grants no engine domain gets a log line saying the Borg could not st
 
 ## Who gets the keyboard
 
-The manifest requests `input:controller` and `input:intent`, which Core checks before offering the Borg through Ctrl-Z.
+Core offers the Borg through Ctrl-Z only after checking that the manifest requests `input:controller` and `input:intent`.
 
 `armed` answers true only for a character the player handed over: one whose save Ctrl-Z marked with `NOSCORE_BORG`, or one created from the title screen's **New Borg character** row, which starts character creation with the controller armed. Installing or enabling the mod does neither. For any other character the game never calls the controller. The Ctrl-Z mark comes from the engine domain's state, because the known world does not include it.
 
@@ -20,7 +20,7 @@ The manifest requests `input:controller` and `input:intent`, which Core checks b
 
 The game calls `controller` at each input wait, and `src/api2/controller.ts` handles it. If a prompt is waiting, the Borg answers it and stops there: it acknowledges, confirms, accepts the default for a quantity or text prompt, and cancels anything else. Outside the play and store phases it does nothing. Otherwise the bridge reads the world, the decision code returns one command, any target choices from that decision are submitted, and the command follows as a `command` intent under a freshly read input token.
 
-The command builders the decision code calls, such as `walk`, `quaff`, and `shop-buy`, are built locally in `src/api2/act.ts` with the same codes and arguments the game's API 1 builders produced, so the ported decisions run as written. The afraid fallback submits `alter`, as `borg_twitchy` does, so the command can spend a turn while fear expires.
+The command builders the decision code calls, such as `walk`, `quaff`, and `shop-buy`, are built locally in `src/api2/act.ts` with the same codes and arguments the game's API 1 builders produced, so the ported decisions run as written. When the Borg is afraid, its fallback submits `alter`, as `borg_twitchy` does, so the command can spend a turn while fear wears off.
 
 Town routing records each shop door and its store index from the known map. To reopen a shop, a character standing on its door uses `hold`. The store ladder runs only during the host's `store` input phase.
 
@@ -32,7 +32,7 @@ The keyboard goes back to the player after 25 refused commands in a row, after 2
 
 `src/api2/world.ts` reads `view.world()` once per decision and builds the view the port was written against. The known world carries less than the API 1 view did, and the gaps are filled with what the player can know. The map is the remembered map: a grid never seen is impassable, with no feature or trap, and a secret door shows as the granite the player sees. A grid glows only while visible and marked as glowing in the known level. A timed effect reads as the shortest duration in the grade the status line names, and food is the status line's percentage times 100. The game turn is part of the world only when the mod holds `state:turn.read`, so the manifest lists it. An item's timeout is its count of charging items, and a light's fuel comes from the known item.
 
-Unaware wands and staves keep the C guessed values of 50 and 70. The Borg junks an empty device only after its flavor is known, because the known view hides charges until then. Unaware scrolls stay protected even when the view supplies a value. The Borg tries unknown potions and scrolls through its normal item-use decisions. Emergency unknown-item use follows recall and its delay tactics, requires danger above four times current HP, and applies only below character level 20 with no maximum SP. The attempt order is staff, scroll, potion, and food.
+Unaware wands and staves keep the C guessed values of 50 and 70. The Borg junks an empty device only after its flavor is known, because the known view hides charges until then. Unaware scrolls stay protected even when the view supplies a value. The Borg tries unknown potions and scrolls through its normal item-use decisions. Emergency unknown-item use comes after recall and its delay tactics, and only when danger is above four times current HP, character level is below 20, and the character has no maximum SP. Items are tried in the order staff, scroll, potion, and food.
 
 Some questions come up partway through a decision, so `src/api2/caches.ts` keeps three caches to answer them. Race records are read once per race index and kept for the session. The activation of each worn item is read once per artifact name, ego name, or kind. Loadout simulations answer what the character would be with an item worn, removed, or bought.
 

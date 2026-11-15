@@ -20,6 +20,12 @@ were not retagged.
 
 ## [Unreleased]
 
+### Fixed
+
+- [Visible] **The Borg now starts on Neo Angband 1.23.0-beta.4.** The game requires two permissions the mod did not request: engine access, which the Borg needs to run at all, and controller input, which the game checks before Ctrl-Z offers the Borg as the controller. The mod now requests both, and the game asks you to allow them as it does for any mod permission (neostryder/neo-angband#500).
+- [Visible] **The Borg no longer tries unknown items too early when it is in danger.** It used to try them, hoping one would save it, before it tried to read Word of Recall and before its delaying tactics. It now follows the original's order, with recall and delay tactics first, and tries unknown items only when the danger is above four times its current hit points, its character level is below 20, and it has no spell points. It tries them in the order staff, scroll, potion, food (neostryder/neo-angband#502).
+- [Visible] **An afraid Borg that cannot attack no longer tries to tunnel.** Its fallback move now uses the game's alter command, as the original does, so the turn passes while fear wears off (neostryder/neo-angband#503).
+
 ## 1.4.0-beta.5 - 2026-11-08
 
 ### Fixed

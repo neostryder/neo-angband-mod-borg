@@ -242,7 +242,7 @@ function summarize(lives: Life[]): string {
   return [
     "# Borg class soak", "", ...rows, "",
     `The port bought before descent in ${bought}/${lives.length} lives (${(100 * bought / lives.length).toFixed(2)}%). Lives without a descent stay in the denominator and have a null per-life result.`, "",
-    "The runner loads all eight stores and tracks shop entry and exit separately from the entrance grid. Its direct AgentView exposes every store stock, so this run does not enforce the desktop known-stock boundary.", "",
+    "The runner loads all eight stores and tracks shop entry and exit separately from the entrance grid, but its direct AgentView shows every store's stock, so this run does not enforce the desktop known-stock boundary.", "",
     "The supplied C baseline is 1798/1800 (99.89%), with purchases by tick 10000. This run uses the published TypeScript engine and content, Human characters, the engine's default stat roller and birth options, the direct controller seam from play.test.ts, and distinct game and Borg seeds. It does not exercise the desktop API 2 bridge. The baseline's class, race, birth, seed, and stopping details were not supplied; these shares are descriptive rather than a controlled comparison.", "",
     "Town trips count returns from the dungeon and exclude the initial town birth. Buy and sell totals count successful engine transaction messages and exclude home transfers. Decision ticks count controller calls, including store calls and null answers; game-loop calls and autonomous resting turns do not consume decision ticks. A stall records the first 2000-decision interval in each uninterrupted unchanged-state streak and does not end the life.", "",
     "## Failure evidence", "",
