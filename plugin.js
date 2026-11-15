@@ -19265,11 +19265,16 @@ function aimedGrid(command, from) {
   return { x: from.x + DIR_DX[dir], y: from.y + DIR_DY[dir] };
 }
 var AFFLICTIONS = ["blind", "confused", "afraid", "poisoned", "cut", "stun", "paralyzed"];
+function tickCount(status) {
+  if (status === void 0 || !("countdown" in status)) return 0;
+  const count = status.countdown;
+  return typeof count === "number" ? count : 0;
+}
 function sceneOf(world) {
   const player = world.view.player();
   const afflictions = AFFLICTIONS.map((name) => player.status?.[name] ?? 0);
   const monsters = world.view.monsters().map((monster) => [monster.grid.x, monster.grid.y, monster.hp]);
-  return JSON.stringify([player.grid.x, player.grid.y, player.depth, player.hp, player.sp, player.exp, player.gold, afflictions, monsters]);
+  return JSON.stringify([player.grid.x, player.grid.y, player.depth, player.hp, player.sp, player.exp, player.gold, afflictions, tickCount(player.status), monsters]);
 }
 function createTick(bridge2, borg) {
   let refusals = 0;

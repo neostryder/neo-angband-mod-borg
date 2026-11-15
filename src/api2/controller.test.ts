@@ -368,6 +368,24 @@ describe("one tick", () => {
     await host.dispose();
   });
 
+  it("resets the stall count when only the timed-effect tick count advances", async () => {
+    const { game, host, status } = await publishedGame();
+    const ticks = status as { countdown?: number };
+    const forgotten: string[] = [];
+    const tick = createTick(host, {
+      controller: () => ({ code: "open", dir: 2 }) as AgentCommand,
+      rewind: () => undefined,
+      forget: (x, y) => void forgotten.push(`${String(x)},${String(y)}`),
+    });
+    for (let n = 0; n <= STALLS_BEFORE_RELEASE; n++) {
+      ticks.countdown = n;
+      await tick(game.mod, game.input());
+    }
+    expect(forgotten).toEqual([]);
+    expect(game.released).toEqual([]);
+    await host.dispose();
+  });
+
   it("reads no world at a wait with a prompt, and waits out a death or other phase", async () => {
     const game = fakeGame();
     let reads = 0;

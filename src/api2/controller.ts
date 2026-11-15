@@ -90,19 +90,26 @@ function aimedGrid(command: AgentCommand, from: { readonly x: number; readonly y
 }
 
 /**
- * The published view gives timed afflictions as grade floors. The scene changes
- * when an effect clears or crosses a grade boundary; a countdown within one
- * grade stays invisible. Food is a percentage times 100 and stays outside the
- * key so a food change alone still counts as a stall.
+ * The published view gives timed afflictions as grade floors. status.countdown
+ * is the tick count, so a grade that has not changed still counts as movement
+ * when the game counted an effect down. Food is a percentage times 100 and
+ * stays outside the key so a food change alone still counts as a stall.
  */
 const AFFLICTIONS = ["blind", "confused", "afraid", "poisoned", "cut", "stun", "paralyzed"] as const;
+
+/** status.countdown is not on the API 1 status type. A missing count is zero. */
+function tickCount(status: object | undefined): number {
+  if (status === undefined || !("countdown" in status)) return 0;
+  const count = (status as { countdown?: unknown }).countdown;
+  return typeof count === "number" ? count : 0;
+}
 
 /** The scene a command was chosen against: where the character is, what it has, and what stands near. */
 function sceneOf(world: World): string {
   const player = world.view.player();
   const afflictions = AFFLICTIONS.map((name) => player.status?.[name] ?? 0);
   const monsters = world.view.monsters().map((monster) => [monster.grid.x, monster.grid.y, monster.hp]);
-  return JSON.stringify([player.grid.x, player.grid.y, player.depth, player.hp, player.sp, player.exp, player.gold, afflictions, monsters]);
+  return JSON.stringify([player.grid.x, player.grid.y, player.depth, player.hp, player.sp, player.exp, player.gold, afflictions, tickCount(player.status), monsters]);
 }
 
 export function createTick(bridge: Bridge, borg: Decider): Tick {
@@ -145,7 +152,8 @@ export function createTick(bridge: Bridge, borg: Decider): Tick {
     /* The counter counts controller entries; engine repeats run between them.
      * An active affliction alone keeps the counter running: open can fail its
      * door test before spending a turn or applying confusion, so the effect's
-     * presence gives no evidence that this command advances its countdown. */
+     * presence gives no evidence that this command advances its countdown.
+     * status.countdown moving does: the game counted a timed effect down. */
     const scene = sceneOf(world);
     const key = JSON.stringify(command);
     stalls = scene === lastScene && key === lastCommand ? stalls + 1 : 0;
