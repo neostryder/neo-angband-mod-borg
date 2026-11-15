@@ -12,6 +12,8 @@ A game that grants no engine domain gets a log line saying the Borg could not st
 
 ## Who gets the keyboard
 
+The manifest requests `input:controller` and `input:intent`, which Core checks before offering the Borg through Ctrl-Z.
+
 `armed` answers true only for a character the player handed over: one whose save Ctrl-Z marked with `NOSCORE_BORG`, or one created from the title screen's **New Borg character** row, which starts character creation with the controller armed. Installing or enabling the mod does neither. For any other character the game never calls the controller. The Ctrl-Z mark comes from the engine domain's state, because the known world does not include it.
 
 ## One tick

@@ -31,6 +31,7 @@
       "state:turn.read",
       "state:monsters-actual.read",
       "state:interaction.read",
+      "input:controller",
       "input:intent",
       "input:prompt.reply",
       "event:message",

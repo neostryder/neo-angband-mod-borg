@@ -29,9 +29,9 @@ describe("manifest capabilities", () => {
     expect(capabilities()).not.toContain("state:*.read");
   });
 
-  it("holds the three grants the game checks before it calls a controller", () => {
-    /* Without state:interaction.read the game never calls the controller, and without the two input grants every intent and prompt answer is refused. Nothing else says so: the SDK checker does not flag their absence, and the failure is a character that holds the keyboard and never moves. */
-    for (const grant of ["state:interaction.read", "input:intent", "input:prompt.reply"]) expect(capabilities()).toContain(grant);
+  it("holds the grants the game checks before it calls a controller", () => {
+    /* Core controllerCandidates requires input:controller and input:intent consent before Ctrl-Z can offer the Borg. The interaction and prompt grants let that controller read input and answer prompts. Nothing else says so: the SDK checker does not flag their absence, and the failure is a character that holds the keyboard and never moves. */
+    for (const grant of ["state:interaction.read", "input:controller", "input:intent", "input:prompt.reply"]) expect(capabilities()).toContain(grant);
   });
 
   it("declares the two hidden reads the Borg makes, the turn it reads, and the message event it reads", () => {
