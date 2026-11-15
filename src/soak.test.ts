@@ -69,6 +69,7 @@ function loadPack(): GamePack {
   return {
     constants: json("constants"), terrain: records("terrain"), roomTemplates: records("room_template"),
     vaults: records("vault"), dungeonProfiles: records("dungeon_profile"), projection: records("projection"),
+    store: records("store"),
     trap: records("trap"), names: records("names"), quest: records("quest"),
     obj: {
       objectBase: json("object_base"), object: json("object"), egoItem: json("ego_item"), artifact: json("artifact"),
@@ -100,10 +101,13 @@ function runLife(pack: GamePack, cls: string, seed: number, cap: number): Life {
     if (game.state.actor.player.cls.name !== cls) throw new Error(`Birth selected ${game.state.actor.player.cls.name}, expected ${cls}`);
     const state = game.state;
     const books = game.players.classes.flatMap((playerClass) => playerClass.magic.books);
+    /* leave_store closes the UI without moving the player off the entrance. */
+    let shopnum: number | null = null;
     const borg = createBorg({
       rngSeed: (seed * 2654435761) >>> 0 || 1,
       resolvers: makeCoreResolvers({
         races: game.booted.registries.monsters.races, objects: game.booted.registries.objects, state: state as never,
+        shopnum: () => shopnum,
         blowMethods: game.booted.registries.monsters.blowMethods.values(),
         monsterSpells: game.booted.registries.monsters.spells.values(),
         bookKind: (tval, name) => {
@@ -179,6 +183,12 @@ function runLife(pack: GamePack, cls: string, seed: number, cap: number): Life {
           state.generateLevel = false;
         }
         const p = session.view.player();
+        const command = r.lastDecisions.at(-1)?.command;
+        if (command?.code === "shop-exit") shopnum = null;
+        else if (command?.code === "walk" || command?.code === "hold") {
+          const door = state.chunk.feature(state.actor.grid).shopnum;
+          shopnum = door > 0 ? door - 1 : null;
+        }
         r.gameTurns = state.turn;
         r.maximumDepth = Math.max(r.maximumDepth, p.depth);
         r.level = p.level;
@@ -232,6 +242,7 @@ function summarize(lives: Life[]): string {
   return [
     "# Borg class soak", "", ...rows, "",
     `The port bought before descent in ${bought}/${lives.length} lives (${(100 * bought / lives.length).toFixed(2)}%). Lives without a descent stay in the denominator and have a null per-life result.`, "",
+    "The runner loads all eight stores and tracks shop entry and exit separately from the entrance grid. Its direct AgentView exposes every store stock, so this run does not enforce the desktop known-stock boundary.", "",
     "The supplied C baseline is 1798/1800 (99.89%), with purchases by tick 10000. This run uses the published TypeScript engine and content, Human characters, the engine's default stat roller and birth options, the direct controller seam from play.test.ts, and distinct game and Borg seeds. It does not exercise the desktop API 2 bridge. The baseline's class, race, birth, seed, and stopping details were not supplied; these shares are descriptive rather than a controlled comparison.", "",
     "Town trips count returns from the dungeon and exclude the initial town birth. Buy and sell totals count successful engine transaction messages and exclude home transfers. Decision ticks count controller calls, including store calls and null answers; game-loop calls and autonomous resting turns do not consume decision ticks. A stall records the first 2000-decision interval in each uninterrupted unchanged-state streak and does not end the life.", "",
     "## Failure evidence", "",
@@ -242,6 +253,18 @@ function summarize(lives: Life[]): string {
     ]), "",
   ].join("\n");
 }
+
+it("buys before descending from a populated birth town", () => {
+  const pack = loadPack();
+  const game = startGame(pack, { seed: 140002, className: "Warrior", raceName: "Human", depth: 0 });
+  expect(game.state.monsters.filter(Boolean).length).toBeGreaterThan(1);
+  expect(game.state.stores).toHaveLength(8);
+  const life = runLife(pack, "Warrior", 140002, 80);
+  expect(life.exception).toBeNull();
+  expect(life.firstBuy, JSON.stringify(life.lastDecisions.map((d) => d.command))).not.toBeNull();
+  expect(life.firstDescent).not.toBeNull();
+  expect(life.firstBuy!).toBeLessThan(life.firstDescent!);
+});
 
 it.skipIf(process.env["BORG_SOAK"] !== "1")("records an opt-in class soak against the published engine", () => {
   const classes = (process.env["BORG_SOAK_CLASSES"] ?? CLASSES.join(",")).split(",").map((name) => name.trim());
