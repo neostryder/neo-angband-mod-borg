@@ -11368,7 +11368,7 @@ function borgCrushJunk(ctx, d) {
     if (item.tval === TV.SCROLL && !item.aware) continue;
     if (!valueKnown(item, d)) continue;
     let value = valueOf(item, d);
-    if ((item.tval === TV.STAFF || item.tval === TV.WAND) && item.number > item.pval) {
+    if ((item.tval === TV.STAFF || item.tval === TV.WAND) && isAware(item, d) && item.number > item.pval) {
       value = 0;
     }
     if (item.tval >= TV.CHEST) {

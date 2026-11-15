@@ -87,8 +87,8 @@ export function borgCrushJunk(
     if (!valueKnown(item, d)) continue; /* safe: never crush unknown-value gear */
     let value = valueOf(item, d);
 
-    /* Empty stacked wands/staves (junk.c:308). */
-    if ((item.tval === TV.STAFF || item.tval === TV.WAND) && item.number > item.pval) {
+    /* borg_drop_junk (borg-junk.c:308-311) keeps the guessed value while charges are unknown. */
+    if ((item.tval === TV.STAFF || item.tval === TV.WAND) && isAware(item, d) && item.number > item.pval) {
       value = 0;
     }
 

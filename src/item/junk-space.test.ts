@@ -9,6 +9,7 @@ import { BI, CLASS_WARRIOR } from "../trait/trait-index.js";
 import { FEAT } from "../core-api.js";
 import { TV, SVAL } from "./svals.js";
 import { borgDropHole, borgDropSlow, borgDumpQuiver } from "./junk-space.js";
+import { borgCrushJunk } from "./junk.js";
 import { borgWearRecharge } from "./item-wear.js";
 import { borgFirstEmptyInventorySlot } from "../store/store.js";
 import { borgView } from "../core-api.js";
@@ -214,6 +215,17 @@ function fullPack(candidates: ItemView[]): ItemView[] {
 }
 
 describe("production inventory decisions", () => {
+  it.each([TV.WAND, TV.STAFF])("keeps an unaware device of type %i when its charge count is hidden", (tval) => {
+    for (const depth of [1, 10, 95]) {
+      const unknown = production([item({ tval, sval: -3, aware: false, pval: 0, value: 0 })], [], [], { depth });
+      const deps = buildItemDeps(unknown.session);
+      expect(deps.itemValue!(unknown.items[0]!)).toBe(tval === TV.WAND ? 50 : 70);
+      expect(borgCrushJunk(unknown.ctx, deps), String(depth)).toBeNull();
+      const known = production([item({ tval, aware: true, pval: 0, value: 0 })], [], [], { depth });
+      expect(borgCrushJunk(known.ctx, buildItemDeps(known.session))).toMatchObject({ code: "drop", args: { handle: 1 } });
+    }
+  });
+
   it("keeps unidentified boots and unknown runes while choosing a whole known stack", () => {
     const boots = { ...item({ handle: 1, tval: TV.BOOTS }), unknownRunes: true };
     const sword = { ...item({ handle: 2 }), unknownRunes: true };
