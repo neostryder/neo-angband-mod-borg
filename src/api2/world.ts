@@ -17,6 +17,7 @@
  * - A timed effect is the lowest duration in the grade the status line names, so
  *   a check against a grade boundary answers as API 1 did and a check inside a
  *   grade does not. Food is the status line's percentage times 100.
+ *   `status.countdown` is the tick count, not a grade, and is copied as itself.
  * - A square glows only while visible and marked as glowing in the known level.
  * - An item's timeout is the number its name says are charging. A light's fuel is
  *   read from the known item.
@@ -33,6 +34,11 @@ import type { ActivationBook, LoadoutBook, RaceBook } from "./caches.js";
 import { gearSignature } from "./caches.js";
 import { TIMED_RECORDS, itemAnalyzer, valueOf, type GradeFloors, type ItemAnalyzer } from "./records.js";
 import type { BorgTruth } from "./truth.js";
+
+/** The API 1 player view plus the tick count `status.countdown` (not a timed-effect duration). */
+export type PlayerViewWithCountdown = PlayerView & {
+  status: PlayerView["status"] & { countdown: number };
+};
 
 /** Removes `readonly` all the way down, so known-world data can stand in for the API 1 view types. */
 type Writable<T> = T extends (...args: never[]) => unknown
@@ -85,16 +91,26 @@ export interface World {
 /* The player. */
 
 /** A known player as the API 1 player view, with each timed effect at the floor of its named grade. */
-export function playerView(known: KnownPlayer, floors: GradeFloors): PlayerView {
+export function playerView(known: KnownPlayer, floors: GradeFloors): PlayerViewWithCountdown {
   const { status, recall, descent, ...rest } = writable(known);
   const timed = {} as Record<keyof typeof TIMED_RECORDS, number>;
   for (const [field, record] of Object.entries(TIMED_RECORDS) as [keyof typeof TIMED_RECORDS, string][]) {
     const grade = status[field];
-    /* A field the source view omits reads as off, like null; only a grade the records do not
-     * name (an older or patched file) still says the effect is on. */
-    timed[field] = grade == null ? 0 : (floors.get(record)?.get(grade) ?? 1);
+    /* A string is a grade name: an unnamed grade still means the effect is on.
+     * null is off. A number is not a grade name, so it is not passed to the floor table. */
+    timed[field] = typeof grade === "string" ? (floors.get(record)?.get(grade) ?? 1) : 0;
   }
-  return { ...rest, status: { ...timed, food: status.food * 100, fearful: status.fearful }, recall: recall ? 1 : 0, descent: descent ? 1 : 0 };
+  return {
+    ...rest,
+    status: {
+      ...timed,
+      food: status.food * 100,
+      fearful: status.fearful,
+      countdown: typeof status.countdown === "number" ? status.countdown : 0,
+    },
+    recall: recall ? 1 : 0,
+    descent: descent ? 1 : 0,
+  };
 }
 
 /* Items. */

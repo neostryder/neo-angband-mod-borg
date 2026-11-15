@@ -274,8 +274,11 @@ export async function gameConstants(api: Content): Promise<GameConstants> {
   return out;
 }
 
+/** Status fields that are not a named grade of a player_timed effect. `countdown` counts ticks, it is not a duration. */
+type UntimedStatus = "timed" | "food" | "foodGrade" | "fearful" | "countdown";
+
 /** The timed effect record behind each status field, by its name in the game's player_timed file. */
-export const TIMED_RECORDS: Readonly<Record<Exclude<keyof KnownPlayer["status"], "timed" | "food" | "foodGrade" | "fearful">, string>> = {
+export const TIMED_RECORDS: Readonly<Record<Exclude<keyof KnownPlayer["status"], UntimedStatus>, string>> = {
   blind: "BLIND",
   confused: "CONFUSED",
   afraid: "AFRAID",

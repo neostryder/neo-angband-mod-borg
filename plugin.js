@@ -18843,9 +18843,19 @@ function playerView(known, floors) {
   const timed = {};
   for (const [field, record] of Object.entries(TIMED_RECORDS)) {
     const grade = status[field];
-    timed[field] = grade == null ? 0 : floors.get(record)?.get(grade) ?? 1;
+    timed[field] = typeof grade === "string" ? floors.get(record)?.get(grade) ?? 1 : 0;
   }
-  return { ...rest, status: { ...timed, food: status.food * 100, fearful: status.fearful }, recall: recall ? 1 : 0, descent: descent ? 1 : 0 };
+  return {
+    ...rest,
+    status: {
+      ...timed,
+      food: status.food * 100,
+      fearful: status.fearful,
+      countdown: typeof status.countdown === "number" ? status.countdown : 0
+    },
+    recall: recall ? 1 : 0,
+    descent: descent ? 1 : 0
+  };
 }
 function itemView(item, analyze) {
   const { charging, fuel, ...rest } = writable(item);
