@@ -7712,10 +7712,14 @@ function borgNotice(ctx, opts = {}) {
   finishNotice(c);
   ctx.world.self.trait = t;
   if (opts.noticeSwap ?? true) {
+    const suppliedSwap = opts.weaponSwap;
     d.weaponSwapOpts = {
       cfg: { ...R2.cfg },
       ...opts.spells ? { spells: { ...opts.spells } } : {},
-      ...opts.weaponSwap ? { weaponSwap: { ...opts.weaponSwap } } : {}
+      weaponSwap: {
+        ...suppliedSwap,
+        tarrasqueDead: suppliedSwap?.tarrasqueDead ?? uniqueSlain(p, "the-tarrasque", "The Tarrasque")
+      }
     };
     d.weaponSwap = borgWeaponSwap(ctx, d.weaponSwapOpts);
     d.armourSwapOpts = { ...d.weaponSwapOpts, ...opts.armourSwap ? { armourSwap: { ...opts.armourSwap } } : {} };
@@ -7788,18 +7792,18 @@ function borgNoticePlayer(c) {
   }
   t[44 /* SPEED */] = p.speed;
   t[52 /* INFRA */] = p.seeInfra;
-  t[263 /* SAURON_DEAD */] = sauronSlain(p) ? 1 : 0;
+  t[263 /* SAURON_DEAD */] = uniqueSlain(p, "sauron-the-sorcerer", "Sauron, the Sorcerer") ? 1 : 0;
 }
 function localRaceId(raceId) {
   const at = raceId.indexOf(":");
   return at < 0 ? raceId : raceId.slice(at + 1);
 }
-function sauronSlain(player) {
+function uniqueSlain(player, localId, cName) {
   const list = player.slainUniques;
   if (list === void 0) return false;
   for (const entry of list) {
-    if (typeof entry.raceId === "string" && localRaceId(entry.raceId) === "sauron-the-sorcerer") return true;
-    if (entry.name === "Sauron, the Sorcerer") return true;
+    if (typeof entry.raceId === "string" && localRaceId(entry.raceId) === localId) return true;
+    if (entry.name === cName) return true;
   }
   return false;
 }
