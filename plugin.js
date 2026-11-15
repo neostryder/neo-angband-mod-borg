@@ -4917,6 +4917,7 @@ var PACK_SIZE = 23;
 var DEFAULT_MAX_STACK = 40;
 function createStoreMemory() {
   return {
+    visited: /* @__PURE__ */ new Set(),
     soldTval: [],
     soldSval: [],
     soldPval: [],
@@ -10772,6 +10773,11 @@ function borgThinkShopBuy(ctx, shopNum, d) {
 function borgChooseShop(ctx, d) {
   const goal = ctx.world.self.goal;
   const mem = d?.mem ?? createStoreMemory();
+  const visit = (shop) => {
+    if (st(ctx, 45 /* GOLD */) <= 0 || mem.visited.has(shop) || !d?.shopKnown?.(shop)) return false;
+    goal.shop = shop;
+    return true;
+  };
   if (st(ctx, 105 /* CDEPTH */)) return false;
   if (ctx.world.clock - (d?.began ?? 0) > 2e3) return false;
   if (ctx.world.self.timeThisPanel > 1350) return false;
@@ -10783,6 +10789,7 @@ function borgChooseShop(ctx, d) {
   if (st(ctx, 26 /* LIGHT */) === 0 || st(ctx, 39 /* FOOD */) === 0 || st(ctx, 116 /* ISCUT */) || st(ctx, 115 /* ISPOISONED */) || st(ctx, 26 /* LIGHT */) === 1 && st(ctx, 45 /* GOLD */) >= 100 && st(ctx, 35 /* CLEVEL */) < 10) {
     if (borgThinkShopBuyUseful(ctx, d)) return true;
     if (borgThinkHomeBuyUseful(ctx, d)) return true;
+    if (visit(goal.shop)) return true;
   }
   if (goal.shop !== -1 && goal.ware !== -1) return true;
   goal.shop = -1;
@@ -10805,12 +10812,16 @@ function borgChooseShop(ctx, d) {
   if (borgThinkShopGrabInteresting(ctx, d)) return true;
   if (borgUsesSwaps(ctx, d) && borgThinkHomeBuySwapWeapon(ctx, d)) return true;
   if (borgUsesSwaps(ctx, d) && borgThinkHomeBuySwapArmour(ctx, d)) return true;
+  for (let shop = 0; shop < ctx.view.stores().length; shop++) {
+    if (visit(shop)) return true;
+  }
   return false;
 }
 function borgThinkStore(ctx, shopNum, d, wearDeps) {
   if (ctx.world.clock >= 2e4 && ctx.world.clock <= 20010) {
     return ctx.act.shopExit();
   }
+  d?.mem?.visited.add(shopNum);
   borgNotice(ctx);
   const best = borgBestStuff(ctx, shopNum, wearDeps, d);
   if (best) return best;
@@ -16112,6 +16123,7 @@ function buildStoreDeps(session) {
   const began = session.flow.state.borgBegan;
   const common = {
     mem: session.storeMem,
+    shopKnown: (shop) => !!session.flow.state.shopX[shop] && !!session.flow.state.shopY[shop],
     began,
     ...storeCfg(),
     isAware,
@@ -18271,6 +18283,7 @@ function createBorg(opts = {}) {
       st2.glyph.wipe();
       st2.vein.wipe();
       const mem = session.storeMem;
+      mem.visited.clear();
       mem.soldNum = mem.boughtNum = 0;
       mem.soldNxt = mem.boughtNxt = 1;
       for (const records of [

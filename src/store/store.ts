@@ -81,6 +81,8 @@ export const DEFAULT_MAX_STACK = 40;
  * re-examined. That off-by-one is upstream behaviour and is preserved verbatim.
  */
 export interface StoreMemory {
+  /** Known-stock shopping needs an inspection on each trip to town. */
+  visited: Set<number>;
   soldTval: number[];
   soldSval: number[];
   soldPval: number[];
@@ -105,6 +107,7 @@ export interface StoreMemory {
 /** A fresh, empty store memory (matches the C initialisers). */
 export function createStoreMemory(): StoreMemory {
   return {
+    visited: new Set(),
     soldTval: [],
     soldSval: [],
     soldPval: [],
@@ -185,6 +188,8 @@ export interface StoreDeps {
   began?: number;
   /* --- persistent anti-loop memory (see StoreMemory). --- */
   mem?: StoreMemory;
+  /** Whether the known map contains this store's entrance. */
+  shopKnown?: (shop: number) => boolean;
 
   /* --- z_info overrides (defaults: the faithful literals above). --- */
   storeInvenMax?: number;

@@ -22,6 +22,8 @@ The command builders the decision code calls, such as `walk`, `quaff`, and `shop
 
 Town routing records shop doors and their store indexes from the known map. A character standing on a shop door uses `hold` to reopen it. The store ladder runs only during the host's `store` input phase.
 
+The C Borg's `borg_cheat_store` reads every store before choosing a purchase. This port reads observed stock from the known view. When no trade is selected, it visits known shop doors to inspect stock before a routine descent. The inspection tour skips stores already entered on this town trip, and a level change clears that visit memory. Urgent shopping can inspect the general store or temple before the home equipment pass.
+
 The keyboard goes back to the player after 25 refused commands in a row, after 25 decisions in a row with no command, or after the same command is accepted 40 times in a row against an unchanged scene. The scene is the character's position, depth, hit points, spell points, experience, gold, and affliction grades, plus the perceived monsters and their hit points. That last rule covers a command the game accepts that does nothing, such as opening a door the Borg's map still shows as closed after it was opened out of sight. No game turn passes, so the refusal and idle counts never move. At the sixth repeat, and every sixth one after it, the Borg also clears its own map's record of the grid the command aimed at, and the next decision treats that grid as unknown.
 
 ## The view the decision code reads

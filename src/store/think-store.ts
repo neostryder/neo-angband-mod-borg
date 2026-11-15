@@ -56,6 +56,13 @@ import {
 export function borgChooseShop(ctx: BorgContext, d?: StoreDeps): boolean {
   const goal = ctx.world.self.goal;
   const mem = d?.mem ?? createStoreMemory();
+  /* borg_choose_shop reads all stock through borg_cheat_store (borg-store.c:147).
+   * Known-view shopping needs a visit before it can score that stock. */
+  const visit = (shop: number): boolean => {
+    if (st(ctx, BI.GOLD) <= 0 || mem.visited.has(shop) || !d?.shopKnown?.(shop)) return false;
+    goal.shop = shop;
+    return true;
+  };
 
   /* Must be in town (:92). */
   if (st(ctx, BI.CDEPTH)) return false;
@@ -92,6 +99,7 @@ export function borgChooseShop(ctx: BorgContext, d?: StoreDeps): boolean {
   ) {
     if (borgThinkShopBuyUseful(ctx, d)) return true;
     if (borgThinkHomeBuyUseful(ctx, d)) return true;
+    if (visit(goal.shop)) return true;
   }
 
   /* Already flowing to a shop (:150). */
@@ -141,6 +149,9 @@ export function borgChooseShop(ctx: BorgContext, d?: StoreDeps): boolean {
   if (borgUsesSwaps(ctx, d) && borgThinkHomeBuySwapWeapon(ctx, d)) return true;
   if (borgUsesSwaps(ctx, d) && borgThinkHomeBuySwapArmour(ctx, d)) return true;
 
+  for (let shop = 0; shop < ctx.view.stores().length; shop++) {
+    if (visit(shop)) return true;
+  }
   return false;
 }
 
@@ -160,6 +171,7 @@ export function borgThinkStore(
     return ctx.act.shopExit();
   }
 
+  d?.mem?.visited.add(shopNum);
   /* borg-think-store.c:305-310 refreshes equipment before home optimization. */
   borgNotice(ctx);
   const best = borgBestStuff(ctx, shopNum, wearDeps, d);

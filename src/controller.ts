@@ -216,6 +216,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
       st.vein.wipe();
       /* Level updates clear purchase and sale records (borg-update.c:2040-2056). */
       const mem = session.storeMem;
+      mem.visited.clear();
       mem.soldNum = mem.boughtNum = 0;
       mem.soldNxt = mem.boughtNxt = 1;
       for (const records of [mem.soldTval, mem.soldSval, mem.soldPval, mem.soldStore,

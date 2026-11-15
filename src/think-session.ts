@@ -478,6 +478,7 @@ export function buildStoreDeps(session: ThinkSession): StoreDeps {
    * Keep these hooks even when no loadout evaluator is installed. */
   const common: StoreDeps = {
     mem: session.storeMem,
+    shopKnown: (shop) => !!session.flow.state.shopX[shop] && !!session.flow.state.shopY[shop],
     began,
     ...storeCfg(),
     isAware,

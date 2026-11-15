@@ -34,6 +34,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
+import * as Core from "@rpgm-tools/neo-angband-core";
+import type { JsonRecord, KnownStoreItem, KnownWorldData, LoadoutSimulation } from "@rpgm-tools/neo-angband-mod-sdk";
 import {
   ContentIdResolver,
   FEAT,
@@ -44,11 +46,13 @@ import {
   runGameLoop,
   startGame,
 } from "@rpgm-tools/neo-angband-core";
-import type { GamePack, GameState } from "@rpgm-tools/neo-angband-core";
+import type { AgentCommand, GamePack, GameState } from "@rpgm-tools/neo-angband-core";
 import { createBorg } from "./controller.js";
 import { makeCoreResolvers } from "./resolvers.js";
 import { makeScenarioView, makeFakeActions } from "./harness.js";
-import { knownWorld } from "./harness-api2.js";
+import { fakeGame, knownWorld } from "./harness-api2.js";
+import { createBridge } from "./api2/host.js";
+import { createTick } from "./api2/controller.js";
 import { playerView } from "./api2/world.js";
 import { borgNotice, BI } from "./trait/index.js";
 import { playerHas } from "./trait/player-flags.js";
@@ -133,8 +137,8 @@ function loadPack(dir: string): GamePack {
   } as unknown as GamePack;
 }
 
-function makeGame(pack: GamePack, seed: number) {
-  const game = startGame(pack, { seed, depth: 0 });
+function makeGame(pack: GamePack, seed: number, className?: string) {
+  const game = startGame(pack, { seed, depth: 0, ...(className ? { className } : {}) });
   const state: GameState = game.state;
   const resolver = new ContentIdResolver({
     objects: game.booted.registries.objects,
@@ -231,6 +235,80 @@ const suite = PACK_DIR ? describe : describe.skip;
 
 suite("the Borg's ladder reaches rest and the store", () => {
   const pack = PACK_DIR ? loadPack(PACK_DIR) : null;
+
+  it.each(["Warrior", "Mage", "Priest", "Rogue", "Ranger", "Paladin", "Druid", "Necromancer", "Blackguard"])("buys supplies before descending from an unseen-stock town as a %s", async (cls) => {
+    const { game, state, resolver } = makeGame(pack!, 441, cls);
+    const reg = game.booted.registries.objects;
+    const deps = { reg, resolver };
+    state.actor.player.au = 100;
+    /* The safe-town fixture isolates shopping from borg_caution's danger escape. */
+    for (let i = 1; i < state.monsters.length; i++) if (state.monsters[i]) Core.deleteMonster(state, i);
+    /* A nearby home keeps the initial equipment visit from revealing retail stock en route. */
+    const home = findDoor(state, FEAT.HOME)!;
+    const start = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: home.x + dx!, y: home.y + dy! }))
+      .find((grid) => state.chunk.feat(grid) === FEAT.FLOOR);
+    expect(start).toBeDefined();
+    state.actor.grid = start!;
+    let inStore = false;
+    let bought: KnownStoreItem | undefined;
+    const commands: AgentCommand[] = [];
+    const host = fakeGame({ engine: { core: Core }, submit: (intent) => {
+      if (intent.kind !== "command") return true;
+      const command = intent.command as AgentCommand;
+      commands.push(command);
+      expect(command.code, JSON.stringify(commands.slice(-20))).not.toBe("descend");
+      const before = Core.buildKnownWorld(state, deps);
+      const shop = before.player!.shopnum;
+      const ware = command.code === "shop-buy" && shop !== null
+        ? before.stores![shop]!.stock.find((item) => item.index === command.args?.["index"])
+        : undefined;
+      const gold = state.actor.player.au;
+      const handler = game.registry.get(command.code);
+      expect(handler, command.code).toBeDefined();
+      const energy = handler!(state, command);
+      if (energy > 0) state.turn += 10;
+      if (command.code === "shop-buy") {
+        expect(ware).toBeDefined();
+        expect(state.actor.player.au).toBeLessThan(gold);
+        bought = ware;
+      }
+      if (command.code === "shop-exit") inStore = false;
+      else if (command.code === "walk" || command.code === "hold") {
+        inStore = Core.buildKnownWorld(state, deps).player!.shopnum !== null;
+      }
+      state.updateBonuses?.();
+      return true;
+    } });
+    host.mod.content.records = async (file) => ({ ok: true, value: (JSON.parse(readFileSync(join(PACK_DIR!, `${file}.json`), "utf8")) as { records: JsonRecord[] }).records });
+    host.mod.content.boundRecords = async (file) => ({ ok: true, value: file === "object" ? reg.kinds.map((kind) => ({ key: kind.name, name: kind.name, index: kind.kidx, tval: kind.tval, owner: "core" })) : [] });
+    host.mod.view.world = async () => ({ ok: true, value: Core.buildKnownWorld(state, deps) as KnownWorldData });
+    host.mod.view.simulateLoadout = async (change) => {
+      const refs = [...(change.wield ?? []), ...(change.wieldAt ?? []).map((entry) => entry.item), ...(change.carry ?? []).map((entry) => entry.item)];
+      if (refs.some((ref) => ref.from === "store" && state.chunk.feat(state.actor.grid) !== state.stores![ref.store]!.feat)) {
+        return { ok: false, reason: "refused", code: "unobserved-item", message: "The store item is not currently seen." };
+      }
+      const simulation = createAgentView(state, undefined, deps).simulateLoadout!(change);
+      expect(simulation).not.toBeNull();
+      return { ok: true, value: Core.knownLoadoutSimulation(state, simulation!) as LoadoutSimulation };
+    };
+    expect(Core.buildKnownWorld(state, deps).stores!.every((store) => store.stock.length === 0)).toBe(true);
+    const bridge = createBridge(host.mod);
+    await bridge.prime();
+    const borg = createBorg({ resolvers: makeCoreResolvers(bridge.resolverInput()) });
+    const tick = createTick(bridge, borg);
+    try {
+      for (let decision = 0; decision < 300 && bought === undefined; decision++) {
+        await tick(host.mod, host.input({ phase: inStore ? "store" : "play" }));
+      }
+      expect(bought, JSON.stringify(commands.slice(-20))).toBeDefined();
+      expect([Core.TV.FOOD, Core.TV.LIGHT, Core.TV.FLASK, Core.TV.POTION, Core.TV.SCROLL]).toContain(bought!.tval);
+      expect(commands.some((command) => command.code === "walk")).toBe(true);
+      expect(host.released).toEqual([]);
+      expect(host.truthCalls).toEqual([]);
+    } finally {
+      await bridge.dispose();
+    }
+  }, 60_000);
 
   it.each([false, true])("uses class flags for SP recovery with stairs=%s", (onStairs) => {
     for (const cls of ["Blackguard", "Mage"]) {
@@ -335,13 +413,8 @@ suite("the Borg's ladder reaches rest and the store", () => {
    * Issue #4. Reachability - walking to a shop through town's own explore/
    * leave-level ordering - is a separate concern from what this issue asks:
    * does the store LADDER, once physically inside a shop, actually issue
-   * shop-buy/shop-sell and does something real change as a result. A fresh
-   * level-1 character heads straight to the dungeon stairs on decision 0 in
-   * every seed tried (the town map is already fully known at birth, so the
-   * explore rungs find nothing and "leave the level" fires before the late
-   * "deal with shops" rung is ever reached - PLANNED.md's own town/L1
-   * shuttle, a separate and already-documented shape). Teleporting onto a
-   * shop door isolates the question this issue actually asks.
+   * shop-buy/shop-sell and does something real change as a result. Placing the
+   * character on shop doors isolates trading from the town navigation above.
    *
    * The door has to be a REAL one: state.stores[].feat, matched against the
    * grid the town generator actually placed it on. A synthetic terrain write
@@ -351,11 +424,8 @@ suite("the Borg's ladder reaches rest and the store", () => {
    * by hand: it answered "You cannot sell items when not in a store" while
    * the Borg believed it was in one.
    *
-   * This game's own birth options default `birth_no_selling` to true (the
-   * modern Angband default), so a real, successful sell still nets zero gold
-   * - upstream's own "You had X" rather than "You sold X for N gold". That is
-   * not a defect in the mod; it is why the assertions below check inventory
-   * for a sell and gold specifically for a buy.
+   * Sales can net zero gold under birth_no_selling, so inventory changes prove
+   * a sale while gold loss proves a purchase under either option value.
    */
   it("issue #4: physically in a real shop, the store ladder trades with a real effect", () => {
     const bought: Array<{ seed: number; goldBefore: number; goldAfter: number }> = [];

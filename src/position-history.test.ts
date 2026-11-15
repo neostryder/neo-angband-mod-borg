@@ -73,7 +73,9 @@ describe("position history through the controller", () => {
     const run = await historyGame();
     await run.decide(10, 3);
     await run.decide(9, 3);
+    getThinkSession(run.borg.world).storeMem.visited.add(0);
     await run.decide(20, 4, 2, 2);
+    expect(getThinkSession(run.borg.world).storeMem.visited.size).toBe(0);
     expect(run.passes.slice(-3)).toEqual([[[20, 4]], [[20, 4]], [[20, 4]]]);
     await run.decide(21, 4, 2);
     expect(run.history()).toEqual([[20, 4], [21, 4]]);
