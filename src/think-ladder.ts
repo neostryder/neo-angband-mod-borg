@@ -201,7 +201,7 @@ function findByHandle(ctx: BorgContext, handle: number | undefined): ItemView | 
   return null;
 }
 
-/** The C inscribes "borg ignore" on the one object before a drop (borg-junk.c:462-467). */
+/** Before dropping, the C inscribes "borg ignore" on that one object (borg-junk.c:462-467). */
 function rememberJunkDrop(ctx: BorgContext, session: ThinkSession, cmd: AgentCommand | null): AgentCommand | null {
   if (cmd?.code === "drop") {
     const dropped = findByHandle(ctx, handleOf(cmd));
@@ -1120,7 +1120,7 @@ export function borgThinkDungeon(
   {
     const cmd = borgCrushJunk(ctx, itemDeps);
     if (cmd) {
-      /* The inscription names one object (borg-junk.c:462-467). */
+      /* Match one object, as the C inscription does (borg-junk.c:462-467). */
       return rememberJunkDrop(ctx, session, cmd);
     }
   }

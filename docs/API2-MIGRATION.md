@@ -1,6 +1,6 @@
 # How the Borg runs on mod API 2
 
-The Borg is a mod API 2 mod. Its manifest declares schema version 2, the API range `>=2.0.0 <3.0.0`, and Neo Angband `>=1.23.0-beta.1`, and `plugin.ts` exports an API 2 definition with `start`, `stop`, `armed`, and `controller`. There are no hooks, because the Borg changes no rule and adds no record.
+The Borg is a mod API 2 mod. Its manifest declares schema version 2, the API range `>=2.1.0 <3.0.0`, and Neo Angband `>=1.23.0-beta.1`, and `plugin.ts` exports an API 2 definition with `start`, `stop`, `armed`, and `controller`. There are no hooks, because the Borg changes no rule and adds no record.
 
 Upstream's borg, and the port of it under `src/`, decides synchronously: it asks for the player, a grid, or the pack partway through a decision and uses the answer at once. API 2 answers every call with a promise. The code in `src/api2/` sits between the two. It reads the game before each decision, hands the decision code a synchronous view of that reading, and turns the chosen command into intents.
 
@@ -32,7 +32,12 @@ A loadout simulation is never ready the first time the decision code asks for it
 
 The rest check follows `borg_check_rest`: on a vault level it treats a remembered permanent wall at offsets -1 or 0 from the player as shelter. It skips fear, deep danger, food, light, proximity danger, and wall-walker refusals there, while adjacent monsters, breeders, ranged attacks, and lava still prevent resting. The `borg_fear_grid` and `borg_fear_regional` guards need a separate per-grid vault marker. BORG-4: the known map has no such marker; the smallest addition is a remembered `vault` boolean on known level cells, populated only when the player learns that fact.
 
-The installed `1.23.0-beta.3` core omits the documented mod API 2.1 additions. The bridge does not consume `slainUniques`, `objectId`, `trapKnown`, or `status.countdown`. Sauron's death in `borg_notice_player` and the Tarrasque death used by `borg_notice_weapon_swap` and `borg_notice_armour_swap` therefore have no game-side writer. BORG-5: the smallest addition is a published core and SDK that carry those documented known-player and known-item fields. The mod keeps its API 2.0 range until it uses them.
+The Borg pins SDK 1.23.0-beta.4, which carries mod API 2.1.0, and its manifest declares the range `>=2.1.0 <3.0.0`. The bridge reads all four 2.1 additions, and gap row BORG-5 is closed.
+
+- `slainUniques` on the known player: Sauron's row sets `BI.SAURON_DEAD`, as `borg_notice_player` does from `borg_race_death`. The Tarrasque's row sets `tarrasqueDead`, which turns off the "Tarrasque is alive" bonus in `borg_notice_weapon_swap` and `borg_notice_armour_swap` (`borg-trait-swap.c:516, 1084`). Both rows match by the stable local race id or the C race name.
+- `objectId` on known objects: the discard memory names the one object the Borg threw away, the way the C inscribes "borg ignore" on it (`borg-junk.c:462-467`), so a later object of the same kind is not refused.
+- `trapKnown` on known objects: it drives the chest open-or-disarm choice (`borg-flow.c:781-816`).
+- `status.countdown`: the bridge copies this tick count unchanged instead of converting it to a timed-effect grade, and the stall check counts a change in it as progress.
 
 ## The truth domain
 

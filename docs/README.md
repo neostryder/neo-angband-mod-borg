@@ -27,7 +27,7 @@ switch has no flag of its own, the game knows it by its section id instead.
 ## What it needs
 
 - **Engine:** `>=1.23.0-beta.1`
-- **Mod API:** `>=2.0.0 <3.0.0`
+- **Mod API:** `>=2.1.0 <3.0.0`
 - **Shape:** `plugin`
 - **Facets:** `plugin`
 - **Capabilities:** `command:add`, `state:player.read`, `state:monsters.read`, `state:map.read`, `state:inventory.read`, `state:floor.read`, `state:stores.read`, `state:spells.read`, `state:turn.read`, `state:monsters-actual.read`, `state:interaction.read`, `input:intent`, `input:prompt.reply`, `event:message`, `ui:title`, `profiles:manage`, `saves:manage`

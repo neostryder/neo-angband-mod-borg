@@ -17,7 +17,7 @@
  * - A timed effect is the lowest duration in the grade the status line names, so
  *   a check against a grade boundary answers as API 1 did and a check inside a
  *   grade does not. Food is the status line's percentage times 100.
- *   `status.countdown` is the tick count, not a grade, and is copied as itself.
+ *   `status.countdown` holds a raw tick count and is copied unchanged, with no grade lookup.
  * - A square glows only while visible and marked as glowing in the known level.
  * - An item's timeout is the number its name says are charging. A light's fuel is
  *   read from the known item.
@@ -35,7 +35,7 @@ import { gearSignature } from "./caches.js";
 import { TIMED_RECORDS, itemAnalyzer, valueOf, type GradeFloors, type ItemAnalyzer } from "./records.js";
 import type { BorgTruth } from "./truth.js";
 
-/** The API 1 player view plus the tick count `status.countdown` (not a timed-effect duration). */
+/** The API 1 player view plus `status.countdown` as a raw tick count, separate from timed-effect durations. */
 export type PlayerViewWithCountdown = PlayerView & {
   status: PlayerView["status"] & { countdown: number };
 };
@@ -96,8 +96,8 @@ export function playerView(known: KnownPlayer, floors: GradeFloors): PlayerViewW
   const timed = {} as Record<keyof typeof TIMED_RECORDS, number>;
   for (const [field, record] of Object.entries(TIMED_RECORDS) as [keyof typeof TIMED_RECORDS, string][]) {
     const grade = status[field];
-    /* A string is a grade name: an unnamed grade still means the effect is on.
-     * null is off. A number is not a grade name, so it is not passed to the floor table. */
+    /* A string is a grade name, and an unnamed grade still counts as on. null is
+     * off. A number bypasses the floor table, which takes grade names only. */
     timed[field] = typeof grade === "string" ? (floors.get(record)?.get(grade) ?? 1) : 0;
   }
   return {

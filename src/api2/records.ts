@@ -274,7 +274,7 @@ export async function gameConstants(api: Content): Promise<GameConstants> {
   return out;
 }
 
-/** Status fields that are not a named grade of a player_timed effect. `countdown` counts ticks, it is not a duration. */
+/** Status fields with no named player_timed grade. `countdown` is a raw tick count, unrelated to effect duration. */
 type UntimedStatus = "timed" | "food" | "foodGrade" | "fearful" | "countdown";
 
 /** The timed effect record behind each status field, by its name in the game's player_timed file. */

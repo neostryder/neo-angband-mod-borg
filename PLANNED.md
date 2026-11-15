@@ -545,7 +545,7 @@ the version field is not. Danger vision needs a host that supplies
 that would have pinned a digest on a change inert on every game a player could
 actually be running.
 
-The current manifest requires Neo Angband `>=1.23.0-beta.1` and mod API `>=2.0.0 <3.0.0`. Version 0.7.0 required `>=0.27.0`, which includes the trap predicate, prompt handling, multi-turn rest, and store command handlers.
+The current manifest requires Neo Angband `>=1.23.0-beta.1` and mod API `>=2.1.0 <3.0.0`. Version 0.7.0 required `>=0.27.0`, which includes the trap predicate, prompt handling, multi-turn rest, and store command handlers.
 
 The paragraph below is about the earlier move, from `>=0.12.0`, and the argument
 is the same one.
