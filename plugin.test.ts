@@ -64,7 +64,7 @@ afterEach(async () => {
 
 describe("the built plugin.js", () => {
   it("is an API 2 mod with a controller, a start and a stop, and no hooks", () => {
-    expect(built.api).toBe(">=2.0.0 <3.0.0");
+    expect(built.api).toBe(">=2.1.0 <3.0.0");
     expect(built.hooks).toBeUndefined();
     expect(typeof built.start).toBe("function");
     expect(typeof built.stop).toBe("function");

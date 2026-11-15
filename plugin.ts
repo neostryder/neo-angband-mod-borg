@@ -245,7 +245,7 @@ async function begin(mod: ModApi2): Promise<Running | null> {
 }
 
 const definition: Api2ModDefinition = {
-  api: ">=2.0.0 <3.0.0",
+  api: ">=2.1.0 <3.0.0",
 
   async start(mod) {
     running = begin(mod).catch((error: unknown) => {

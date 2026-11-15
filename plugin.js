@@ -19356,7 +19356,7 @@ async function begin(mod2) {
   return { bridge: made, tick: createTick(made, { controller: borg.controller, rewind: borg.rewind, forget }) };
 }
 var definition = {
-  api: ">=2.0.0 <3.0.0",
+  api: ">=2.1.0 <3.0.0",
   async start(mod2) {
     running = begin(mod2).catch((error) => {
       mod2.meta.log(`the Borg could not start: ${error instanceof Error ? error.message : String(error)}`);
