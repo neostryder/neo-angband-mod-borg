@@ -119,8 +119,8 @@ export const SIMULATIONS_PER_ROUND = 48;
  * questions after the decision and runs the decision again with them answered.
  *
  * An answer is valid for one set of gear, so the whole cache is dropped when the
- * pack, the worn set or any store's stock changes. Entering a shop also needs
- * fresh answers because store references are refused away from its entrance.
+ * pack, the worn set or any store's stock changes. It is also dropped on
+ * entering a shop, because a store can only be referenced from its entrance.
  * A candidate's score is only
  * ever read as its difference from the empty change's score (think-session.ts
  * powerOf), which is why the empty change is read first and an answer is
@@ -192,7 +192,7 @@ export class LoadoutBook {
   }
 }
 
-/** Store access changes at an entrance even when remembered stock stays the same. */
+/** Which stores can be accessed changes at an entrance even when the remembered stock does not. */
 export function gearSignature(
   inventory: readonly KnownItem[],
   equipment: readonly (KnownItem | null)[],

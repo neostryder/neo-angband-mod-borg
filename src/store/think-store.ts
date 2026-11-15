@@ -57,7 +57,7 @@ export function borgChooseShop(ctx: BorgContext, d?: StoreDeps): boolean {
   const goal = ctx.world.self.goal;
   const mem = d?.mem ?? createStoreMemory();
   /* borg_choose_shop reads all stock through borg_cheat_store (borg-store.c:147).
-   * Known-view shopping needs a visit before it can score that stock. */
+   * With only the known view, the Borg has to visit a shop before it can score that stock. */
   const visit = (shop: number): boolean => {
     if (st(ctx, BI.GOLD) <= 0 || mem.visited.has(shop) || !d?.shopKnown?.(shop)) return false;
     goal.shop = shop;

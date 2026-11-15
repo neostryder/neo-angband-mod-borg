@@ -454,7 +454,7 @@ export function borgFlowVein(ctx: BorgContext, flow: FlowState, viewable: boolea
   return borgFlowOld(ctx, flow, GOAL_TAKE);
 }
 
-/** borg_update_map (borg-update.c:311-327) remembers only known shop doors. */
+/** Only shop doors already on the known map are recorded, as in borg_update_map (borg-update.c:311-327). */
 export function borgTrackShops(ctx: BorgContext, flow: FlowState): void {
   if (trait(ctx.world, BI.CDEPTH)) return;
   const stores = ctx.view.stores();
@@ -472,7 +472,7 @@ export function borgTrackShops(ctx: BorgContext, flow: FlowState): void {
 }
 
 /**
- * borg_flow_shop_entry (borg-flow-misc.c:770-827): flow to shop i's door (town only).
+ * borg_flow_shop_entry (borg-flow-misc.c:770-827): flow to the door of shop i. Town only.
  */
 export function borgFlowShopEntry(ctx: BorgContext, flow: FlowState, i: number): AgentCommand | null {
   const w = ctx.world;
