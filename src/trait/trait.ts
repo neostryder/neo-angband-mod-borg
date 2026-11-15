@@ -293,8 +293,31 @@ function borgNoticePlayer(c: Ctx): void {
    * Keep the separate original-C238 duplicate modifier unchanged here. */
   t[BI.INFRA] = p.seeInfra;
 
-  /* Neither AgentView nor API 2 exposes a race death counter. History has
-   * display text without a race identity, so it cannot supply SAURON_DEAD. */
+  /* Sauron's death is his row in the known kill list (borg-trait.c:3136). C copies
+   * borg_race_death[borg_sauron_id], and that id is the race named "Sauron, the
+   * Sorcerer" (borg-flow-kill.c:3140). The list has no kill count, so the trait
+   * is 1 when the race id or that name is present, and 0 otherwise. */
+  t[BI.SAURON_DEAD] = sauronSlain(p) ? 1 : 0;
+}
+
+/** Local part of a namespaced race id. An id with no colon is already local. */
+function localRaceId(raceId: string): string {
+  const at = raceId.indexOf(":");
+  return at < 0 ? raceId : raceId.slice(at + 1);
+}
+
+/**
+ * True when the known player lists Sauron, by the stable race id or the C name
+ * (borg-flow-kill.c:3140).
+ */
+function sauronSlain(player: PlayerView): boolean {
+  const list = (player as PlayerView & { slainUniques?: readonly { raceIndex: number; raceId?: string; name: string }[] }).slainUniques;
+  if (list === undefined) return false;
+  for (const entry of list) {
+    if (typeof entry.raceId === "string" && localRaceId(entry.raceId) === "sauron-the-sorcerer") return true;
+    if (entry.name === "Sauron, the Sorcerer") return true;
+  }
+  return false;
 }
 
 /**

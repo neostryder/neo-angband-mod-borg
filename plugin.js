@@ -7771,6 +7771,20 @@ function borgNoticePlayer(c) {
   }
   t[44 /* SPEED */] = p.speed;
   t[52 /* INFRA */] = p.seeInfra;
+  t[263 /* SAURON_DEAD */] = sauronSlain(p) ? 1 : 0;
+}
+function localRaceId(raceId) {
+  const at = raceId.indexOf(":");
+  return at < 0 ? raceId : raceId.slice(at + 1);
+}
+function sauronSlain(player) {
+  const list = player.slainUniques;
+  if (list === void 0) return false;
+  for (const entry of list) {
+    if (typeof entry.raceId === "string" && localRaceId(entry.raceId) === "sauron-the-sorcerer") return true;
+    if (entry.name === "Sauron, the Sorcerer") return true;
+  }
+  return false;
 }
 function borgNoticeEquipment(c) {
   const { t, p, equip } = c;

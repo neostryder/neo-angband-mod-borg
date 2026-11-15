@@ -118,6 +118,30 @@ describe("borg_notice_player", () => {
     expect(t[BI.ISHUNGRY]).toBe(0); /* food 5000 is "normal" */
   });
 
+  it("sets SAURON_DEAD from slainUniques by race id or name, not by race index (borg-trait.c:3136, borg-flow-kill.c:3140)", () => {
+    const notice = (slainUniques: readonly { raceIndex: number; raceId?: string; name: string }[]) => {
+      const base = makeScenarioView({ player: { cls: "Warrior", level: 20, depth: 99, maxDepth: 99 } });
+      const player = base.player();
+      Object.assign(player, { slainUniques });
+      const ctx: BorgContext = { world: new BorgWorld(), view: { ...base, player: () => player }, act: makeFakeActions(), rng: makeBorgRng() };
+      borgNotice(ctx);
+      return ctx;
+    };
+    const dead = notice([{ raceIndex: 9, raceId: "core:sauron-the-sorcerer", name: "not the display name" }]);
+    expect(dead.world.self.trait[BI.SAURON_DEAD]).toBe(1);
+    expect(notice([{ raceIndex: 1, name: "Sauron, the Sorcerer" }]).world.self.trait[BI.SAURON_DEAD]).toBe(1);
+    expect(notice([{ raceIndex: 9, raceId: "frost:sauron-the-sorcerer", name: "Sauron, the Sorcerer" }]).world.self.trait[BI.SAURON_DEAD]).toBe(1);
+    expect(notice([{ raceIndex: 9, raceId: "core:fang", name: "Fang, Farmer" }]).world.self.trait[BI.SAURON_DEAD]).toBe(0);
+    expect(notice([]).world.self.trait[BI.SAURON_DEAD]).toBe(0);
+
+    /* borg_power adds 2500 per mass-banish scroll once Sauron is dead (borg-power.c:1454). */
+    dead.world.self.trait[BI.AMASSBAN] = 2;
+    dead.world.self.trait[BI.PREP_BIG_FIGHT] = 0;
+    const withSauron = borgPower(dead);
+    dead.world.self.trait[BI.SAURON_DEAD] = 0;
+    expect(withSauron - borgPower(dead)).toBe(5000);
+  });
+
   it("classifies food thresholds (PY_FOOD_*)", () => {
     const weak = mkCtx({ status: { blind: 0, confused: 0, afraid: 0, poisoned: 0, cut: 0, stun: 0, paralyzed: 0, food: 500 } });
     borgNotice(weak);
