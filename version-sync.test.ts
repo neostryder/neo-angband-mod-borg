@@ -33,7 +33,7 @@ describe("the two version sites", () => {
     expect(normalized.version).toBe(document.data.version);
     expect(normalized.version).toBe("1.4.0-beta.5");
     expect(normalized.capabilities).toEqual(document.data.capabilities);
-    expect(normalized.capabilities).toHaveLength(17);
+    expect(normalized.capabilities).toHaveLength(18);
     expect(normalized.rules).toEqual(document.data.rules);
     expect(normalized.rules!.length).toBeGreaterThan(0);
   });
