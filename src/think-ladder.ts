@@ -111,7 +111,7 @@ import {
   type ThinkSession,
 } from "./think-session.js";
 import { borgNearMonsterType } from "./perceive-facts.js";
-import { junkKey, takeValue } from "./perceive.js";
+import { rememberJunk, takeValue } from "./perceive.js";
 import { playerHas } from "./trait/player-flags.js";
 import { borgPlayMagic } from "./item/magic-play.js";
 
@@ -174,6 +174,7 @@ function borgPickUpHere(
       takeValue(item, {
         kindCost: session.resolvers.kindCost,
         junked: session.junked,
+        junkedIds: session.junkedIds,
       }) > 0
     ) {
       worth = true;
@@ -200,13 +201,19 @@ function findByHandle(ctx: BorgContext, handle: number | undefined): ItemView | 
   return null;
 }
 
-/** The C inscribes "borg ignore" before a drop, never before consuming it. */
+/** The C inscribes "borg ignore" on the one object before a drop (borg-junk.c:462-467). */
 function rememberJunkDrop(ctx: BorgContext, session: ThinkSession, cmd: AgentCommand | null): AgentCommand | null {
   if (cmd?.code === "drop") {
     const dropped = findByHandle(ctx, handleOf(cmd));
-    if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
+    if (dropped) rememberJunk(dropped, quantityOf(cmd), session.junked, session.junkedIds);
   }
   return cmd;
+}
+
+function quantityOf(cmd: AgentCommand): number | undefined {
+  const args = (cmd as { args?: Record<string, unknown> }).args;
+  const q = args?.["quantity"];
+  return typeof q === "number" ? q : undefined;
 }
 
 /** trait[BI_X] with a 0 default (borg.trait[BI_X]). */
@@ -1113,14 +1120,8 @@ export function borgThinkDungeon(
   {
     const cmd = borgCrushJunk(ctx, itemDeps);
     if (cmd) {
-      /* Remember the kind. Upstream inscribes the item "borg ignore" one
-       * keypress before it drops it (borg-junk.c:464-467), which prices it at
-       * -10 for borg_new_take and is the only thing stopping the Borg from
-       * collecting its own discards on the way past. The frozen action surface
-       * has no inscribe command, so the memory lives here instead. */
-      const dropped = findByHandle(ctx, handleOf(cmd));
-      if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
-      return cmd;
+      /* The inscription names one object (borg-junk.c:462-467). */
+      return rememberJunkDrop(ctx, session, cmd);
     }
   }
   /* borg-think-dungeon.c:1862,1866 makes space, then sheds weight. */

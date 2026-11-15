@@ -502,19 +502,47 @@ export interface TakeValuation {
   /** Host kind lookup; absent means every kind reads as unaware. */
   kindCost?: KindCostResolver | undefined;
   /**
-   * "tval:sval" of every kind the Borg has thrown away on this level, which is
-   * this port's stand-in for upstream's inscription. borg_drop_junk inscribes
-   * an item "borg ignore" BEFORE dropping it (borg-junk.c:464-467) precisely so
-   * that borg_new_take prices it at -10 and the Borg never walks back to it.
-   * The frozen action surface has no inscribe command, so the Borg remembers
-   * instead. Per kind rather than per object, which is what the price is anyway.
+   * "tval:sval" of kinds thrown away when the drop had no surviving objectId.
+   * borg_drop_junk inscribes that one item "borg ignore" before dropping it
+   * (borg-junk.c:462-467) so borg_new_take prices it at -10
+   * (borg-flow-take.c:271). The action surface has no inscribe command.
    */
   junked?: ReadonlySet<string> | undefined;
+  /**
+   * objectId of whole stacks thrown away. The id is still on that object after
+   * the drop, so only it prices at -10. A split's dropped part gets a new id
+   * (known-world.ts knownObjectId), and those drops stay in `junked`.
+   */
+  junkedIds?: ReadonlySet<number> | undefined;
 }
 
 /** The junked-set key for an object. */
 export function junkKey(tval: number, sval: number): string {
   return `${String(tval)}:${String(sval)}`;
+}
+
+/** Session id of one known object. The API 1 item type does not declare it. */
+function objectIdOf(item: ItemView): number | undefined {
+  if (!("objectId" in item)) return undefined;
+  const id = (item as { objectId?: unknown }).objectId;
+  return typeof id === "number" ? id : undefined;
+}
+
+/**
+ * Remember one dropped object. A whole drop keeps its objectId on the floor.
+ * A split gives the dropped part a new id, so the source id would name the
+ * part still carried (known-world.ts:241).
+ */
+export function rememberJunk(
+  item: ItemView,
+  quantity: number | undefined,
+  junked: Set<string>,
+  junkedIds: Set<number>,
+): void {
+  const whole = quantity === undefined || quantity >= item.number;
+  const id = whole ? objectIdOf(item) : undefined;
+  if (id !== undefined) junkedIds.add(id);
+  else junked.add(junkKey(item.tval, item.sval));
 }
 
 /** tval_is_money: TV_GOLD (generated/tvals.ts). */
@@ -553,6 +581,8 @@ export function takeValue(item: ItemView, valuation: TakeValuation): number {
 
   if (item.toA < 0 || item.toD < 0 || item.toH < 0) value = -10;
   if (item.inscription?.startsWith("borg ignore")) value = -10;
+  const ignored = objectIdOf(item);
+  if (ignored !== undefined && valuation.junkedIds?.has(ignored)) value = -10;
   if (valuation.junked?.has(junkKey(item.tval, item.sval))) value = -10;
 
   return value;

@@ -182,12 +182,16 @@ export interface ThinkSession {
   /** "depth:x,y" of the grid the Borg stood on last think. */
   lastGrid: string;
   /**
-   * Kinds the Borg has thrown away, as "tval:sval". See TakeValuation.junked:
-   * this is upstream's "borg ignore" inscription, which the frozen action
-   * surface cannot write. Without it the Borg drops a stack of junk and then
-   * walks straight back to collect it.
+   * Kinds thrown away when the drop had no surviving objectId, as "tval:sval".
+   * See TakeValuation.junked. Cleared on a level change: a kind key would
+   * refuse every later item of that kind.
    */
   readonly junked: Set<string>;
+  /**
+   * objectId of whole stacks thrown away. The id still names that object after
+   * a drop and a level change, so this lasts as long as the id does.
+   */
+  readonly junkedIds: Set<number>;
   /**
    * "depth:x,y:pile size" of the last pickup attempt, or "" for none.
    *
@@ -556,6 +560,7 @@ export function buildThinkSession(resolvers: BorgResolvers = {}): ThinkSession {
     arrivalPickup: false,
     lastGrid: "",
     junked: new Set<string>(),
+    junkedIds: new Set<number>(),
     pickupTried: "",
   };
   (session as { flow: Flow }).flow = createFlow(buildFlowHooks(session));

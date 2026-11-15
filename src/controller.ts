@@ -137,6 +137,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
   let before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
     rechargeRest: session.rechargeRest ?? false, ringTakeoff: session.ringTakeoff ?? false,
     panel: 0, store: false, resetLevel: world.resetLevel, junked: new Set(session.junked),
+    junkedIds: new Set(session.junkedIds),
     needAlter: false, noAlter: false };
 
   /* The host's view and actions arrive wrapped by the adapter (core-api.ts). */
@@ -147,6 +148,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     before = { lastGrid: session.lastGrid, arrival: session.arrivalPickup,
       rechargeRest: session.rechargeRest ?? false, ringTakeoff: session.ringTakeoff ?? false,
       panel: world.self.timeThisPanel, store: false, resetLevel: world.resetLevel, junked: new Set(session.junked),
+      junkedIds: new Set(session.junkedIds),
       needAlter: world.self.needAlter, noAlter: world.self.noAlter };
 
     /* Unknown recall effects keep the depth (borg-messages-react.c:229-242). */
@@ -222,6 +224,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
       }
       session.junked.clear();
       before.junked.clear();
+      /* junkedIds stays. It names one object for the rest of the session, and
+       * a kind key would refuse every later item of that kind. */
       before.panel = 0;
       before.resetLevel = false;
 
@@ -235,6 +239,7 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     perceive(world, view, memo, tables, {
       kindCost: session.resolvers.kindCost,
       junked: session.junked,
+      junkedIds: session.junkedIds,
     }, (i) => session.resolvers.resolveMonsterFacts?.(ctx, i).dChar);
 
     /* borg-update.c:491-525 tracks newly known stairs on every decision. */
@@ -306,6 +311,8 @@ export function createBorg(opts: BorgOptions = {}): Borg {
     session.ringTakeoff = before.ringTakeoff;
     session.junked.clear();
     for (const key of before.junked) session.junked.add(key);
+    session.junkedIds.clear();
+    for (const id of before.junkedIds) session.junkedIds.add(id);
   };
 
   CONTROLLER_WORLDS.set(controller, world);

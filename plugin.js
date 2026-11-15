@@ -16168,6 +16168,7 @@ function buildThinkSession(resolvers = {}) {
     arrivalPickup: false,
     lastGrid: "",
     junked: /* @__PURE__ */ new Set(),
+    junkedIds: /* @__PURE__ */ new Set(),
     pickupTried: ""
   };
   session.flow = createFlow(buildFlowHooks(session));
@@ -16395,7 +16396,8 @@ function borgPickUpHere(ctx, session) {
   for (const item of items) {
     if (takeValue(item, {
       kindCost: session.resolvers.kindCost,
-      junked: session.junked
+      junked: session.junked,
+      junkedIds: session.junkedIds
     }) > 0) {
       worth = true;
       break;
@@ -16418,9 +16420,14 @@ function findByHandle(ctx, handle) {
 function rememberJunkDrop(ctx, session, cmd) {
   if (cmd?.code === "drop") {
     const dropped = findByHandle(ctx, handleOf(cmd));
-    if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
+    if (dropped) rememberJunk(dropped, quantityOf(cmd), session.junked, session.junkedIds);
   }
   return cmd;
+}
+function quantityOf(cmd) {
+  const args = cmd.args;
+  const q = args?.["quantity"];
+  return typeof q === "number" ? q : void 0;
 }
 function T(ctx, i) {
   return ctx.world.self.trait[i] ?? 0;
@@ -16994,9 +17001,7 @@ function borgThinkDungeon(ctx, session) {
   {
     const cmd = borgCrushJunk(ctx, itemDeps);
     if (cmd) {
-      const dropped = findByHandle(ctx, handleOf(cmd));
-      if (dropped) session.junked.add(junkKey(dropped.tval, dropped.sval));
-      return cmd;
+      return rememberJunkDrop(ctx, session, cmd);
     }
   }
   {
@@ -18049,6 +18054,17 @@ function clearLocalRegionFear(world) {
 function junkKey(tval, sval) {
   return `${String(tval)}:${String(sval)}`;
 }
+function objectIdOf(item) {
+  if (!("objectId" in item)) return void 0;
+  const id = item.objectId;
+  return typeof id === "number" ? id : void 0;
+}
+function rememberJunk(item, quantity, junked, junkedIds) {
+  const whole = quantity === void 0 || quantity >= item.number;
+  const id = whole ? objectIdOf(item) : void 0;
+  if (id !== void 0) junkedIds.add(id);
+  else junked.add(junkKey(item.tval, item.sval));
+}
 var TV_GOLD = 35;
 function takeValue(item, valuation) {
   let value;
@@ -18060,6 +18076,8 @@ function takeValue(item, valuation) {
   }
   if (item.toA < 0 || item.toD < 0 || item.toH < 0) value = -10;
   if (item.inscription?.startsWith("borg ignore")) value = -10;
+  const ignored = objectIdOf(item);
+  if (ignored !== void 0 && valuation.junkedIds?.has(ignored)) value = -10;
   if (valuation.junked?.has(junkKey(item.tval, item.sval))) value = -10;
   return value;
 }
@@ -18182,6 +18200,7 @@ function createBorg(opts = {}) {
     store: false,
     resetLevel: world.resetLevel,
     junked: new Set(session.junked),
+    junkedIds: new Set(session.junkedIds),
     needAlter: false,
     noAlter: false
   };
@@ -18198,6 +18217,7 @@ function createBorg(opts = {}) {
       store: false,
       resetLevel: world.resetLevel,
       junked: new Set(session.junked),
+      junkedIds: new Set(session.junkedIds),
       needAlter: world.self.needAlter,
       noAlter: world.self.noAlter
     };
@@ -18255,7 +18275,8 @@ function createBorg(opts = {}) {
     borgNotice(ctx);
     perceive(world, view, memo, tables, {
       kindCost: session.resolvers.kindCost,
-      junked: session.junked
+      junked: session.junked,
+      junkedIds: session.junkedIds
     }, (i) => session.resolvers.resolveMonsterFacts?.(ctx, i).dChar);
     borgTrackStairs(world, session.flow.state);
     if (recordStep) {
@@ -18292,6 +18313,8 @@ function createBorg(opts = {}) {
     session.ringTakeoff = before.ringTakeoff;
     session.junked.clear();
     for (const key of before.junked) session.junked.add(key);
+    session.junkedIds.clear();
+    for (const id of before.junkedIds) session.junkedIds.add(id);
   };
   CONTROLLER_WORLDS.set(controller, world);
   return { world, rng, controller, rewind };
