@@ -6390,7 +6390,7 @@ function borgTwitchy(ctx, flow) {
       return ctx.act.rest(REST_COMPLETE);
     }
   }
-  if (trait(w, 113 /* ISAFRAID */)) return ctx.act.tunnel(dir);
+  if (trait(w, 113 /* ISAFRAID */)) return { code: "alter", dir };
   return ctx.act.move(dir);
 }
 

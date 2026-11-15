@@ -759,6 +759,7 @@ export function borgTwitchy(ctx: BorgContext, flow: FlowState): AgentCommand | n
     }
   }
 
-  if (trait(w, BI.ISAFRAID)) return ctx.act.tunnel(dir);
+  /* borg_twitchy uses alter so fear can expire while the Borg spends a turn. */
+  if (trait(w, BI.ISAFRAID)) return { code: "alter", dir };
   return ctx.act.move(dir);
 }

@@ -26,6 +26,7 @@ import {
   defaultFlowHooks,
 } from "./flow.js";
 import { createFlow } from "./index.js";
+import { borgTwitchy } from "./flow-misc.js";
 
 /** Build a seeded BorgContext from a scenario, with optional trait overrides. */
 function makeCtx(
@@ -419,5 +420,13 @@ describe("borg_play_step's trap and door magic", () => {
     expect(borgPlayStep(ctx, flow, 10, 11)).toEqual({ code: "alter", dir: 6 });
     expect(ctx.world.self.needAlter).toBe(false);
     expect(code(borgPlayStep(ctx, flow, 10, 11))).toBe("walk");
+  });
+});
+
+describe("borg_twitchy", () => {
+  it.each([false, true])("uses the C fallback command with afraid=%s", (afraid) => {
+    const ctx = makeCtx({ player: { grid: { x: 10, y: 10 } } }, { ISAFRAID: afraid ? 1 : 0 });
+    ctx.rng.randint0 = () => 6;
+    expect(borgTwitchy(ctx, createFlowState())).toEqual({ code: afraid ? "alter" : "walk", dir: 6 });
   });
 });

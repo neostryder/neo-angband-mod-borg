@@ -18,7 +18,7 @@ A game that grants no engine domain gets a log line saying the Borg could not st
 
 The game calls `controller` at each input wait, and `src/api2/controller.ts` handles it. If a prompt is waiting, the Borg answers it and stops there: it acknowledges, confirms, accepts the default for a quantity or text prompt, and cancels anything else. Outside the play and store phases it does nothing. Otherwise the bridge reads the world, the decision code returns one command, any target choices from that decision are submitted, and the command follows as a `command` intent under a freshly read input token.
 
-The command builders the decision code calls, such as `walk`, `quaff`, and `shop-buy`, are built locally in `src/api2/act.ts` with the same codes and arguments the game's API 1 builders produced, so the ported decisions run as written.
+The command builders the decision code calls, such as `walk`, `quaff`, and `shop-buy`, are built locally in `src/api2/act.ts` with the same codes and arguments the game's API 1 builders produced, so the ported decisions run as written. The afraid fallback submits `alter`, as `borg_twitchy` does, so the command can spend a turn while fear expires.
 
 Town routing records each shop door and its store index from the known map. To reopen a shop, a character standing on its door uses `hold`. The store ladder runs only during the host's `store` input phase.
 
