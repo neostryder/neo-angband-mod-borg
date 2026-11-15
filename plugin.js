@@ -15377,7 +15377,7 @@ function borgStrategicRetreat(ctx, flow, posDanger, nasty, surrounded) {
   };
   let bestRange = -1, bestX = self.c.x, bestY = self.c.y;
   for (const target of retreatView(ctx)) {
-    if (!borgCaveFloorGrid(w.map.at(target.x, target.y)) || bouncing(target.x, target.y) || !borgHappyGridBold(ctx, flow, target.y, target.x)) continue;
+    if (!borgCaveFloorBold(w, target.y, target.x) || bouncing(target.x, target.y) || !borgHappyGridBold(ctx, flow, target.y, target.x)) continue;
     if (bestRange >= 0 && (Math.abs(target.x - self.c.x) > bestRange || Math.abs(target.y - self.c.y) > bestRange)) continue;
     let x = self.c.x, y = self.c.y, r = 0;
     while (true) {

@@ -9,6 +9,7 @@ import { getThinkSession } from "../think-session.js";
 import { getDangerGlobals } from "../danger/state.js";
 import { getFightState } from "./state.js";
 import { borgCaution } from "./caution.js";
+import { borgStrategicRetreat } from "./retreat.js";
 import { borgEscape } from "./escape.js";
 import { borgDanger } from "../danger/index.js";
 vi.mock("../danger/index.js", async (original) => ({ ...await original<object>(), borgDanger: vi.fn() }));
@@ -40,6 +41,23 @@ describe("C caution retreats before teleport escape", () => {
     expect(borgCaution(ctx, getThinkSession(world).flow.state)).toEqual({ code: "walk", dir: 6 });
     expect(borgEscape).not.toHaveBeenCalled();
     expect(world.self.goal.type).toBe(0);
+  });
+  it.each([FEAT.NONE, FEAT.PASS_RUBBLE, FEAT.LAVA])("rejects terrain %s as a retreat destination while accepting plain floor", (feat) => {
+    const { ctx, world, flow, t } = scene();
+    t[BI.IFIRE] = 1;
+    world.map.at(11, 10).feat = feat;
+    world.map.at(12, 10).info = 0;
+    expect(borgStrategicRetreat(ctx, flow, 8, false, false)).toBeNull();
+    world.map.at(11, 10).feat = FEAT.FLOOR;
+    expect(borgStrategicRetreat(ctx, flow, 8, false, false)).toEqual({ code: "walk", dir: 6 });
+  });
+  it.each([FEAT.NONE, FEAT.PASS_RUBBLE, FEAT.LAVA])("allows terrain %s on the path to a plain floor retreat destination", (feat) => {
+    const { ctx, world, flow, t } = scene();
+    t[BI.IFIRE] = 1;
+    world.map.at(11, 10).feat = feat;
+    world.map.at(11, 10).info = 0;
+    flow.step.add(10, 12);
+    expect(borgStrategicRetreat(ctx, flow, 8, false, false)).toEqual({ code: "walk", dir: 6 });
   });
   it.each(["confused", "no retreat", "recent antisummon", "not worth the step", "trap", "occupied", "morgoth", "high HP", "looping"])("keeps the C strategic guard: %s", (guard) => {
     const { ctx, world, flow, t } = scene();

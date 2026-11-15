@@ -8,7 +8,7 @@ import { distance } from "../danger/geometry.js";
 import { GOAL_FLEE } from "../world/model.js";
 import { BORG_VIEW } from "../world/grid.js";
 import type { FlowState, BorgTrack } from "../flow/flow.js";
-import { FEAT, borgCaveFloorGrid, borgGotoDir, ddx, ddy, ddx_ddd, ddy_ddd } from "../flow/flow-consts.js";
+import { FEAT, borgCaveFloorBold, borgCaveFloorGrid, borgGotoDir, ddx, ddy, ddx_ddd, ddy_ddd } from "../flow/flow-consts.js";
 import { borgFlowStairLess, borgFlowStairMore } from "../flow/flow-stairs.js";
 import { borgHappyGridBold } from "../flow/flow-misc.js";
 import { getFightState, idiv } from "./state.js";
@@ -122,7 +122,8 @@ export function borgStrategicRetreat(
   };
   let bestRange = -1, bestX = self.c.x, bestY = self.c.y;
   for (const target of retreatView(ctx)) {
-    if (!borgCaveFloorGrid(w.map.at(target.x, target.y)) || bouncing(target.x, target.y) ||
+    /* borg_caution requires known floor destinations even when intermediate terrain is passable. */
+    if (!borgCaveFloorBold(w, target.y, target.x) || bouncing(target.x, target.y) ||
         !borgHappyGridBold(ctx, flow, target.y, target.x)) continue;
     if (bestRange >= 0 && (Math.abs(target.x - self.c.x) > bestRange || Math.abs(target.y - self.c.y) > bestRange)) continue;
     let x = self.c.x, y = self.c.y, r = 0;
