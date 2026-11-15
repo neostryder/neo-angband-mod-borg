@@ -10,7 +10,7 @@ import type { ItemView, SpellbookView, SpellView } from "@rpgm-tools/neo-angband
 import { makeScenarioView, makeFakeActions } from "../harness.js";
 import { createBorg } from "../controller.js";
 import { BI } from "./trait-index.js";
-import { TV } from "../item/svals.js";
+import { SVAL, TV } from "../item/svals.js";
 import { makeCoreResolvers } from "../resolvers.js";
 import { contextSpellSeam } from "./spell-seam.js";
 import { borgNotice } from "./trait.js";
@@ -75,6 +75,31 @@ describe("class flags (player_has)", () => {
 
   it("control: not before level 30", () => {
     expect(warrior(29)[BI.RFEAR]).toBe(0);
+  });
+
+  it.each([[19, 1], [20, 2], [39, 2], [40, 3]])("a level-%i Ranger with FAST_SHOT fires %i shots with a bow", (level, shots) => {
+    const bow = { ...bookItem, tval: TV.BOW, sval: SVAL.bow.long_bow! };
+    const extra = { equipment: () => [null, bow] };
+    const traits = noticed({ player: { cls: "Ranger", level, maxLevel: level, classFlags: ["FAST_SHOT"] } }, extra);
+    expect(traits[BI.FAST_SHOTS]).toBe(1);
+    expect(traits[BI.SHOTS]).toBe(shots);
+    const control = noticed({ player: { cls: "Ranger", level, maxLevel: level, classFlags: [] } }, extra);
+    expect(control[BI.FAST_SHOTS]).toBe(0);
+    expect(control[BI.SHOTS]).toBe(1);
+  });
+
+  it("a Priest with BLESS_WEAPON gains two hit and damage with a blessed sword", () => {
+    const priest = (flags: string[], classFlags = ["BLESS_WEAPON"]) => noticed(
+      { player: { cls: "Priest", level: 20, maxLevel: 20, classFlags } },
+      { equipment: () => [{ ...bookItem, tval: TV.SWORD, flags }] },
+    );
+    const blessed = priest(["BLESSED"]);
+    const plain = priest([]);
+    const control = priest(["BLESSED"], []);
+    for (const trait of [BI.TOHIT, BI.TODAM]) {
+      expect(blessed[trait]).toBe(plain[trait]! + 2);
+      expect(blessed[trait]).toBe(control[trait]! + 2);
+    }
   });
 });
 

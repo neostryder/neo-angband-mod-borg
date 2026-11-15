@@ -63,7 +63,7 @@ export interface ActivationName {
 }
 
 /**
- * Which activation a piece of worn gear carries. Obj-make's precedence applies:
+ * Which activation a known item carries. Obj-make's precedence applies:
  * an artifact's or ego's own activation overrides the kind's, so each source is
  * asked about separately and the resolver picks.
  */
@@ -80,10 +80,10 @@ export class ActivationBook {
     return this.names.get(`k:${String(tval)}:${String(sval)}`) ?? null;
   }
 
-  /** Read the activations of every worn item that has one, for any source not read yet. */
-  async ensure(api: Pick<ModApi2, "content">, equipment: readonly (ItemView | null)[]): Promise<void> {
+  /** Hypothetical equipment needs activation identities even when the item has never been worn. */
+  async ensure(api: Pick<ModApi2, "content">, items: readonly (ItemView | null)[]): Promise<void> {
     const asks = new Map<string, Parameters<ModApi2["content"]["activation"]>[0]>();
-    for (const item of equipment) {
+    for (const item of items) {
       if (item === null || !item.activation) continue;
       if (item.artifact && item.artifactName) asks.set(`a:${item.artifactName}`, { artifact: item.artifactName });
       if (item.ego && item.egoName) asks.set(`e:${item.egoName}`, { ego: item.egoName });

@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import * as Core from "@rpgm-tools/neo-angband-core";
-import type { JsonRecord, KnownItem, LoadoutChange } from "@rpgm-tools/neo-angband-mod-sdk";
+import type { JsonRecord, KnownItem, LoadoutChange, LoadoutSimulation } from "@rpgm-tools/neo-angband-mod-sdk";
 import { fakeGame, knownWorld, type FakeGame } from "../harness-api2.js";
 import type { Scenario } from "../harness.js";
 import { createBridge, type Bridge } from "./host.js";
@@ -28,6 +28,9 @@ import { BI } from "../trait/trait-index.js";
 import { SVAL } from "../item/svals.js";
 import { borgView } from "../core-api.js";
 import { borgFlowDarkInteresting, createFlowState } from "../flow/index.js";
+import { contextSpellSeam } from "../trait/spell-seam.js";
+import { borgSimulatePower } from "../trait/simulate.js";
+import { defaultSpellSeam } from "../trait/config.js";
 
 const SCENARIO: Scenario = {
   player: { grid: { x: 5, y: 5 }, depth: 3 },
@@ -256,6 +259,58 @@ describe("food cure wiring through published content", () => {
     known.inventory = [];
     borgNotice({ ...ctx, view: (await bridge.readWorld())!.view });
     expect(ctx.world.self.trait[trait]).toBe(0);
+    await bridge.dispose();
+  });
+});
+
+describe("activation credit for unworn candidates", () => {
+  it.each([
+    ["inventory", true], ["store", true], ["inventory", false], ["store", false],
+  ] as const)("a %s candidate with learned activation %s receives only known activation credit", async (source, learned) => {
+    const { game, bridge } = await primed({ truth: false });
+    const candidate: KnownItem = {
+      handle: 9, kindKey: "kind:0", baseName: "amulet", carried: source === "inventory", aware: true,
+      label: "amulet", nameColor: "white", tval: TV.AMULET, sval: 1, pval: 0, number: 1,
+      weight: 1, ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, ego: false,
+      artifact: false, flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [],
+      egoName: null, artifactName: null, activation: learned, charging: 1, unknownRunes: false,
+      inscription: null,
+    };
+    const known = { ...knownWorld(game.view), equipment: Array<KnownItem | null>(12).fill(null),
+      inventory: source === "inventory" ? [candidate] : [],
+      stores: source === "store" ? [{ feat: 1, featName: "shop", isHome: false, owner: { name: "owner", purse: 1000 }, stock: [{ ...candidate, index: 0 }] }] : [],
+    };
+    game.mod.view.world = () => Promise.resolve({ ok: true, value: known });
+    const calls: unknown[] = [];
+    game.mod.content.activation = (ref) => {
+      calls.push(ref);
+      return Promise.resolve({ ok: true, value: { index: 1, name: "HASTE", aim: false, level: 1, power: 1, message: "", desc: "", effect: [] } });
+    };
+    const before = { player: known.player!, equipment: known.equipment, inventory: known.inventory, stats: {} as LoadoutSimulation["before"]["stats"] };
+    game.mod.view.simulateLoadout = (change) => {
+      const equipment = [...known.equipment];
+      if (change.wield) equipment[4] = candidate;
+      return Promise.resolve({ ok: true, value: { before, after: { ...before, equipment }, delta: {} as LoadoutSimulation["delta"], placements: [], unresolved: [] } });
+    };
+    const snapshot = (await bridge.readWorld())!;
+    const resolvers = makeCoreResolvers(bridge.resolverInput());
+    const ctx = { world: new BorgWorld(), view: snapshot.view, act: makeFakeActions(), rng: makeBorgRng(), frame: resolvers.frame,
+      spellSeam: (c: Parameters<typeof contextSpellSeam>[0]) => contextSpellSeam(c, resolvers.resolveActivation),
+    };
+    const ref = source === "inventory" ? { from: "gear" as const, handle: candidate.handle } : { from: "store" as const, store: 0, index: 0 };
+    const change = { wield: [ref] };
+    expect(borgSimulatePower(ctx, change)).toBeNull();
+    expect(await bridge.settleLoadouts()).toBe(2);
+    expect(ctx.spellSeam(ctx).equipsItem("act_haste")).toBe(false);
+    const power = borgSimulatePower(ctx, change);
+    const control = borgSimulatePower(ctx, change, { spells: defaultSpellSeam() });
+    if (learned) expect(power).toBeGreaterThan(control!);
+    else expect(power).toBe(control);
+    const worn = snapshot.view.simulateLoadout!(change)!.after.equipment[4]!;
+    const hidden = { ...ctx, view: { ...ctx.view, equipment: () => [{ ...worn, activation: false }] } };
+    expect(ctx.spellSeam(hidden).equipsItem("act_haste")).toBe(false);
+    expect(calls).toEqual(learned ? [{ tval: TV.AMULET, sval: 1 }] : []);
+    expect(game.truthCalls).toEqual([]);
     await bridge.dispose();
   });
 });

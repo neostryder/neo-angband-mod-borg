@@ -238,7 +238,8 @@ export async function readWorld(api: Api2Reads, reads: WorldReads): Promise<Worl
   const floorHere = (known.floorHere ?? []).map(adapt);
   const monsters = await monsterViews(known, reads);
   if (reads.truth !== null) await reads.races.ensure(reads.truth, monsters.map((monster) => monster.raceIndex));
-  await reads.activations.ensure(api, equipment);
+  /* borg_wear_stuff calls borg_notice(false) with the candidate worn, so its known activation must be ready before scoring. */
+  await reads.activations.ensure(api, [...equipment, ...inventory, ...(known.stores ?? []).flatMap((store) => store.stock.map(adapt))]);
   reads.loadouts.begin(gearSignature(known.inventory ?? [], known.equipment ?? [], known.stores ?? [], known.player));
 
   const width = known.level?.width ?? 0;

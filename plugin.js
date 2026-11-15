@@ -18409,10 +18409,10 @@ var ActivationBook = class {
   kind(tval, sval) {
     return this.names.get(`k:${String(tval)}:${String(sval)}`) ?? null;
   }
-  /** Read the activations of every worn item that has one, for any source not read yet. */
-  async ensure(api, equipment2) {
+  /** Hypothetical equipment needs activation identities even when the item has never been worn. */
+  async ensure(api, items) {
     const asks = /* @__PURE__ */ new Map();
-    for (const item of equipment2) {
+    for (const item of items) {
       if (item === null || !item.activation) continue;
       if (item.artifact && item.artifactName) asks.set(`a:${item.artifactName}`, { artifact: item.artifactName });
       if (item.ego && item.egoName) asks.set(`e:${item.egoName}`, { ego: item.egoName });
@@ -18956,7 +18956,7 @@ async function readWorld(api, reads) {
   const floorHere = (known.floorHere ?? []).map(adapt);
   const monsters = await monsterViews(known, reads);
   if (reads.truth !== null) await reads.races.ensure(reads.truth, monsters.map((monster) => monster.raceIndex));
-  await reads.activations.ensure(api, equipment2);
+  await reads.activations.ensure(api, [...equipment2, ...inventory, ...(known.stores ?? []).flatMap((store2) => store2.stock.map(adapt))]);
   reads.loadouts.begin(gearSignature(known.inventory ?? [], known.equipment ?? [], known.stores ?? [], known.player));
   const width = known.level?.width ?? 0;
   const height = known.level?.height ?? 0;

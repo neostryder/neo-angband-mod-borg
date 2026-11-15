@@ -65,7 +65,7 @@ flowchart TD
   TRUTH --> RACES["RaceBook<br/>race records by ridx"]
   RACES --> DANGER["Danger facts<br/>blows, spells and race flags"]
   BRIDGE --> CONTENT["content.activation<br/>artifact name, ego name, tval and sval"]
-  CONTENT --> WORN["ActivationBook<br/>worn activation identity and charge check"]
+  CONTENT --> WORN["ActivationBook<br/>known activation identities for equipment, inventory, and shop stock"]
   BRIDGE --> KNOWN["view.world<br/>KnownPlayer.shopnum"]
   KNOWN --> SHOP["inShop"]
   VIEW["view.simulateLoadout"] --> LOADOUT["LoadoutBook<br/>answers settled in rounds"]
@@ -116,7 +116,7 @@ The discard memory records kinds, and the action facade has no inscription comma
 
 The port in `src/` and the mod you install are not quite the same thing. The installed mod depends on `plugin.ts`, which builds the Borg from resolvers the game supplies, and for a long time most of those did not exist.
 
-All four resolvers are wired: danger vision, activation identity, the in-shop signal, and the power of a hypothetical loadout. Race records come from the truth domain, activations from the game's content records, the shop under the character from the known world, and loadout scores from the game's own simulation. So `borg_danger` works from real blows, spell frequencies and race flags. The Borg knows whether a worn item has the activation it wants and is charged, knows which shop it stands in, and can score gear it is not wearing; it wears what it finds, buys what it needs and sells what it is done with. A monster or item from another mod is treated like one of core's, because every lookup goes by index (`ridx`, `tval`/`sval`, ego or artifact name) and never asks where the record came from. Without the truth domain, danger falls back to the flags and spells the character has learned.
+All four resolvers are wired: danger vision, activation identity, the in-shop signal, and the power of a hypothetical loadout. Race records come from the truth domain, activations from the game's content records, the shop under the character from the known world, and loadout scores from the game's own simulation. Known activations in inventory and shop stock count when the Borg scores hypothetical equipment, even before the item is worn. Unknown activations receive no credit. So `borg_danger` works from real blows, spell frequencies and race flags. The Borg knows whether a worn item has the activation it wants and is charged, knows which shop it stands in, and can score gear it is not wearing; it wears what it finds, buys what it needs and sells what it is done with. A monster or item from another mod is treated like one of core's, because every lookup goes by index (`ridx`, `tval`/`sval`, ego or artifact name) and never asks where the record came from. Without the truth domain, danger falls back to the flags and spells the character has learned.
 
 When it dies it starts a new character, and the game does that, not this mod. A controller can only return an in-game command, and there is no command for "roll me a new character", so the game's death handler does it whenever a mod holds the keyboard. It is an in-session reincarnation, not a new save: same session, same slot, a rolled race and class each time, as upstream's borg respawns.
 
