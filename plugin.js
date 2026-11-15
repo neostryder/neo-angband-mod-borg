@@ -18576,7 +18576,7 @@ var LoadoutBook = class {
 function gearSignature(inventory, equipment2, stores, player) {
   const one = (item) => item === null ? "-" : `${String(item.handle)}:${item.kindKey}:${String(item.number)}:${String(item.toH)}:${String(item.toD)}:${String(item.toA)}`;
   const stock = stores.map((store2) => `${String(store2.feat)}[${store2.stock.map(one).join(",")}]`).join(";");
-  return `${inventory.map(one).join(",")}|${equipment2.map(one).join(",")}|${stock}|${String(player?.level ?? 0)}`;
+  return `${inventory.map(one).join(",")}|${equipment2.map(one).join(",")}|${stock}|${String(player?.level ?? 0)}|${String(player?.shopnum ?? -1)}`;
 }
 
 // src/api2/feed.ts

@@ -119,7 +119,9 @@ export const SIMULATIONS_PER_ROUND = 48;
  * questions after the decision and runs the decision again with them answered.
  *
  * An answer is valid for one set of gear, so the whole cache is dropped when the
- * pack, the worn set or any store's stock changes. A candidate's score is only
+ * pack, the worn set or any store's stock changes. Entering a shop also needs
+ * fresh answers because store references are refused away from its entrance.
+ * A candidate's score is only
  * ever read as its difference from the empty change's score (think-session.ts
  * powerOf), which is why the empty change is read first and an answer is
  * withheld until it is known: a score without its baseline would read as a gain
@@ -190,7 +192,7 @@ export class LoadoutBook {
   }
 }
 
-/** A string that changes exactly when the pack, the worn set or a store's stock does. */
+/** Store access changes at an entrance even when remembered stock stays the same. */
 export function gearSignature(
   inventory: readonly KnownItem[],
   equipment: readonly (KnownItem | null)[],
@@ -199,5 +201,5 @@ export function gearSignature(
 ): string {
   const one = (item: KnownItem | null): string => (item === null ? "-" : `${String(item.handle)}:${item.kindKey}:${String(item.number)}:${String(item.toH)}:${String(item.toD)}:${String(item.toA)}`);
   const stock = stores.map((store) => `${String(store.feat)}[${store.stock.map(one).join(",")}]`).join(";");
-  return `${inventory.map(one).join(",")}|${equipment.map(one).join(",")}|${stock}|${String(player?.level ?? 0)}`;
+  return `${inventory.map(one).join(",")}|${equipment.map(one).join(",")}|${stock}|${String(player?.level ?? 0)}|${String(player?.shopnum ?? -1)}`;
 }

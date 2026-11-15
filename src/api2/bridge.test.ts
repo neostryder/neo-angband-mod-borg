@@ -21,7 +21,7 @@ import { makeCoreResolvers } from "../resolvers.js";
 import { BorgWorld } from "../world/model.js";
 import { perceive, makePerceiveMemo } from "../perceive.js";
 import { makeBorgRng } from "../rng.js";
-import { makeFakeActions } from "../harness.js";
+import { makeFakeActions, makeScenarioView } from "../harness.js";
 import { borgNotice } from "../trait/trait.js";
 import { borgPower } from "../trait/power.js";
 import { BI } from "../trait/trait-index.js";
@@ -473,6 +473,31 @@ describe("the gear signature", () => {
     expect(gearSignature([item({})], [item({ handle: 2 })], [{ feat: 1, stock: [item({})] }], null)).not.toBe(base);
     expect(gearSignature([item({})], [null], [{ feat: 1, stock: [] }], null)).not.toBe(base);
     expect(gearSignature([item({})], [null], [{ feat: 2, stock: [item({})] }], null)).not.toBe(base);
+  });
+
+  it("retries a refused store simulation after entering the shop with unchanged remembered stock", async () => {
+    const player = knownWorld(makeScenarioView()).player!;
+    let shopnum: number | null = null;
+    const signature = () => gearSignature([], [], [{ feat: 1, stock: [item({})] }], { ...player, shopnum });
+    const change = { carry: [{ item: { from: "store" as const, store: 0, index: 0 }, number: 1 }] };
+    const book = new LoadoutBook();
+    const calls: LoadoutChange[] = [];
+    const api = { view: { simulateLoadout: async (query: LoadoutChange) => {
+      calls.push(query);
+      return shopnum === null && query.carry
+        ? { ok: false as const, reason: "refused", code: "unobserved-item", message: "The store item is not currently seen." }
+        : { ok: true as const, value: {} as LoadoutSimulation };
+    } } } as never;
+    book.begin(signature());
+    expect(book.answer(change)).toBeNull();
+    await book.settle(api, () => ({ allowed: true }) as never);
+    expect(book.answer(change)).toBeNull();
+    shopnum = 0;
+    book.begin(signature());
+    expect(book.answer(change)).toBeNull();
+    await book.settle(api, () => ({ allowed: true }) as never);
+    expect(book.answer(change)).toEqual({ allowed: true });
+    expect(calls.filter((query) => query.carry)).toHaveLength(2);
   });
 });
 
