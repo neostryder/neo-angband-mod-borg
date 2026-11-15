@@ -6162,14 +6162,30 @@ function borgFlowVein(ctx, flow, viewable, nearness) {
   if (!borgFlowCommit(ctx, flow, GOAL_TAKE)) return null;
   return borgFlowOld(ctx, flow, GOAL_TAKE);
 }
+function borgTrackShops(ctx, flow) {
+  if (trait(ctx.world, 105 /* CDEPTH */)) return;
+  const stores = ctx.view.stores();
+  for (let y = 0; y < ctx.world.map.height; y++) {
+    for (let x = 0; x < ctx.world.map.width; x++) {
+      const grid = ctx.world.map.at(x, y);
+      if (!featIsShop(grid.feat)) continue;
+      const i = stores.findIndex((store2) => store2.feat === grid.feat);
+      if (i < 0) continue;
+      grid.store = i;
+      flow.shopX[i] = x;
+      flow.shopY[i] = y;
+    }
+  }
+}
 function borgFlowShopEntry(ctx, flow, i) {
   const w = ctx.world;
   if (trait(w, 105 /* CDEPTH */)) return null;
+  borgTrackShops(ctx, flow);
   const x = flow.shopX[i];
   const y = flow.shopY[i];
   if (!x || !y) return null;
   if (x === w.self.c.x && y === w.self.c.y) {
-    return ctx.act.move(5);
+    return ctx.act.hold();
   }
   borgFlowClear(flow);
   borgFlowEnqueueGrid(ctx, flow, y, x);
@@ -18283,6 +18299,7 @@ function createBorg(opts = {}) {
       junkedIds: session.junkedIds
     }, (i) => session.resolvers.resolveMonsterFacts?.(ctx, i).dChar);
     borgTrackStairs(world, session.flow.state);
+    borgTrackShops(ctx, session.flow.state);
     if (recordStep) {
       borgTrackStep(session.flow.state.step, world.self.c.y, world.self.c.x);
     }

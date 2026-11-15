@@ -39,6 +39,7 @@ import {
   ddy,
   ddy_ddd,
   inBoundsFully,
+  featIsShop,
   trait,
 } from "./flow-consts.js";
 import {
@@ -453,21 +454,39 @@ export function borgFlowVein(ctx: BorgContext, flow: FlowState, viewable: boolea
   return borgFlowOld(ctx, flow, GOAL_TAKE);
 }
 
+/** borg_update_map (borg-update.c:311-327) remembers only known shop doors. */
+export function borgTrackShops(ctx: BorgContext, flow: FlowState): void {
+  if (trait(ctx.world, BI.CDEPTH)) return;
+  const stores = ctx.view.stores();
+  for (let y = 0; y < ctx.world.map.height; y++) {
+    for (let x = 0; x < ctx.world.map.width; x++) {
+      const grid = ctx.world.map.at(x, y);
+      if (!featIsShop(grid.feat)) continue;
+      const i = stores.findIndex((store) => store.feat === grid.feat);
+      if (i < 0) continue;
+      grid.store = i;
+      flow.shopX[i] = x;
+      flow.shopY[i] = y;
+    }
+  }
+}
+
 /**
- * borg_flow_shop_entry (borg-flow-misc.c): flow to shop i's door (town only).
+ * borg_flow_shop_entry (borg-flow-misc.c:770-827): flow to shop i's door (town only).
  */
 export function borgFlowShopEntry(ctx: BorgContext, flow: FlowState, i: number): AgentCommand | null {
   const w = ctx.world;
 
   if (trait(w, BI.CDEPTH)) return null;
 
+  borgTrackShops(ctx, flow);
   const x = flow.shopX[i]!;
   const y = flow.shopY[i]!;
   if (!x || !y) return null;
 
   /* Re-enter a shop if already standing on it */
   if (x === w.self.c.x && y === w.self.c.y) {
-    return ctx.act.move(5);
+    return ctx.act.hold();
   }
 
   borgFlowClear(flow);

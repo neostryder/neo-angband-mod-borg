@@ -49,6 +49,34 @@ function dirOf(cmd: AgentCommand | null): number {
 }
 
 describe("borg_flow_spread (BFS cost model)", () => {
+  it("walks to a remembered shop door without learning unseen doors", () => {
+    const base = makeCtx({
+      player: { grid: { x: 10, y: 10 }, depth: 0, gold: 100 },
+      cells: {
+        "13,12": { feat: FEAT.STORE_ARMOR },
+        "15,12": { feat: FEAT.STORE_WEAPON, known: false, inView: false },
+      },
+    }, { CDEPTH: 0, GOLD: 100 });
+    const ctx = { ...base, view: { ...base.view, stores: () => [FEAT.STORE_GENERAL, FEAT.STORE_ARMOR, FEAT.STORE_WEAPON].map((feat) => ({
+      feat, featName: "Store", isHome: false, owner: { name: "", purse: 0 }, stock: [],
+    })) } };
+    const flow = createFlow();
+    ctx.world.self.goal.shop = 1;
+    expect(flow.toShop(ctx, 1)?.code).toBe("walk");
+    expect(flow.state.shopX[1]).toBe(13);
+    expect(flow.state.shopY[1]).toBe(12);
+    expect(ctx.world.map.at(13, 12).store).toBe(1);
+    expect(flow.toShop(ctx, 2)).toBeNull();
+  });
+
+  it("holds to re-enter a shop while standing on its door", () => {
+    const base = makeCtx({ player: { grid: { x: 10, y: 10 }, depth: 0 }, cells: { "10,10": { feat: FEAT.STORE_GENERAL } } }, { CDEPTH: 0 });
+    const ctx = { ...base, view: { ...base.view, stores: () => [{ feat: FEAT.STORE_GENERAL, featName: "Store", isHome: false, owner: { name: "", purse: 0 }, stock: [] }] } };
+    const flow = createFlow();
+    flow.state.shopX[0] = flow.state.shopY[0] = 10;
+    expect(flow.toShop(ctx, 0)).toEqual({ code: "hold" });
+  });
+
   it("fills cost[] with Chebyshev step distance on open floor", () => {
     const ctx = makeCtx({
       width: 40,
