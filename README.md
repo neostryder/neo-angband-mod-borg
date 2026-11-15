@@ -278,6 +278,8 @@ sites. A new unwritten read fails the test, as does an entry that gains a writer
 or loses its readers. Run it alone with `pnpm exec vitest run src/wiring.test.ts`.
 This checks assignment presence, so it cannot prove a writer runs before a read.
 
+`src/soak.test.ts` runs only with `BORG_SOAK=1`. It reads `BORG_SOAK_CLASSES` (comma-separated class names), `BORG_SOAK_LIVES` (default 20), `BORG_SOAK_DECISIONS` (default 30000), `BORG_SOAK_SEED` (default 140000), and `BORG_SOAK_OUTPUT` (default `.soak-results`). Run it with `pnpm exec vitest run src/soak.test.ts`. It writes `results.json` and `summary.md` after each life, including death and stall evidence. The runner uses the installed engine and content, births Human characters in town, and records exceptions without aborting the remaining lives. Keep result folders in `.git/info/exclude`.
+
 To develop against an unreleased engine:
 
     NEO_ANGBAND_LOCAL_CORE=1 pnpm test
