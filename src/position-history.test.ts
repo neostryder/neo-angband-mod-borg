@@ -49,7 +49,7 @@ async function historyGame(refuse = false) {
       }));
       known = { ...snapshot, player: { ...snapshot.player!, shopnum } };
       pending = retries;
-      await tick(game.mod, game.input());
+      await tick(game.mod, game.input({ phase: shopnum === null ? "play" : "store" }));
     },
   };
 }

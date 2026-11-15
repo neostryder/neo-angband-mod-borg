@@ -151,6 +151,21 @@ describe("the bridge", () => {
     expect(seams.kindCost?.(75, 1)).toBeNull();
   });
 
+  it("dispatches store decisions only while the store screen is open", async () => {
+    const { game, bridge } = await primed();
+    const known = knownWorld(game.view);
+    game.mod.view.world = async () => ({ ok: true, value: { ...known, player: { ...known.player!, shopnum: 3 } } });
+    await bridge.readWorld();
+    const seams = bridge.resolverInput();
+    bridge.setInput(game.input({ phase: "play" }));
+    expect(seams.shopnum?.()).toBeNull();
+    bridge.setInput(game.input({ phase: "store" }));
+    expect(seams.shopnum?.()).toBe(3);
+    bridge.setInput(game.input({ phase: "play" }));
+    expect(seams.shopnum?.()).toBeNull();
+    await bridge.dispose();
+  });
+
   it("adapts published item costs, books, activations, dice, ego powers and negative flags to C inventory values", async () => {
     const game = fakeGame({ engine: { api: "1", core: Core, state: { actor: { player: { noscore: 0 } } } } });
     const item = (over: Partial<KnownItem>): KnownItem => ({

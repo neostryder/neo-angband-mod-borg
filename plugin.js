@@ -19174,7 +19174,8 @@ function createBridge(mod2) {
         raceSymbol: (ridx) => symbols.get(ridx),
         objects,
         birthRandarts: () => facts.birthRandarts ?? null,
-        shopnum: () => facts.shopnum,
+        /* borg_think dispatches on the store screen, not the entrance grid (borg-think.c:324). */
+        shopnum: () => input?.phase === "store" ? facts.shopnum : null,
         kindCost: (tval, sval) => facts.kinds.get(`${String(tval)}:${String(sval)}`) ?? null,
         blowMethods: blows.map((message) => ({ messages: [message] })),
         monsterSpells: spells,
