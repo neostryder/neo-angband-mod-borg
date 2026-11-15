@@ -129,10 +129,6 @@ function makeCtx(over: {
     }
   }
   world.self.power = over.power ?? 0;
-  /* the C convention: -1 means "no goal". */
-  world.self.goal.shop = -1;
-  world.self.goal.ware = -1;
-  world.self.goal.item = -1;
   const act = makeFakeActions();
   const ctx: BorgContext = { world, view, act, rng: makeBorgRng(1) };
   return { ctx, act };
@@ -451,6 +447,17 @@ describe("borgThinkHomeSellUseful", () => {
  * ------------------------------------------------------------------ */
 
 describe("borgChooseShop", () => {
+  it("starts without a ware goal and selects a known healing purchase", () => {
+    const { ctx } = makeCtx({
+      stores: [store(0, false, []), store(0, false, []), store(0, false, []),
+        store(0, false, [ware(4, { tval: TV.POTION, sval: SVAL.potion.cure_light, price: 15 })])],
+      traits: { [BI.GOLD]: 100, [BI.FOOD]: 5, [BI.LIGHT]: 2, [BI.CLEVEL]: 1 },
+    });
+    expect(borgChooseShop(ctx, { buyShopEval: () => 100 })).toBe(true);
+    expect(ctx.world.self.goal.shop).toBe(SHOP_TEMPLE);
+    expect(borgThinkShopBuy(ctx, SHOP_TEMPLE)?.code).toBe("shop-buy");
+  });
+
   it("bails out in the dungeon", () => {
     const { ctx } = makeCtx({ traits: { [BI.CDEPTH]: 5 } });
     expect(borgChooseShop(ctx)).toBe(false);
@@ -571,7 +578,7 @@ describe("the production shop ladder", () => {
 
   it.each([TV.SWORD, TV.DIGGING])("keeps ordinary weapons and artifact diggers out of the shop wear fallback (%i)", (tval) => {
     const { ctx } = shopScenario(0, [item({ handle: 20, tval: TV.SWORD, value: 100 })], [item({ tval, artifact: tval === TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
-    expect(think(ctx)).toMatchObject({ code: "shop-sell" });
+    expect(think(ctx)).toMatchObject({ code: "shop-exit" });
     const fallback = shopScenario(0, [item({ handle: 20, tval: TV.SWORD, value: 100 })], [item({ tval: TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
     expect(think(fallback.ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
   });

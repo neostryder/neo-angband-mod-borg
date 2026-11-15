@@ -470,9 +470,9 @@ function makeGoals() {
     waiting: false,
     recalling: 0,
     descending: 0,
-    shop: 0,
-    ware: 0,
-    item: 0,
+    shop: -1,
+    ware: -1,
+    item: -1,
     doBest: false
   };
 }

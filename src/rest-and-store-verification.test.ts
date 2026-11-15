@@ -201,6 +201,7 @@ function drive(
     const before = log.length;
     const status = runGameLoop(state, game.registry);
     if (log.length > before) log[log.length - 1]!.turnAfter = state.turn;
+    if (log[log.length - 1]?.cmd === "shop-exit") break;
     if (status === LOOP_STATUS.DEAD) break;
     if (status === LOOP_STATUS.DEATH_CONFIRM) {
       state.pendingDeath?.resolve(true);
@@ -362,16 +363,16 @@ suite("the Borg's ladder reaches rest and the store", () => {
     const neither: number[] = [];
 
     for (const seed of SEEDS) {
-      const probe = makeGame(pack!, seed);
-      const nonHomeFeats = (probe.state.stores ?? [])
+      const built = makeGame(pack!, seed);
+      const nonHomeFeats = (built.state.stores ?? [])
         .filter((s) => s.feat !== FEAT.HOME)
         .map((s) => s.feat);
 
       let sawTrade = false;
-      /* A fresh game per store, so one store's purchase cannot change what the
-       * next store considers worth buying. */
-      for (const feat of nonHomeFeats) {
-        const built = makeGame(pack!, seed);
+      /* borg_choose_shop sells before buying, so the same character visits each store. */
+      built.state.actor.grid = findDoor(built.state, FEAT.HOME)!;
+      drive(built, 30);
+      for (const feat of [...nonHomeFeats, ...nonHomeFeats]) {
         const grid = findDoor(built.state, feat);
         if (!grid) continue;
         built.state.actor.grid = grid;
