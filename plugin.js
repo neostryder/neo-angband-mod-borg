@@ -5608,6 +5608,13 @@ function borgFlowCommit(ctx, flow, why) {
 function alterCommand(dir) {
   return { code: "alter", dir };
 }
+var CHEST_FAIL_TOLERANCE = 7;
+function isLiveChest(item) {
+  return item.tval === TV.CHEST && item.label.includes("chest") && !item.label.includes("Ruined");
+}
+function trapIsKnown(item) {
+  return "trapKnown" in item && item.trapKnown === true;
+}
 function borgPlayStep(ctx, flow, y2, x2) {
   const w = ctx.world;
   const act = ctx.act;
@@ -5674,6 +5681,16 @@ function borgPlayStep(ctx, flow, y2, x2) {
     return act.melee(dir);
   }
   if (ag.take && w.takes.has(ag.take)) {
+    const take = w.takes.at(ag.take);
+    const head = ctx.view.floorItems(x, y)[0];
+    if (head !== void 0 && isLiveChest(head)) {
+      const known = trapIsKnown(head);
+      if (known && head.pval > 1 && trait(w, 56 /* DEV */) - head.pval >= CHEST_FAIL_TOLERANCE) return act.disarm(dir);
+      if (!known || head.pval < 0) return act.open(dir);
+    } else if (head === void 0 && take.tval === TV.CHEST) {
+      w.takes.delete(ag.take);
+      return null;
+    }
     w.takes.delete(ag.take);
     ag.take = 0;
     return act.move(dir);

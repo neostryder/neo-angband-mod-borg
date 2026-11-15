@@ -12,6 +12,8 @@ import { makeScenarioView, makeFakeActions, type Scenario } from "../harness.js"
 import { makeBorgRng } from "../rng.js";
 import type { BorgContext } from "../context.js";
 import { FEAT } from "@rpgm-tools/neo-angband-core";
+import type { ItemView } from "@rpgm-tools/neo-angband-core";
+import { TV } from "../core-api.js";
 import { BI } from "./flow-consts.js";
 import {
   borgFlowClear,
@@ -182,6 +184,49 @@ describe("flow.toTakes", () => {
      * be stated: this is the "known to be bad" price (borg-flow-take.c:269). */
     for (const [, t] of ctx.world.takes.entries()) t.value = -10;
     expect(createFlow().toTakes(ctx)).toBeNull();
+  });
+});
+
+function chestItem(over: Partial<ItemView> & { trapKnown?: boolean } = {}): ItemView {
+  return {
+    handle: 0, kindKey: "kind:1", aware: true, nameColor: "w", label: "Small wooden chest",
+    tval: TV.CHEST, sval: 1, pval: 0, number: 1, weight: 50,
+    ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, ego: false, artifact: false,
+    flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [],
+    egoName: null, artifactName: null, activation: false, timeout: 0, inscription: null,
+    ...over,
+  };
+}
+
+/** One step east from (10,10) onto a chest at (11,10). borg_play_step's target is (y, x). */
+function stepOntoChest(item: ItemView, dev: number): AgentCommand | null {
+  const ctx = makeCtx(
+    { width: 40, height: 25, player: { grid: { x: 10, y: 10 } }, floor: { "11,10": [item] } },
+    { CLEVEL: 25, CDEPTH: 5, FOOD: 5, LIGHT: 1, DEV: dev },
+  );
+  return borgPlayStep(ctx, createFlowState(), 10, 11);
+}
+
+describe("chest open or disarm (borg-flow.c:781-816)", () => {
+  it("disarms a chest whose trap the player knows when device skill covers it", () => {
+    expect(stepOntoChest(chestItem({ trapKnown: true, pval: 4 }), 30)).toEqual({ code: "disarm", dir: 6 });
+  });
+
+  it("opens a chest whose trap is not known, and ignores a hidden pval", () => {
+    expect(stepOntoChest(chestItem({ trapKnown: false, pval: 8 }), 30)).toEqual({ code: "open", dir: 6 });
+  });
+
+  it("opens a chest the player knows is already disarmed", () => {
+    expect(stepOntoChest(chestItem({ trapKnown: true, pval: -4 }), 30)).toEqual({ code: "open", dir: 6 });
+  });
+
+  it("picks up a chest the player knows is empty or too hard to disarm", () => {
+    expect(stepOntoChest(chestItem({ trapKnown: true, pval: 0 }), 30)).toEqual({ code: "walk", dir: 6 });
+    expect(stepOntoChest(chestItem({ trapKnown: true, pval: 4 }), 5)).toEqual({ code: "walk", dir: 6 });
+  });
+
+  it("picks up a ruined chest", () => {
+    expect(stepOntoChest(chestItem({ label: "Ruined chest", trapKnown: true, pval: 4 }), 30)).toEqual({ code: "walk", dir: 6 });
   });
 });
 

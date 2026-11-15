@@ -24,7 +24,8 @@
  *   Wall melting uses the same session item dependencies (borg-flow.c:1034-1044).
  */
 
-import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
+import type { AgentCommand, ItemView } from "@rpgm-tools/neo-angband-core";
+import { TV } from "../core-api.js";
 import type { BorgContext } from "../context.js";
 import type { BorgWorld } from "../world/model.js";
 import {
@@ -625,6 +626,19 @@ function alterCommand(dir: number): AgentCommand {
   return { code: "alter", dir };
 }
 
+/** borg_cfg default for borg_chest_fail_tolerance (borg-init.c:80). */
+const CHEST_FAIL_TOLERANCE = 7;
+
+/** A chest C will open or disarm: kind name contains "chest" and not "Ruined" (borg-flow.c:781-782). */
+function isLiveChest(item: ItemView): boolean {
+  return item.tval === TV.CHEST && item.label.includes("chest") && !item.label.includes("Ruined");
+}
+
+/** Player knowledge of a chest trap. Absent or false means pval is not the trap strength. */
+function trapIsKnown(item: ItemView): boolean {
+  return "trapKnown" in item && (item as { trapKnown?: boolean }).trapKnown === true;
+}
+
 /**
  * borg_play_step (borg-flow.c): take one step toward (x2, y2), returning the
  * AgentCommand that realises it (or null when there is nothing to do). The
@@ -726,11 +740,21 @@ export function borgPlayStep(
 
   /* Object -- take (walk onto and forget it) */
   if (ag.take && w.takes.has(ag.take)) {
-    /*
-     * Upstream chest/Orb-of-Draining cheats need the engine object + magic
-     * subsystems (P8.5); the port keeps the plain "walk onto and delete" path,
-     * which is the same grid the borg ends on.
-     */
+    const take = w.takes.at(ag.take);
+    const head = ctx.view.floorItems(x, y)[0];
+    /* Chests (borg-flow.c:781-816). trapKnown is what the player has learned.
+     * A hidden trap reads pval 0, so that number is not a reason to disarm.
+     * A known trap stronger than a lock (pval > 1) is disarmed when device
+     * skill covers the tolerance; a disarmed chest (pval < 0) is opened. */
+    if (head !== undefined && isLiveChest(head)) {
+      const known = trapIsKnown(head);
+      if (known && head.pval > 1 && trait(w, BI.DEV) - head.pval >= CHEST_FAIL_TOLERANCE) return act.disarm(dir);
+      if (!known || head.pval < 0) return act.open(dir);
+    } else if (head === undefined && take.tval === TV.CHEST) {
+      /* The chest left the grid (borg-flow.c:785-789). */
+      w.takes.delete(ag.take);
+      return null;
+    }
     w.takes.delete(ag.take);
     ag.take = 0;
     return act.move(dir);
