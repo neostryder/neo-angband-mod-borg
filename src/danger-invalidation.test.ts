@@ -58,6 +58,22 @@ describe("C danger cache invalidation", () => {
     expect(world.self.goal.type).toBe(0);
     expect(world.map.at(13, 10).kill).toBe(0);
   });
+  it.each([
+    ["row", 11, 12, GOAL_KILL],
+    ["column", 12, 11, GOAL_KILL],
+    ["grid", 12, 12, 0],
+    ["neither coordinate", 11, 11, GOAL_KILL],
+  ] as const)("checks the full kill-flow target when a monster moves onto its %s", (_match, x, y, goal) => {
+    const { world, flow, see, memo } = scene();
+    see(13);
+    world.self.goal.type = GOAL_KILL;
+    flow.flowX[0] = 12; flow.flowY[0] = 12;
+    perceive(world, makeScenarioView({
+      player: { grid: { x: 10, y: 10 }, depth: 1 },
+      monsters: [{ id: 1, raceIndex: 27, race: "floating eye", grid: { x, y }, raceFlags: ["NEVER_MOVE"] }],
+    }), memo);
+    expect(world.self.goal.type).toBe(goal);
+  });
   it("forgets cached safety on an empty new level", () => {
     const { world, flow, memo } = scene();
     perceive(world, makeScenarioView({ player: { depth: 2 } }), memo);

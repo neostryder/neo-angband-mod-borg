@@ -404,9 +404,9 @@ function ingestMonsters(
     }
     const target = world.flowTarget;
     if (moved && (((world.self.trait[BI.ESP] ?? 0) === 0 && world.self.goal.type === GOAL_KILL &&
-        (target?.flowY[0] === k.pos.y || target?.flowX[0] === k.pos.x)) ||
+        (target?.flowY[0] === k.pos.y && target?.flowX[0] === k.pos.x)) ||
         (world.self.goal.type === GOAL_TAKE && world.self.munchkinMode))) {
-      /* Preserve C's OR of the flow coordinates (borg-flow-kill.c:1072). */
+      /* borg_update_kill requires both coordinates to avoid cancelling unrelated flows. */
       world.self.goal.type = 0;
     }
     k.awake = !m.asleep;

@@ -572,16 +572,16 @@ var BorgWorld = class {
   liveUniques = 0;
   /** Recall queues its depth answer (borg-escape.c:63-115). */
   resetRecallDepth = false;
-  /** borg_danger_wipe: lazily clear flow know/icky on the next flow build. */
-  invalidateDanger() {
-    if (this.flowTarget) this.flowTarget.borgDangerWipe = true;
-  }
   /**
    * The item the Borg chose for an item-choice prompt its command will raise:
    * borg_recharging presses the chosen wand's or staff's letter after the read,
    * cast or activation (borg-item-use.c:1182). Null when there is none.
    */
   itemChoice = null;
+  /** borg_danger_wipe: lazily clear flow know/icky on the next flow build. */
+  invalidateDanger() {
+    if (this.flowTarget) this.flowTarget.borgDangerWipe = true;
+  }
   /**
    * Reset everything for a new level (borg_init_cave + the new-level branch of
    * borg_update, borg-update.c:2050-2180). `depth` is the depth just ARRIVED at,
@@ -17958,7 +17958,7 @@ function ingestMonsters(world, view, raceSymbol) {
       world.self.goal.type = 0;
     }
     const target = world.flowTarget;
-    if (moved && ((world.self.trait[37 /* ESP */] ?? 0) === 0 && world.self.goal.type === GOAL_KILL && (target?.flowY[0] === k.pos.y || target?.flowX[0] === k.pos.x) || world.self.goal.type === GOAL_TAKE && world.self.munchkinMode)) {
+    if (moved && ((world.self.trait[37 /* ESP */] ?? 0) === 0 && world.self.goal.type === GOAL_KILL && (target?.flowY[0] === k.pos.y && target?.flowX[0] === k.pos.x) || world.self.goal.type === GOAL_TAKE && world.self.munchkinMode)) {
       world.self.goal.type = 0;
     }
     k.awake = !m.asleep;
