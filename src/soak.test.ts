@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { expect, it } from "vitest";
-import { ContentIdResolver, LOOP_STATUS, installController, runGameLoop, startGame } from "@rpgm-tools/neo-angband-core";
+import { ContentIdResolver, EFFECT_ENTRIES, LOOP_STATUS, installController, runGameLoop, startGame } from "@rpgm-tools/neo-angband-core";
 import type { AgentCommand, AgentView, GamePack } from "@rpgm-tools/neo-angband-core";
 import { createBorg } from "./controller.js";
 import { makeCoreResolvers } from "./resolvers.js";
@@ -99,12 +99,32 @@ function runLife(pack: GamePack, cls: string, seed: number, cap: number): Life {
     const game = startGame(pack, { seed, className: cls, raceName: "Human", depth: 0 });
     if (game.state.actor.player.cls.name !== cls) throw new Error(`Birth selected ${game.state.actor.player.cls.name}, expected ${cls}`);
     const state = game.state;
+    const books = game.players.classes.flatMap((playerClass) => playerClass.magic.books);
     const borg = createBorg({
       rngSeed: (seed * 2654435761) >>> 0 || 1,
       resolvers: makeCoreResolvers({
         races: game.booted.registries.monsters.races, objects: game.booted.registries.objects, state: state as never,
         blowMethods: game.booted.registries.monsters.blowMethods.values(),
         monsterSpells: game.booted.registries.monsters.spells.values(),
+        bookKind: (tval, name) => {
+          const book = books.find((book) => book.tvalIdx === tval && book.name === name);
+          return book ? { tval: book.tvalIdx, sval: book.sval } : null;
+        },
+        spellEffect: (className, sidx) => {
+          const spell = game.players.classByName(className)?.magic.books.flatMap((book) => book.spells).find((spell) => spell.sidx === sidx);
+          const raw = spell?.effectsRaw[0] as { eff?: unknown } | undefined;
+          if (typeof raw?.eff !== "string") return null;
+          return { name: raw.eff, aim: EFFECT_ENTRIES.find((effect) => effect.name === raw.eff)?.aim ?? false };
+        },
+        frame: (raceName, className) => {
+          const race = game.players.raceByName(raceName);
+          const playerClass = game.players.classByName(className);
+          if (!race || !playerClass) return null;
+          return {
+            statAdj: race.statAdj.map((value, index) => value + (playerClass.statAdj[index] ?? 0)),
+            spellFirst: playerClass.magic.spellFirst, spellWeight: playerClass.magic.spellWeight, totalSpells: playerClass.magic.totalSpells,
+          };
+        },
       }),
     });
     let armed = false;
@@ -112,6 +132,12 @@ function runLife(pack: GamePack, cls: string, seed: number, cap: number): Life {
     let signature = "";
     let unchanged = 0;
     let previousDepth = 0;
+    const checkpoint = (phase: string): void => {
+      if (process.env["BORG_SOAK_CHECKPOINT"] !== "1") return;
+      writeFileSync(join(resolve(process.env["BORG_SOAK_OUTPUT"] ?? ".soak-results"), "checkpoint.json"), JSON.stringify({
+        class: cls, seed, tick: r.decisions, turn: state.turn, phase, updated: new Date().toISOString(), lastDecisions: r.lastDecisions,
+      }, null, 2) + "\n");
+    };
     const session = installController(state, (view, act) => {
       if (!armed) return null;
       armed = false;
@@ -122,10 +148,12 @@ function runLife(pack: GamePack, cls: string, seed: number, cap: number): Life {
       };
       r.lastDecisions.push(current);
       if (r.lastDecisions.length > 20) r.lastDecisions.shift();
+      checkpoint("deciding");
       current.command = borg.controller(view, act);
       current.traits = Object.fromEntries(TRAITS.map((name) => [name, borg.world.self.trait[BI[name]] ?? 0]));
-      current.goal = { ...borg.world.self.goal };
+      current.goal = structuredClone(borg.world.self.goal);
       if (current.command?.code === "descend") r.descents.push(structuredClone(current));
+      checkpoint("executing");
       return current.command;
     }, { viewDeps: { resolver: new ContentIdResolver({
       objects: game.booted.registries.objects, playerRaces: game.players.races, playerClasses: game.players.classes,
