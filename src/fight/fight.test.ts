@@ -32,6 +32,7 @@ import { borgNearMonsterType } from "../perceive-facts.js";
 import { buildThinkSession, installThinkSession } from "../think-session.js";
 import { createBorg } from "../controller.js";
 import { borgCaution } from "./caution.js";
+import { getThinkSession } from "../think-session.js";
 import { createFlowState } from "../flow/flow.js";
 import { FEAT } from "../flow/flow-consts.js";
 
@@ -220,6 +221,41 @@ describe("borgAttack through perceive", () => {
 });
 
 describe("borgCaution (caution.c:799)", () => {
+  function emergency(danger: number, traits: Partial<Record<keyof typeof BI, number>> = {}, items: ItemView[] = []): BorgContext {
+    const ctx = makeCtx({ player: { grid: { x: 20, y: 12 } } }, {
+      CURHP: 20, MAXHP: 100, CLEVEL: 10, CDEPTH: 5, MAXSP: 0, LIGHT: 1, ISBLIND: 1, ...traits,
+    });
+    getDangerGlobals(ctx.world).avoidance = 100;
+    getFearCaches(ctx.world).region2d[1]![1] = danger;
+    ctx.world.self.goal.fleeing = true;
+    return { ...ctx, view: { ...ctx.view, inventory: () => items } };
+  }
+
+  it.each([[80, 10, 0, false], [81, 10, 0, true], [100, 20, 0, false], [100, 10, 1, false]])(
+    "limits unknown items at danger=%s, level=%s, maxSP=%s",
+    (danger, level, maxSP, usesUnknown) => {
+      const ctx = emergency(danger, { CLEVEL: level as number, MAXSP: maxSP as number }, [item({ tval: TV.POTION, aware: false, sval: -1 })]);
+      expect(borgCaution(ctx, makeFlowState())?.code ?? null).toBe(usesUnknown ? "quaff" : null);
+    },
+  );
+
+  it("recalls before using an unknown potion", () => {
+    const ctx = emergency(100, {}, [item({ tval: TV.POTION, aware: false, sval: -1 })]);
+    const session = getThinkSession(ctx.world);
+    session.resolvers.activateHandle = (_ctx, activation) => activation === "act_recall" ? 77 : null;
+    expect(borgCaution(ctx, makeFlowState())).toEqual({ code: "activate", args: { handle: 77 } });
+  });
+
+  it("tries an unknown staff before an unknown potion", () => {
+    const ctx = emergency(100, {}, [item({ tval: TV.POTION, aware: false, sval: -1 }), item({ handle: 2, tval: TV.STAFF, aware: false, sval: -1 })]);
+    expect(borgCaution(ctx, makeFlowState())).toEqual({ code: "use-staff", args: { handle: 2 } });
+  });
+
+  it("spends reserve healing at critically low HP even without local danger", () => {
+    const ctx = emergency(0, { CURHP: 9 }, [item({ tval: TV.POTION, sval: SVAL.potion.star_healing! })]);
+    expect(borgCaution(ctx, makeFlowState())).toEqual({ code: "quaff", args: { handle: 1 } });
+  });
+
   it("healthy, no monsters -> null (nothing to do)", () => {
     const ctx = makeCtx({}, { CURHP: 50, MAXHP: 50, CLEVEL: 20, CDEPTH: 5 });
     expect(borgCaution(ctx, makeFlowState())).toBeNull();

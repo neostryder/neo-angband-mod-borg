@@ -652,21 +652,16 @@ export function borgCaution(
   const backOff = borgBackAway(ctx, flow, posDanger, nasty, surrounded);
   if (backOff) return backOff;
 
-  /* Final emergency ez-heal (caution.c end): all escape failed, about to die. */
+  /* borg_caution spends reserve healing before recall and unknown items. */
   if (
-    posDanger > trait(ctx, BI.CURHP) &&
-    trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 4)
+    trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 10) ||
+    (posDanger > trait(ctx, BI.CURHP) && trait(ctx, BI.ATELEPORT) + trait(ctx, BI.AESCAPE) <= 2
+      && trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 4)) ||
+    (trait(ctx, BI.AEZHEAL) > 5 && trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 4)) ||
+    (trait(ctx, BI.MAXHP) - trait(ctx, BI.CURHP) >= 600 && fs.fightingUnique && trait(ctx, BI.CDEPTH) >= 85)
   ) {
-    const c = firstCmd(
-      borgQuaffPotion(ctx, SVAL.potion.healing!),
-      borgQuaffPotion(ctx, SVAL.potion.star_healing!),
-      borgQuaffPotion(ctx, SVAL.potion.life!),
-      borgQuaffCrit(ctx, true),
-      borgQuaffUnknown(ctx),
-      borgReadUnknown(ctx),
-      borgEatUnknown(ctx),
-      borgUseUnknown(ctx),
-    );
+    const c = borgQuaffPotion(ctx, SVAL.potion.star_healing!) ??
+      borgQuaffPotion(ctx, SVAL.potion.healing!) ?? borgQuaffPotion(ctx, SVAL.potion.life!);
     if (c) return c;
   }
 
@@ -701,6 +696,12 @@ export function borgCaution(
         borgQuaffPotion(ctx, SVAL.potion.cure_light!);
       if (heal) return heal;
     }
+  }
+
+  /* borg_caution tries unknown items only after recall and its delay tactics fail. */
+  if (posDanger > trait(ctx, BI.CURHP) * 4 && trait(ctx, BI.CLEVEL) < 20 && !trait(ctx, BI.MAXSP)) {
+    const c = borgUseUnknown(ctx) ?? borgReadUnknown(ctx) ?? borgQuaffUnknown(ctx) ?? borgEatUnknown(ctx);
+    if (c) return c;
   }
 
   /* Remaining C tail (the cure ladder from caution.c:1846 on, and the
