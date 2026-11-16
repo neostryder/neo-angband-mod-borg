@@ -1,0 +1,12 @@
+{
+  "id": "02-escape-stairs",
+  "area": "retreat and escape",
+  "cFunction": {
+    "name": "borg_escape_stair",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-escape.c:520",
+    "ruleLine": 526
+  },
+  "originalRequirement": "A level-20 character standing on up stairs can escape by ascending.",
+  "twinRequirement": "A character can escape by ascending from up stairs only above level 20.",
+  "changedRequirement": "Stair escape gains one character-level condition."
+}

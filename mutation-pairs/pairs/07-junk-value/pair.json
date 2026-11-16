@@ -1,0 +1,12 @@
+{
+  "id": "07-junk-value",
+  "area": "drop-junk",
+  "cFunction": {
+    "name": "borg_drop_junk",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-junk.c:248",
+    "ruleLine": 396
+  },
+  "originalRequirement": "At depth 5, known gear worth 16 is kept by the value threshold.",
+  "twinRequirement": "At depth 5, known gear worth 16 can be dropped when power is preserved.",
+  "changedRequirement": "The shallow-depth value cutoff changes from 15 to 16."
+}

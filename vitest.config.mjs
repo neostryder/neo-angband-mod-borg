@@ -32,7 +32,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 const CORE = "@rpgm-tools/neo-angband-core";
 
@@ -71,6 +71,12 @@ function localCore() {
 export default defineConfig({
   resolve: { alias: localCore() },
   test: {
+    /* The mutation-pair checks include twins that fail on this source on
+     * purpose, so they run only through mutation-pairs/run-pairs.mjs, which
+     * sets BORG_MUTATION_PAIRS=1. */
+    ...(process.env["BORG_MUTATION_PAIRS"] === "1"
+      ? { include: ["mutation-pairs/pairs/**/*.test.ts"] }
+      : { exclude: [...configDefaults.exclude, "mutation-pairs/**"] }),
     /* src/core-api.ts is filled from ctx.core by the plugin; in a test there is
      * no host, so this stands in for one. A setup file rather than a beforeAll
      * because it has to run before the first test module is evaluated. */

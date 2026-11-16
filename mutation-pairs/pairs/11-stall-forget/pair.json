@@ -1,0 +1,12 @@
+{
+  "id": "11-stall-forget",
+  "area": "stall check",
+  "cFunction": {
+    "name": "borg_think_dungeon",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-think-dungeon.c:1155",
+    "ruleLine": 1314
+  },
+  "originalRequirement": "The bouncing-Borg check forgets tracked floor objects at panel age 500.",
+  "twinRequirement": "The bouncing-Borg check starts forgetting tracked floor objects at panel age 501.",
+  "changedRequirement": "The panel forgetting lower bound changes from 500 to 501."
+}

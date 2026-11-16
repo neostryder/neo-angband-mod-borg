@@ -1,0 +1,12 @@
+diff --git a/src/item/junk.ts b/src/item/junk.ts
+--- a/src/item/junk.ts
++++ b/src/item/junk.ts
+@@ -132,7 +132,7 @@
+
+       /* Depth-scaled keep thresholds (junk.c:392-421). */
+       if (depth < 5 && value > 0) continue;
+-      if (depth < 10 && value > 15) continue;
++      if (depth < 10 && value > 16) continue;
+       if (depth < 15 && value > 100) continue;
+       if (depth < 30 && value > 500) continue;
+       if (depth < 40 && value > 1000) continue;

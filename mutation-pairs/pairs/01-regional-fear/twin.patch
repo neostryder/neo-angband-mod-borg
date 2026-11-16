@@ -1,0 +1,12 @@
+diff --git a/src/flow/flow-misc.ts b/src/flow/flow-misc.ts
+--- a/src/flow/flow-misc.ts
++++ b/src/flow/flow-misc.ts
+@@ -267,7 +267,7 @@
+     /* Be concerned about the Regional Fear (misc.c:1272). */
+     const fear = getFearCaches(w);
+     if (
+-      fear.region(y, x) > Math.trunc(trait(w, BI.CURHP) / 20) &&
++      fear.region(y, x) >= Math.trunc(trait(w, BI.CURHP) / 20) &&
+       trait(w, BI.CDEPTH) !== 100
+     )
+       return false;

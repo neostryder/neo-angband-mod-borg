@@ -1,0 +1,12 @@
+diff --git a/src/think-ladder.ts b/src/think-ladder.ts
+--- a/src/think-ladder.ts
++++ b/src/think-ladder.ts
+@@ -747,7 +747,7 @@
+   if (T(ctx, BI.CDEPTH) && self.timeThisPanel >= 300 && self.timeThisPanel <= 303) {
+     g.type = 0;
+   }
+-  if (T(ctx, BI.CDEPTH) && self.timeThisPanel >= 500 && self.timeThisPanel <= 503) {
++  if (T(ctx, BI.CDEPTH) && self.timeThisPanel >= 501 && self.timeThisPanel <= 503) {
+     w.takes.wipe();
+     w.kills.wipe();
+   }

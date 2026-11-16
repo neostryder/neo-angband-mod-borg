@@ -1,0 +1,12 @@
+{
+  "id": "06-pickup-plusses",
+  "area": "item pickup",
+  "cFunction": {
+    "name": "borg_new_take",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow-take.c:193",
+    "ruleLine": 268
+  },
+  "originalRequirement": "An item with zero to-hit and no negative plusses remains worth picking up on arrival.",
+  "twinRequirement": "An item with zero to-hit is rejected for pickup on arrival.",
+  "changedRequirement": "The to-hit rejection comparison changes from < 0 to <= 0."
+}

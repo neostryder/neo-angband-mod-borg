@@ -1,0 +1,12 @@
+diff --git a/src/fight/escape.ts b/src/fight/escape.ts
+--- a/src/fight/escape.ts
++++ b/src/fight/escape.ts
+@@ -345,7 +345,7 @@
+ function borgEscapeStair(ctx: BorgContext): AgentCommand | null {
+   const { x, y } = ctx.world.self.c;
+   if (!ctx.world.map.inBounds(x, y)) return null;
+-  if (ctx.world.map.at(x, y).feat === FEAT.LESS) {
++  if (ctx.world.map.at(x, y).feat === FEAT.LESS && trait(ctx, BI.CLEVEL) > 20) {
+     /* GAP: OPT(birth_force_descend) unavailable; assume normal descent rules. */
+     return ctx.act.ascend();
+   }

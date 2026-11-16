@@ -1,0 +1,12 @@
+{
+  "id": "03-recharge-rest",
+  "area": "rest and recovery",
+  "cFunction": {
+    "name": "borg_recover",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-recover.c:59",
+    "ruleLine": 340
+  },
+  "originalRequirement": "A safe character rests 100 turns to recharge a recall rod.",
+  "twinRequirement": "A safe character rests 101 turns to recharge a recall rod.",
+  "changedRequirement": "Recall-rod recharge rest count changes from 100 to 101."
+}

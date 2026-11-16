@@ -1,0 +1,12 @@
+diff --git a/src/flow/flow.ts b/src/flow/flow.ts
+--- a/src/flow/flow.ts
++++ b/src/flow/flow.ts
+@@ -727,7 +727,7 @@
+     if (
+       flow.hooks.monsterHasFlag(w, ag.kill, "UNIQUE") &&
+       trait(w, BI.CDEPTH) === 0 &&
+-      trait(w, BI.CLEVEL) < 5
++      trait(w, BI.CLEVEL) < 4
+     ) {
+       return null;
+     }

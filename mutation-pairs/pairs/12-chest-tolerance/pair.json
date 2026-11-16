@@ -1,0 +1,12 @@
+{
+  "id": "12-chest-tolerance",
+  "area": "chest rule",
+  "cFunction": {
+    "name": "borg_play_step",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow.c:619",
+    "ruleLine": 794
+  },
+  "originalRequirement": "A known trapped chest is disarmed when device skill minus trap strength equals 7.",
+  "twinRequirement": "A known trapped chest is disarmed only when device skill minus trap strength exceeds 7.",
+  "changedRequirement": "The chest tolerance comparison changes from >= to >."
+}

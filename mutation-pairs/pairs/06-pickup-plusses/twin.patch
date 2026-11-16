@@ -1,0 +1,12 @@
+diff --git a/src/perceive.ts b/src/perceive.ts
+--- a/src/perceive.ts
++++ b/src/perceive.ts
+@@ -579,7 +579,7 @@
+     value = kind?.aware ? kind.cost : 1;
+   }
+
+-  if (item.toA < 0 || item.toD < 0 || item.toH < 0) value = -10;
++  if (item.toA < 0 || item.toD < 0 || item.toH <= 0) value = -10;
+   if (item.inscription?.startsWith("borg ignore")) value = -10;
+   const ignored = objectIdOf(item);
+   if (ignored !== undefined && valuation.junkedIds?.has(ignored)) value = -10;

@@ -1,0 +1,12 @@
+diff --git a/src/item/recover.ts b/src/item/recover.ts
+--- a/src/item/recover.ts
++++ b/src/item/recover.ts
+@@ -323,7 +323,7 @@
+         ctx.world.self.timeThisPanel = 0;
+         /* The Borg waits for a rod to recharge (borg-recover.c:338-348). */
+         ctx.world.self.inShop = false;
+-        return ctx.act.rest(100);
++        return ctx.act.rest(101);
+       }
+     }
+   }

@@ -1,0 +1,12 @@
+{
+  "id": "09-town-attack",
+  "area": "fight and attack choice",
+  "cFunction": {
+    "name": "borg_play_step",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow.c:619",
+    "ruleLine": 751
+  },
+  "originalRequirement": "A level-4 character avoids walking into a unique monster in town.",
+  "twinRequirement": "A level-4 character can walk into a unique monster in town.",
+  "changedRequirement": "The town unique avoidance level changes from < 5 to < 4."
+}
