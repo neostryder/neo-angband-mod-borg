@@ -44,7 +44,7 @@ The first time the decision code asks for a loadout simulation, the answer is no
 
 The rest check follows `borg_check_rest`: on a vault level it treats a remembered permanent wall at offsets -1 or 0 from the player as shelter. It skips fear, deep danger, food, light, proximity danger, and wall-walker refusals there, while adjacent monsters, breeders, ranged attacks, and lava still prevent resting. The remembered `vault` boolean on known level cells supplies the separate per-grid checks in `borg_fear_grid`, `borg_fear_regional`, `borg_danger`, strategic retreat, backing away, and shoot-and-scoot safety (BORG-4). Unknown grids carry no vault knowledge. The level-wide vault fact remains a separate permanent-wall heuristic.
 
-The work branch pins the local 3eafc1360 SDK pack, and the manifest requires `>=2.3.0 <3.0.0`. The bridge reads all four 2.1 additions, and gap row BORG-5 is closed.
+The manifest requires mod API `>=2.3.0 <3.0.0`. The bridge reads all four mod API 2.1 additions, and gap row BORG-5 is closed.
 
 - `slainUniques` on the known player: Sauron's row sets `BI.SAURON_DEAD`, as `borg_notice_player` does from `borg_race_death`. The Tarrasque's row sets `tarrasqueDead`, which turns off the "Tarrasque is alive" bonus in `borg_notice_weapon_swap` and `borg_notice_armour_swap` (`borg-trait-swap.c:516, 1084`). Both rows match by the stable local race id or the C race name.
 - `objectId` on known objects: the discard memory names the one object the Borg threw away, the way the C inscribes "borg ignore" on it (`borg-junk.c:462-467`), so a later object of the same kind is not refused.
