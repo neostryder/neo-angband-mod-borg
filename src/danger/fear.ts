@@ -8,11 +8,6 @@
  * monster (a 13x13 stamp whose strength falls off with range). borg_fear_region
  * is coarse per-11x11-region fear the borg adds when it is attacked by something
  * it cannot see (an assumed invisible monster). borg_danger reads both.
- *
- * square_isvault GAP: upstream cheats the engine's vault flag to skip adding
- * fear inside vaults. Borg's remembered map carries no vault flag, so
- * isVault() returns false here (never a vault); this is the only place the fear
- * updaters diverge from upstream, and it only ever adds fear the C would skip.
  */
 
 import { AUTO_MAX_X, AUTO_MAX_Y } from "../world/grid.js";
@@ -68,12 +63,9 @@ export class FearCaches {
   }
 }
 
-/**
- * square_isvault: the Borg's map has no vault flag, so this is always false.
- * See the file header GAP note. Kept as a named seam for P8.6 to override.
- */
-function isVault(_world: BorgWorld, _y: number, _x: number): boolean {
-  return false;
+/** borg_fear_grid and borg_fear_regional use the player's remembered square_isvault. */
+function isVault(world: BorgWorld, y: number, x: number): boolean {
+  return world.map.inBounds(x, y) && world.map.at(x, y).vault;
 }
 
 /**
@@ -95,7 +87,7 @@ export function borgFearGrid(
   /* In a Sea of Runes, no worry */
   if (g.morgothPosition || g.asPosition) return;
 
-  /* Do not add fear in a vault -- Cheating the cave info */
+  /* borg_fear_grid and borg_fear_regional suppress fear in vaults. */
   if (isVault(world, y, x)) return;
 
   /* Access the grid info: the monster occupying (y, x). */
@@ -172,7 +164,7 @@ export function borgFearRegional(
   k: number,
   seenGuy: boolean,
 ): void {
-  /* Do not add fear in a vault -- Cheating the cave info */
+  /* borg_fear_grid and borg_fear_regional suppress fear in vaults. */
   if (isVault(world, y, x)) return;
 
   /* Messages: the C logs here; the port sets need_shift_panel for the non-LOS

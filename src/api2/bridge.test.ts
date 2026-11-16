@@ -27,6 +27,7 @@ import { borgPower } from "../trait/power.js";
 import { BI } from "../trait/trait-index.js";
 import { SVAL } from "../item/svals.js";
 import { borgView } from "../core-api.js";
+import { borgDanger, borgFearGrid, borgFearRegional, getDangerGlobals, getFearCaches } from "../danger/index.js";
 import { borgFlowDarkInteresting, createFlowState } from "../flow/index.js";
 import { contextSpellSeam } from "../trait/spell-seam.js";
 import { borgSimulatePower } from "../trait/simulate.js";
@@ -70,6 +71,36 @@ describe("remembered terrain through the API 2 bridge (#415)", () => {
     expect(world.map.at(6, 5).feat).toBe(feat);
     const ctx = { world, view, act: makeFakeActions(), rng: makeBorgRng() };
     expect(borgFlowDarkInteresting(ctx, createFlowState(), 5, 6)).toBe(feat === Core.FEAT.CLOSED);
+    expect(game.truthCalls).toEqual([]);
+    await bridge.dispose();
+  });
+
+  it.each(["remembered vault", "remembered floor", "unknown vault"])("uses only per-grid vault knowledge for fear and danger: %s", async (kind) => {
+    const { game, bridge } = await primed({ scenario: { player: { grid: { x: 5, y: 5 }, depth: 3 } } });
+    const base = knownWorld(game.view);
+    const vault = kind === "remembered vault";
+    game.mod.view.world = async () => ({ ok: true, value: { ...base, level: { ...base.level!, cells: kind === "unknown vault" ? [] : [{
+      x: 6, y: 5, remembered: { feat: Core.FEAT.FLOOR, passable: true, traps: [], objects: [], items: null },
+      visible: false, lit: null, seen: false, glow: false, vault,
+      actual: { feat: Core.FEAT.FLOOR, traps: [], objects: [], monster: 0 },
+    }] } } });
+    const view = borgView((await bridge.readWorld())!.view);
+    const world = new BorgWorld();
+    const ctx = { world, view, act: makeFakeActions(), rng: makeBorgRng() };
+    borgNotice(ctx);
+    perceive(world, view, makePerceiveMemo());
+    expect(world.map.at(6, 5).vault).toBe(vault);
+    const fear = getFearCaches(world);
+    borgFearGrid(world, getDangerGlobals(world), fear, 5, 6, 120);
+    expect(fear.monsters(5, 6)).toBe(vault ? 0 : 259);
+    borgFearRegional(world, fear, 5, 6, 120, false);
+    expect(fear.region(5, 6)).toBe(vault ? 0 : 360);
+    expect(world.self.needShiftPanel).toBe(!vault);
+    fear.region2d[0]![0] = 40;
+    fear.monsters2d[5]![6] = 60;
+    expect(borgDanger(ctx, 5, 6, 2, true, true)).toBe(vault ? 0 : 200);
+    world.map.wipe();
+    expect(world.map.at(6, 5).vault).toBe(false);
     expect(game.truthCalls).toEqual([]);
     await bridge.dispose();
   });
@@ -499,7 +530,7 @@ describe("the gear signature", () => {
     expect(book.answer(change)).toEqual({ allowed: true });
     expect(calls.filter((query) => query.carry)).toHaveLength(2);
   });
-});
+);
 
 
 describe("default monster symbols through the API 2 bridge", () => {

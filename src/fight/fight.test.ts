@@ -374,6 +374,12 @@ describe("borgBackAway (caution.c:1664)", () => {
     expect(ctx.world.self.goal.g).toEqual({ x: 9, y: 3 });
   });
 
+  it("stays inside a remembered vault instead of backing away", () => {
+    const ctx = corridor();
+    ctx.world.map.at(10, 3).vault = true;
+    expect(borgCaution(ctx, makeFlowState())).toBeNull();
+  });
+
   it("stands its ground when the danger is not worth a step", () => {
     const ctx = corridor();
     /* caution.c:1670 - a nasty situation is no time to give up a square. */

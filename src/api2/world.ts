@@ -28,7 +28,8 @@
  */
 
 import type { KnownItem, KnownLevelCell, KnownMonster, KnownPlayer, KnownStoreItem, KnownWorldData, LoadoutSimulation, ModApi2 } from "@rpgm-tools/neo-angband-mod-sdk";
-import type { AgentView, CellView, GameConstants, ItemView, LoadoutSimulation as CoreLoadoutSimulation, MonsterView, PlayerView, StoreItemView, StoreView } from "@rpgm-tools/neo-angband-core";
+import type { AgentView, GameConstants, ItemView, LoadoutSimulation as CoreLoadoutSimulation, MonsterView, PlayerView, StoreItemView, StoreView } from "@rpgm-tools/neo-angband-core";
+import type { BorgCell } from "../core-api.js";
 import type { MessageFeed } from "./feed.js";
 import type { ActivationBook, LoadoutBook, RaceBook } from "./caches.js";
 import { gearSignature } from "./caches.js";
@@ -265,21 +266,22 @@ export async function readWorld(api: Api2Reads, reads: WorldReads): Promise<Worl
   const occupants = new Map<number, number>();
   for (const monster of monsters) occupants.set(monster.grid.y * width + monster.grid.x, monster.id);
 
-  const cell = (x: number, y: number): CellView | null => {
+  const cell = (x: number, y: number): BorgCell | null => {
     if (x < 0 || y < 0 || x >= width || y >= height) return null;
     const occupant = player.grid.x === x && player.grid.y === y ? -1 : (occupants.get(y * width + x) ?? 0);
     const remembered = cells.get(y * width + x);
     if (remembered === undefined) {
-      return { x, y, feat: 0, passable: false, inView: false, known: false, monster: occupant, objectCount: 0, knownObjectCount: 0, glow: false, trap: false };
+      return { x, y, feat: 0, passable: false, inView: false, known: false, monster: occupant, objectCount: 0, knownObjectCount: 0, glow: false, trap: false, vault: false };
     }
     const memory = remembered.remembered;
-    const view: CellView = {
+    const view: BorgCell = {
       x,
       y,
       feat: memory.feat,
       passable: memory.passable,
       inView: remembered.visible,
       known: true,
+      vault: remembered.vault,
       monster: occupant,
       objectCount: memory.objects.length,
       knownObjectCount: memory.objects.length,

@@ -119,6 +119,7 @@ export function knownWorld(view: AgentView, noscore = 0): KnownWorldData {
         lit: cell.inView ? cell.glow : null,
         seen: true,
         glow: cell.glow,
+        vault: (cell as { vault?: boolean }).vault === true,
       });
     }
   }

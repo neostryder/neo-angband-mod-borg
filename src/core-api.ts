@@ -381,7 +381,12 @@ export type BorgKnownReads = Pick<
  * truth: accessors that show more than the player knows. API 2: the
  * first-party truth domain (truth.monsters(), truth.level()) or a host derive.
  */
-export type BorgTruthReads = Pick<AgentView, "monsters" | "cell" | "simulateLoadout">;
+export type BorgTruthReads = Pick<AgentView, "monsters" | "simulateLoadout"> & {
+  cell(x: number, y: number): BorgCell | null;
+};
+
+/** The API 2 bridge adds remembered vault knowledge to the decision view. */
+export type BorgCell = CellView & { vault?: boolean };
 
 /**
  * The view a controller is handed, split by what each accessor shows. The
@@ -395,7 +400,7 @@ export type BorgView = BorgKnownReads & BorgTruthReads;
 type HostCell = CellView & { knownFeat?: number; knownPassable?: boolean };
 
 /** Wraps a host cell so that it reports the terrain the player remembers instead of the live terrain. When the host supplies knownFeat, the returned cell takes feat and passable from the remembered terrain (an unknown square reads feat 0 and not passable), and glow counts only while the square is in view. When the host supplies no knownFeat, as on a core that predates the field, the live cell passes through unchanged. */
-function rememberedCell(cell: CellView | null): CellView | null {
+function rememberedCell(cell: BorgCell | null): BorgCell | null {
   if (!cell) return cell;
   const host = cell as HostCell;
   if (host.knownFeat === undefined) return cell;

@@ -136,6 +136,7 @@ function makeBorgGrid() {
   return {
     feat: 0,
     info: 0,
+    vault: false,
     trap: false,
     glyph: false,
     web: false,
@@ -173,6 +174,7 @@ var BorgMap = class {
         const g = row[x];
         g.feat = 0;
         g.info = 0;
+        g.vault = false;
         g.trap = false;
         g.glyph = false;
         g.web = false;
@@ -2102,8 +2104,8 @@ var FearCaches = class _FearCaches {
     for (const row of this.monsters2d) row.fill(0);
   }
 };
-function isVault(_world, _y, _x) {
-  return false;
+function isVault(world, y, x) {
+  return world.map.inBounds(x, y) && world.map.at(x, y).vault;
 }
 function borgFearGrid(world, g, fear, y, x, k) {
   if (trait2(world, 105 /* CDEPTH */) === 0) return;
@@ -3371,7 +3373,7 @@ function borgDanger(ctx, y, x, c, average, fullDamage) {
   let p = 0;
   if (x < 0 || x >= AUTO_MAX_X || y < 0 || y >= AUTO_MAX_Y) return 2e3;
   const cdepth = trait2(world, 105 /* CDEPTH */);
-  const isVaultHere = false;
+  const isVaultHere = world.map.at(x, y).vault;
   if (!isVaultHere && cdepth <= 80) {
     p += st2.fear.region(y, x) * c;
   }
@@ -13868,6 +13870,7 @@ function borgShootScootSafe(ctx, emergency, turns) {
   if (trait3(ctx, 35 /* CLEVEL */) >= 8 && trait3(ctx, 105 /* CDEPTH */) === 0) return false;
   if (!trait3(ctx, 210 /* APHASE */)) return false;
   if (!trait3(ctx, 26 /* LIGHT */)) return false;
+  if (ctx.world.map.at(ctx.world.self.c.x, ctx.world.self.c.y).vault) return false;
   if (primarilyCaster(ctx)) {
     if (trait3(ctx, 35 /* CLEVEL */) >= 45 && trait3(ctx, 30 /* CURSP */) < 15) return false;
     if (trait3(ctx, 35 /* CLEVEL */) < 45 && trait3(ctx, 30 /* CURSP */) < 5) return false;
@@ -15433,6 +15436,7 @@ function* retreatView(ctx) {
 function borgStrategicRetreat(ctx, flow, posDanger, nasty, surrounded) {
   const w = ctx.world, self = w.self, g = getDangerGlobals(w);
   if (!(posDanger > idiv(g.avoidance, 3) && !nasty && !self.noRetreat || surrounded && posDanger !== 0) || g.morgothPosition || w.clock - getFightState(w).tAntisummon < 50 || trait3(ctx, 114 /* ISCONFUSED */) || trait3(ctx, 27 /* CURHP */) >= 500) return null;
+  if (w.map.at(self.c.x, self.c.y).vault) return null;
   const bouncing = (x, y) => {
     const st2 = flow.step;
     return trait3(ctx, 27 /* CURHP */) >= idiv(trait3(ctx, 28 /* MAXHP */) * 7, 10) && st2.num > 2 && st2.y[st2.num - 2] === y && st2.x[st2.num - 2] === x && st2.y[st2.num - 3] === self.c.y && st2.x[st2.num - 3] === self.c.x || // FORK: the port's existing back-away anti-loop proxy; no distinct C antibounce counter is exposed.
@@ -15893,6 +15897,7 @@ function borgBackAway(ctx, flow, posDanger, nasty, surrounded) {
   if (ctx.world.clock - fs.tAntisummon < 50) return null;
   if (trait3(ctx, 114 /* ISCONFUSED */)) return null;
   if (trait3(ctx, 27 /* CURHP */) >= 500) return null;
+  if (ctx.world.map.at(self.c.x, self.c.y).vault) return null;
   let bI = -1;
   let bF = -1;
   let bK = surrounded ? idiv(posDanger * 12, 10) : posDanger;
@@ -17891,6 +17896,7 @@ function ingestMap(world, view) {
         if (c.inView) g.info &= ~BORG_IGNORE_MAP;
       }
       g.trap = c.trap;
+      g.vault = c.vault === true;
       if (g.feat === FEAT.PERM && world.facts.depth && x && y && x !== bounds.width - 1 && y !== bounds.height - 1) {
         world.facts.vaultOnLevel = true;
       }
@@ -19062,7 +19068,7 @@ async function readWorld(api, reads) {
     const occupant = player.grid.x === x && player.grid.y === y ? -1 : occupants.get(y * width + x) ?? 0;
     const remembered = cells.get(y * width + x);
     if (remembered === void 0) {
-      return { x, y, feat: 0, passable: false, inView: false, known: false, monster: occupant, objectCount: 0, knownObjectCount: 0, glow: false, trap: false };
+      return { x, y, feat: 0, passable: false, inView: false, known: false, monster: occupant, objectCount: 0, knownObjectCount: 0, glow: false, trap: false, vault: false };
     }
     const memory = remembered.remembered;
     const view2 = {
@@ -19072,6 +19078,7 @@ async function readWorld(api, reads) {
       passable: memory.passable,
       inView: remembered.visible,
       known: true,
+      vault: remembered.vault,
       monster: occupant,
       objectCount: memory.objects.length,
       knownObjectCount: memory.objects.length,

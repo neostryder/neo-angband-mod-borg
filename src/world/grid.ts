@@ -45,6 +45,7 @@ export interface BorgGrid {
   feat: number;
   /** Grid flags (BORG_* above). */
   info: number;
+  vault: boolean;
   trap: boolean;
   glyph: boolean;
   web: boolean;
@@ -63,6 +64,7 @@ export function makeBorgGrid(): BorgGrid {
   return {
     feat: 0,
     info: 0,
+    vault: false,
     trap: false,
     glyph: false,
     web: false,
@@ -109,6 +111,7 @@ export class BorgMap {
         const g = row[x]!;
         g.feat = 0;
         g.info = 0;
+        g.vault = false;
         g.trap = false;
         g.glyph = false;
         g.web = false;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { BorgContext } from "../context.js";
 import { makeFakeActions, makeScenarioView } from "../harness.js";
 import { BorgWorld } from "../world/model.js";
@@ -8,6 +8,8 @@ import { makeBorgRng } from "../rng.js";
 import { FEAT } from "../core-api.js";
 import { getDangerGlobals } from "../danger/index.js";
 import { getFightState } from "./state.js";
+import * as magic from "../item/magic.js";
+import { BI } from "../trait/trait-index.js";
 import { borgEscape } from "./escape.js";
 
 const branches = [
@@ -62,5 +64,31 @@ describe("escape returns the queued C stair action", () => {
   it("keeps the already-correct higher-danger stair choice", () => {
     const { ctx } = scene(branches[0], true, 100);
     expect(borgEscape(ctx, 200)).toEqual({ code: "ascend" });
+  });
+});
+
+
+describe("borg_shoot_scoot_safe vault guard", () => {
+  it.each([false, true])("keeps shoot-and-scoot inside remembered vaults: %s", (vault) => {
+    const { ctx } = scene(branches[2], false, 100);
+    const world = ctx.world;
+    world.self.trait[BI.APHASE] = 1;
+    world.self.trait[BI.LIGHT] = 1;
+    world.self.trait[BI.AMISSILES] = 5;
+    world.map.at(10, 10).vault = vault;
+    const index = world.kills.alloc();
+    const kill = world.kills.at(index);
+    kill.pos = { x: 11, y: 10 };
+    kill.rIdx = 1;
+    kill.awake = true;
+    kill.power = 10;
+    world.map.at(11, 10).kill = index;
+    vi.spyOn(magic, "borgSpellOkayFail").mockImplementation((_ctx, spell) => spell === magic.Spell.PHASE_DOOR);
+    vi.spyOn(magic, "borgSpellFail").mockImplementation((_ctx, spell) => spell === magic.Spell.PHASE_DOOR ? { code: "cast", args: { spell: 0 } } : null);
+    try {
+      expect(borgEscape(ctx, 0)).toEqual(vault ? null : { code: "cast", args: { spell: 0 } });
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });

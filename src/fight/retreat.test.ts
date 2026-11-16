@@ -59,8 +59,9 @@ describe("C caution retreats before teleport escape", () => {
     flow.step.add(10, 12);
     expect(borgStrategicRetreat(ctx, flow, 8, false, false)).toEqual({ code: "walk", dir: 6 });
   });
-  it.each(["confused", "no retreat", "recent antisummon", "not worth the step", "trap", "occupied", "morgoth", "high HP", "looping"])("keeps the C strategic guard: %s", (guard) => {
+  it.each(["confused", "no retreat", "recent antisummon", "not worth the step", "trap", "occupied", "morgoth", "high HP", "looping", "vault"])("keeps the C strategic guard: %s", (guard) => {
     const { ctx, world, flow, t } = scene();
+    if (guard === "vault") world.map.at(10, 10).vault = true;
     if (guard === "confused") t[BI.ISCONFUSED] = 1;
     if (guard === "no retreat") world.self.noRetreat = 1;
     if (guard === "recent antisummon") getFightState(world).tAntisummon = 990;

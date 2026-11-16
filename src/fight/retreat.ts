@@ -108,9 +108,7 @@ export function borgStrategicRetreat(
   if (!((posDanger > idiv(g.avoidance, 3) && !nasty && !self.noRetreat) || (surrounded && posDanger !== 0)) ||
       g.morgothPosition || w.clock - getFightState(w).tAntisummon < 50 || trait(ctx, BI.ISCONFUSED) ||
       trait(ctx, BI.CURHP) >= 500) return null;
-  /* FORK: the public CellView exposes no square_isvault bit. As in borgBackAway,
-   * do not substitute the level-wide vaultOnLevel fact for this per-grid test;
-   * retreat can therefore be attempted inside a vault where C suppresses it. */
+  if (w.map.at(self.c.x, self.c.y).vault) return null;
 
   const bouncing = (x: number, y: number) => {
     const st = flow.step;

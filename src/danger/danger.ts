@@ -1622,7 +1622,7 @@ export function borgDanger(
   if (x < 0 || x >= AUTO_MAX_X || y < 0 || y >= AUTO_MAX_Y) return 2000;
 
   const cdepth = trait(world, BI.CDEPTH);
-  const isVaultHere = false; /* GAP: borg map carries no vault flag (see fear.ts). */
+  const isVaultHere = world.map.at(x, y).vault;
 
   /* Base danger from regional fear (not within a vault, not too deep). */
   if (!isVaultHere && cdepth <= 80) {

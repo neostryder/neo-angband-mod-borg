@@ -731,11 +731,6 @@ export function borgCaution(
  * sub-35 danger threshold from 80 percent to unconditional. A trap in any
  * direction `break`s the whole search rather than skipping that one direction.
  * Both are upstream 4.2.6 behavior; core keeps the warts.
- *
- * square_isvault has no equivalent here: the Borg's remembered grid carries no
- * vault bit, and the level-scoped vaultOnLevel fact is a different question.
- * Upstream uses it only to suppress backing away, so the port can back away in
- * a vault where upstream would not.
  */
 export function borgBackAway(
   ctx: BorgContext,
@@ -756,6 +751,7 @@ export function borgBackAway(
   if (ctx.world.clock - fs.tAntisummon < 50) return null;
   if (trait(ctx, BI.ISCONFUSED)) return null;
   if (trait(ctx, BI.CURHP) >= 500) return null;
+  if (ctx.world.map.at(self.c.x, self.c.y).vault) return null;
 
   let bI = -1;
   let bF = -1;

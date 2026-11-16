@@ -189,6 +189,7 @@ function ingestMap(world: BorgWorld, view: BorgView): void {
         if (c.inView) g.info &= ~BORG_IGNORE_MAP;
       }
       g.trap = c.trap;
+      g.vault = c.vault === true;
 
       /* Interior permanent walls mark vault levels (borg-update.c:418-420). */
       if (g.feat === FEAT.PERM && world.facts.depth && x && y && x !== bounds.width - 1 && y !== bounds.height - 1) {

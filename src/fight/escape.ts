@@ -11,8 +11,7 @@
  *
  * GAPS (documented): the anti-summon timer (borg_t_antisummon) and level-entry
  * clock (borg_began) live on the FightState copy, not the flow state, so the
- * "reset timer" bookkeeping is local; borg_primarily_caster and square_isvault
- * are approximated (class list / no vault flag on the borg map).
+ * "reset timer" bookkeeping is local; borg_primarily_caster uses a class list.
  */
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
@@ -374,7 +373,7 @@ function borgShootScootSafe(ctx: BorgContext, emergency: number, turns: number):
   if (trait(ctx, BI.CLEVEL) >= 8 && trait(ctx, BI.CDEPTH) === 0) return false;
   if (!trait(ctx, BI.APHASE)) return false;
   if (!trait(ctx, BI.LIGHT)) return false;
-  /* GAP: square_isvault unavailable on the borg map. */
+  if (ctx.world.map.at(ctx.world.self.c.x, ctx.world.self.c.y).vault) return false;
 
   if (primarilyCaster(ctx)) {
     if (trait(ctx, BI.CLEVEL) >= 45 && trait(ctx, BI.CURSP) < 15) return false;

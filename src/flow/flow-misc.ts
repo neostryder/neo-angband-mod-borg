@@ -202,8 +202,7 @@ export function borgHappyGridBold(ctx: BorgContext, flow: FlowState, y: number, 
  * The PF_COMBAT_REGEN arm (misc.c:1218-1221) reads the class's player flags
  * from the view (classFlags). The vault arm (misc.c:1243-1258) does not need a
  * vault flag: it is a test of the remembered map, an adjacent permanent wall on
- * a vault level, so it is ported as written. The separate square_isvault tests
- * in danger/fear.ts need the game's own vault flag and stay a documented gap.
+ * a vault level, so it is ported as written.
  */
 export function borgCheckRest(ctx: BorgContext, flow: FlowState, y: number, x: number): boolean {
   const w = ctx.world;
