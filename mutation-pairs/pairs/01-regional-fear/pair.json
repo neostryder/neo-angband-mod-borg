@@ -1,0 +1,12 @@
+{
+  "id": "01-regional-fear",
+  "area": "danger and fear",
+  "cFunction": {
+    "name": "borg_check_rest",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow-misc.c:1212",
+    "ruleLine": 1273
+  },
+  "originalRequirement": "Rest remains legal when regional fear equals floor(current HP / 20).",
+  "twinRequirement": "Rest becomes illegal when regional fear equals floor(current HP / 20).",
+  "changedRequirement": "Regional fear comparison changes from > to >=."
+}

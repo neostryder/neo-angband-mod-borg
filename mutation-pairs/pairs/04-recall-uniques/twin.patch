@@ -1,0 +1,12 @@
+diff --git a/src/fight/escape.ts b/src/fight/escape.ts
+--- a/src/fight/escape.ts
++++ b/src/fight/escape.ts
+@@ -95,7 +95,7 @@
+         if (depth >= 80 && depth < 100 && trait(ctx, BI.SAURON_DEAD)) w.resetRecallDepth = true;
+         else if (w.self.goal.fleeingMunchkin) w.resetRecallDepth = true;
+         else if (depth >= 100 && !trait(ctx, BI.KING)) w.resetRecallDepth = false;
+-        else if (maxDepth === 99 && w.liveUniques < 5) w.resetRecallDepth = false;
++        else if (maxDepth === 99 && w.liveUniques < 4) w.resetRecallDepth = false;
+         else w.resetRecallDepth = true;
+       }
+     }

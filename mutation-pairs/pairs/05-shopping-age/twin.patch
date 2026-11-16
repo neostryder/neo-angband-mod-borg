@@ -1,0 +1,11 @@
+diff --git a/src/store/think-store.ts b/src/store/think-store.ts
+--- a/src/store/think-store.ts
++++ b/src/store/think-store.ts
+@@ -67,6 +67,6 @@
+   /* Must be in town (:92). */
+   if (st(ctx, BI.CDEPTH)) return false;
+   /* borg-think-store.c:97 forbids shopping after 2000 turns on this level. */
+-  if (ctx.world.clock - (d?.began ?? 0) > 2000) return false;
++  if (ctx.world.clock - (d?.began ?? 0) >= 2000) return false;
+   /* Anti-loop panel timer (:99). */
+   if (ctx.world.self.timeThisPanel > 1350) return false;

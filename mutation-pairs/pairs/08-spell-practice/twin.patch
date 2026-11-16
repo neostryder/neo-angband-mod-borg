@@ -1,0 +1,12 @@
+diff --git a/src/item/magic-play.ts b/src/item/magic-play.ts
+--- a/src/item/magic-play.ts
++++ b/src/item/magic-play.ts
+@@ -108,7 +108,7 @@
+   }
+
+   /* Test: only in town, only when bored. */
+-  if (trait(ctx, BI.CDEPTH)) return null;
++  if (trait(ctx, BI.CDEPTH) > 1) return null;
+   if (!bored) return null;
+   for (let sidx = ratings.length - 1; sidx >= 0; sidx--) {
+     const view = views.get(sidx);

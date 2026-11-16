@@ -1,0 +1,12 @@
+{
+  "id": "04-recall-uniques",
+  "area": "recall and stairs",
+  "cFunction": {
+    "name": "borg_recall",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-escape.c:54",
+    "ruleLine": 97
+  },
+  "originalRequirement": "Recall keeps its old maximum depth of 99 when four uniques remain alive.",
+  "twinRequirement": "Recall can reset its maximum depth of 99 when four uniques remain alive.",
+  "changedRequirement": "The live-unique exemption threshold changes from 5 to 4."
+}

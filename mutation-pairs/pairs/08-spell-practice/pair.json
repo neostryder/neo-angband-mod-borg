@@ -1,0 +1,12 @@
+{
+  "id": "08-spell-practice",
+  "area": "spell and device use",
+  "cFunction": {
+    "name": "borg_play_magic",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-magic-play.c:87",
+    "ruleLine": 164
+  },
+  "originalRequirement": "An untried spell is not practiced on dungeon depth 1.",
+  "twinRequirement": "An untried spell can be practiced on dungeon depth 1.",
+  "changedRequirement": "The practice depth gate changes from nonzero depth to depth above 1."
+}

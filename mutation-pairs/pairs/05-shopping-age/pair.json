@@ -1,0 +1,12 @@
+{
+  "id": "05-shopping-age",
+  "area": "shopping and store choice",
+  "cFunction": {
+    "name": "borg_choose_shop",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-think-store.c:87",
+    "ruleLine": 97
+  },
+  "originalRequirement": "An existing purchase goal remains actionable at town level age 2000.",
+  "twinRequirement": "An existing purchase goal expires at town level age 2000.",
+  "changedRequirement": "The shopping age comparison changes from > to >=."
+}

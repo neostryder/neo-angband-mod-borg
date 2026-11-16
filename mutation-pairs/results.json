@@ -1,0 +1,418 @@
+{
+  "baseline": "7eb4b786259cfe5b5889b4e53722cad811946c0d",
+  "pairs": [
+    {
+      "id": "01-regional-fear",
+      "area": "danger and fear",
+      "cFunction": {
+        "name": "borg_check_rest",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow-misc.c:1212",
+        "ruleLine": 1273
+      },
+      "originalRequirement": "Rest remains legal when regional fear equals floor(current HP / 20).",
+      "twinRequirement": "Rest becomes illegal when regional fear equals floor(current HP / 20).",
+      "changedRequirement": "Regional fear comparison changes from > to >=.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "02-escape-stairs",
+      "area": "retreat and escape",
+      "cFunction": {
+        "name": "borg_escape_stair",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-escape.c:520",
+        "ruleLine": 526
+      },
+      "originalRequirement": "A level-20 character standing on up stairs can escape by ascending.",
+      "twinRequirement": "A character can escape by ascending from up stairs only above level 20.",
+      "changedRequirement": "Stair escape gains one character-level condition.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "03-recharge-rest",
+      "area": "rest and recovery",
+      "cFunction": {
+        "name": "borg_recover",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-recover.c:59",
+        "ruleLine": 340
+      },
+      "originalRequirement": "A safe character rests 100 turns to recharge a recall rod.",
+      "twinRequirement": "A safe character rests 101 turns to recharge a recall rod.",
+      "changedRequirement": "Recall-rod recharge rest count changes from 100 to 101.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "04-recall-uniques",
+      "area": "recall and stairs",
+      "cFunction": {
+        "name": "borg_recall",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-escape.c:54",
+        "ruleLine": 97
+      },
+      "originalRequirement": "Recall keeps its old maximum depth of 99 when four uniques remain alive.",
+      "twinRequirement": "Recall can reset its maximum depth of 99 when four uniques remain alive.",
+      "changedRequirement": "The live-unique exemption threshold changes from 5 to 4.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "05-shopping-age",
+      "area": "shopping and store choice",
+      "cFunction": {
+        "name": "borg_choose_shop",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-think-store.c:87",
+        "ruleLine": 97
+      },
+      "originalRequirement": "An existing purchase goal remains actionable at town level age 2000.",
+      "twinRequirement": "An existing purchase goal expires at town level age 2000.",
+      "changedRequirement": "The shopping age comparison changes from > to >=.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "06-pickup-plusses",
+      "area": "item pickup",
+      "cFunction": {
+        "name": "borg_new_take",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow-take.c:193",
+        "ruleLine": 268
+      },
+      "originalRequirement": "An item with zero to-hit and no negative plusses remains worth picking up on arrival.",
+      "twinRequirement": "An item with zero to-hit is rejected for pickup on arrival.",
+      "changedRequirement": "The to-hit rejection comparison changes from < 0 to <= 0.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "07-junk-value",
+      "area": "drop-junk",
+      "cFunction": {
+        "name": "borg_drop_junk",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-junk.c:248",
+        "ruleLine": 396
+      },
+      "originalRequirement": "At depth 5, known gear worth 16 is kept by the value threshold.",
+      "twinRequirement": "At depth 5, known gear worth 16 can be dropped when power is preserved.",
+      "changedRequirement": "The shallow-depth value cutoff changes from 15 to 16.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "08-spell-practice",
+      "area": "spell and device use",
+      "cFunction": {
+        "name": "borg_play_magic",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-magic-play.c:87",
+        "ruleLine": 164
+      },
+      "originalRequirement": "An untried spell is not practiced on dungeon depth 1.",
+      "twinRequirement": "An untried spell can be practiced on dungeon depth 1.",
+      "changedRequirement": "The practice depth gate changes from nonzero depth to depth above 1.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "09-town-attack",
+      "area": "fight and attack choice",
+      "cFunction": {
+        "name": "borg_play_step",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow.c:619",
+        "ruleLine": 751
+      },
+      "originalRequirement": "A level-4 character avoids walking into a unique monster in town.",
+      "twinRequirement": "A level-4 character can walk into a unique monster in town.",
+      "changedRequirement": "The town unique avoidance level changes from < 5 to < 4.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "10-town-fear",
+      "area": "town fear fix (#501)",
+      "cFunction": {
+        "name": "borg_fear_grid",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-update.c:614",
+        "ruleLine": 621
+      },
+      "originalRequirement": "A visible monster adds no monster-grid fear in town.",
+      "twinRequirement": "A visible monster can add monster-grid fear in town.",
+      "changedRequirement": "The town depth exemption changes from depth 0 to depth -1.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "11-stall-forget",
+      "area": "stall check",
+      "cFunction": {
+        "name": "borg_think_dungeon",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-think-dungeon.c:1155",
+        "ruleLine": 1314
+      },
+      "originalRequirement": "The bouncing-Borg check forgets tracked floor objects at panel age 500.",
+      "twinRequirement": "The bouncing-Borg check starts forgetting tracked floor objects at panel age 501.",
+      "changedRequirement": "The panel forgetting lower bound changes from 500 to 501.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    },
+    {
+      "id": "12-chest-tolerance",
+      "area": "chest rule",
+      "cFunction": {
+        "name": "borg_play_step",
+        "source": "D:/Repositories/neo-angband/reference/src/borg/borg-flow.c:619",
+        "ruleLine": 794
+      },
+      "originalRequirement": "A known trapped chest is disarmed when device skill minus trap strength equals 7.",
+      "twinRequirement": "A known trapped chest is disarmed only when device skill minus trap strength exceeds 7.",
+      "changedRequirement": "The chest tolerance comparison changes from >= to >.",
+      "originalOnMaster": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "twinOnMaster": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "twinPatched": {
+        "status": "pass",
+        "exitCode": 0
+      },
+      "originalPatched": {
+        "status": "fail",
+        "exitCode": 1
+      },
+      "patchLines": {
+        "added": 1,
+        "removed": 1,
+        "total": 2
+      },
+      "valid": true
+    }
+  ],
+  "originalPassRate": 1,
+  "twinPassRate": 0,
+  "spread": 1,
+  "complete": true,
+  "error": null
+}

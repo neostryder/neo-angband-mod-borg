@@ -36,6 +36,7 @@
   },
   "include": [
     "*.ts",
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "mutation-pairs/**/*.ts"
   ]
 }

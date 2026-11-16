@@ -1,0 +1,12 @@
+diff --git a/src/danger/fear.ts b/src/danger/fear.ts
+--- a/src/danger/fear.ts
++++ b/src/danger/fear.ts
+@@ -90,7 +90,7 @@
+   k: number,
+ ): void {
+   /* Not in town */
+-  if (trait(world, BI.CDEPTH) === 0) return;
++  if (trait(world, BI.CDEPTH) === -1) return;
+
+   /* In a Sea of Runes, no worry */
+   if (g.morgothPosition || g.asPosition) return;

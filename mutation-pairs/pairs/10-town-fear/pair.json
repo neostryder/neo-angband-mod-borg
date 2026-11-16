@@ -1,0 +1,12 @@
+{
+  "id": "10-town-fear",
+  "area": "town fear fix (#501)",
+  "cFunction": {
+    "name": "borg_fear_grid",
+    "source": "D:/Repositories/neo-angband/reference/src/borg/borg-update.c:614",
+    "ruleLine": 621
+  },
+  "originalRequirement": "A visible monster adds no monster-grid fear in town.",
+  "twinRequirement": "A visible monster can add monster-grid fear in town.",
+  "changedRequirement": "The town depth exemption changes from depth 0 to depth -1."
+}
