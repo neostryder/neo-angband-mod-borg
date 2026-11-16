@@ -16287,12 +16287,12 @@ function borgNearMonsterType(ctx, dist4) {
     const rflags = info.raceFlags;
     const has2 = (f) => rflags.includes(f);
     if (has2("MULTIPLY")) breederCount += 1;
-    if (clevel <= 5 && prefixI(name, "squint")) w.facts.scaryGuyOnLevel = true;
-    if (clevel <= 6 && (cls === CLASS_MAGE || cls === CLASS_PRIEST) && prefixI(name, "squint"))
+    if (clevel <= 5 && name.includes("Squint")) w.facts.scaryGuyOnLevel = true;
+    if (clevel <= 6 && (cls === CLASS_MAGE || cls === CLASS_PRIEST) && name.includes("Squint"))
       w.facts.scaryGuyOnLevel = true;
     if (clevel <= 5 && (prefixI(name, "Grip") || prefixI(name, "Fang") || prefixI(name, "small kobold")))
       w.facts.scaryGuyOnLevel = true;
-    if (clevel <= 8 && (prefixI(name, "soldier") || prefixI(name, "cutpurse") || prefixI(name, "acolyte") || prefixI(name, "apprentice") || prefixI(name, "kobold") || prefixI(name, "jackal") || prefixI(name, "shrieker") || prefixI(name, "Farmer Maggot") || prefixI(name, "filthy street urchin") || prefixI(name, "battle-scarred veteran") || prefixI(name, "mean-looking mercenary")))
+    if (clevel <= 8 && (prefixI(name, "soldier") || prefixI(name, "cutpurse") || prefixI(name, "acolyte") || prefixI(name, "apprentice") || prefixI(name, "kobold") || prefixI(name, "jackal") || prefixI(name, "shrieker") || prefixI(name, "Farmer Maggot") || name.includes("Filthy street urchin") || name.includes("Battle-scarred veteran") || name.includes("Mean-looking mercenary")))
       w.facts.scaryGuyOnLevel = true;
     if (clevel <= 15 && (prefixI(name, "Bullroarer") || (prefixI(name, "giant white mouse") || prefixI(name, "white worm mass") || prefixI(name, "green worm mass")) && breederCount >= clevel))
       w.facts.scaryGuyOnLevel = true;

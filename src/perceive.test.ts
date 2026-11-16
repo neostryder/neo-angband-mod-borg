@@ -512,6 +512,40 @@ describe("borg_near_monster_type facts", () => {
     expect(world.facts.scaryGuyOnLevel).toBe(true);
   });
 
+  describe.each([
+    { cls: "Warrior", level: 1 },
+    { cls: "Mage", level: 6 },
+    { cls: "Priest", level: 6 },
+  ])("town fear for a level $level $cls", ({ cls, level }) => {
+    it.each([
+      "squint-eyed rogue",
+      "filthy street urchin",
+      "battle-scarred veteran",
+      "mean-looking mercenary",
+    ])("ignores the lowercase race name %s", (race) => {
+      const { ctx, world } = makeCtx({
+        player: { grid: { x: 5, y: 5 }, cls, level, depth: 0 },
+        monsters: [{ id: 4, grid: { x: 7, y: 5 }, race }],
+      });
+      borgNearMonsterType(ctx, 20);
+      expect(world.facts.scaryGuyOnLevel).toBe(false);
+    });
+
+    it.each([
+      "a Squint-eyed rogue",
+      "a Filthy street urchin",
+      "a Battle-scarred veteran",
+      "a Mean-looking mercenary",
+    ])("matches the case-sensitive substring in %s", (race) => {
+      const { ctx, world } = makeCtx({
+        player: { grid: { x: 5, y: 5 }, cls, level, depth: 0 },
+        monsters: [{ id: 4, grid: { x: 7, y: 5 }, race }],
+      });
+      borgNearMonsterType(ctx, 20);
+      expect(world.facts.scaryGuyOnLevel).toBe(true);
+    });
+  });
+
   it("marks a summoner and records its index when close", () => {
     const { ctx, world } = makeCtx({
       player: { grid: { x: 5, y: 5 }, level: 20, depth: 20 },
