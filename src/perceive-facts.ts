@@ -114,11 +114,13 @@ export function borgNearMonsterType(ctx: BorgContext, dist: number): void {
     if (has("MULTIPLY")) breederCount += 1;
 
     /*** Scary Guys (before the distance filter) ***/
-    if (clevel <= 5 && prefixI(name, "squint")) w.facts.scaryGuyOnLevel = true;
+    /* borg_near_monster_type (borg-flow-kill.c:2727-2752) uses case-sensitive
+     * strstr; the four literals never match current lowercase town race names. */
+    if (clevel <= 5 && name.includes("Squint")) w.facts.scaryGuyOnLevel = true;
     if (
       clevel <= 6 &&
       (cls === CLASS_MAGE || cls === CLASS_PRIEST) &&
-      prefixI(name, "squint")
+      name.includes("Squint")
     )
       w.facts.scaryGuyOnLevel = true;
     if (
@@ -138,9 +140,9 @@ export function borgNearMonsterType(ctx: BorgContext, dist: number): void {
         prefixI(name, "jackal") ||
         prefixI(name, "shrieker") ||
         prefixI(name, "Farmer Maggot") ||
-        prefixI(name, "filthy street urchin") ||
-        prefixI(name, "battle-scarred veteran") ||
-        prefixI(name, "mean-looking mercenary"))
+        name.includes("Filthy street urchin") ||
+        name.includes("Battle-scarred veteran") ||
+        name.includes("Mean-looking mercenary"))
     )
       w.facts.scaryGuyOnLevel = true;
     if (
