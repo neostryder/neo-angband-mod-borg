@@ -4,12 +4,12 @@
   "data": {
     "id": "borg",
     "name": "Borg",
-    "version": "1.4.0-beta.5",
+    "version": "1.4.0-beta.6",
     "api": ">=2.1.0 <3.0.0",
     "runtime": "in-process",
     "engine": {
-      "range": ">=1.23.0-beta.1",
-      "because": "The first Neo Angband release with mod API 2, the truth domain the Borg reads perceived monsters through, and the loadout simulation."
+      "range": ">=1.23.0-beta.4",
+      "because": "The first Neo Angband release with mod API 2.1.0, so the Borg learns which uniques are dead, whether a chest's trap is known, a stable ID for each item, and how long each timed effect has left."
     },
     "dependencies": {
       "required": {
