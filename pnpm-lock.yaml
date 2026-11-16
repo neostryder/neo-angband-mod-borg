@@ -167,14 +167,14 @@ importers:
   .:
     devDependencies:
       '@rpgm-tools/neo-angband-content':
-        specifier: 1.23.0-beta.4
-        version: 1.23.0-beta.4
+        specifier: file:D:/Repositories/_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-content-1.23.0-beta.4.tgz
+        version: file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-content-1.23.0-beta.4.tgz
       '@rpgm-tools/neo-angband-core':
-        specifier: 1.23.0-beta.4
-        version: 1.23.0-beta.4
+        specifier: file:D:/Repositories/_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-core-1.23.0-beta.4.tgz
+        version: file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-core-1.23.0-beta.4.tgz
       '@rpgm-tools/neo-angband-mod-sdk':
-        specifier: 1.23.0-beta.4
-        version: 1.23.0-beta.4
+        specifier: file:D:/Repositories/_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-mod-sdk-1.23.0-beta.4.tgz
+        version: file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-mod-sdk-1.23.0-beta.4.tgz
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -464,16 +464,24 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@rpgm-tools/neo-angband-content@1.23.0-beta.4':
-    resolution: {integrity: sha512-0/7ac8oktQhFPmAnW403UfcQp7RI5XNvUMYCkxXoP2WZdU0kX2aJ9bVmkb4mYR78xchcZ2QOVHZV4IQUihImXg==}
+  '@rpgm-tools/neo-angband-content@file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-content-1.23.0-beta.4.tgz':
+    resolution: {integrity: sha512-ZoCiId6za2PXa/igQwDfua/y2Jp6GAcDnnW3FYsb/4+K6CiV0y2Fv/2AJYKkaHA5gsYyTgCUFqvz/7SPsuSicQ==, tarball: file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-content-1.23.0-beta.4.tgz}
+    version: 1.23.0-beta.4
     engines: {node: '>=26'}
 
-  '@rpgm-tools/neo-angband-core@1.23.0-beta.4':
-    resolution: {integrity: sha512-3ZUBdd2d+n/Tna6mW9waHTGOYDkGriFlJhqaxvaoJeMA99FiBFagWxxClwltzxaaWX9LmxYHK89HbAMKvs8uuA==}
+  '@rpgm-tools/neo-angband-core@file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-core-1.23.0-beta.4.tgz':
+    resolution: {integrity: sha512-EVcVvJ1hKemr6Cks6Lzy2jkD+U3SRTzKaFi54xStB/j0BFMrod4pA4zWej/fkj5W7L7QOlB1+/LH/TCEAZQ+qA==, tarball: file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-core-1.23.0-beta.4.tgz}
+    version: 1.23.0-beta.4
     engines: {node: '>=26'}
 
   '@rpgm-tools/neo-angband-mod-sdk@1.23.0-beta.4':
     resolution: {integrity: sha512-8oTxWuraG0f/53a3VD8c+7cCe9Q5ETY+C5zGjRdHiDg0+/RrGs9dYMSJOkKuciAMNG8Fc0HQW+ytH050RgIhsw==}
+    engines: {node: '>=26'}
+    hasBin: true
+
+  '@rpgm-tools/neo-angband-mod-sdk@file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-mod-sdk-1.23.0-beta.4.tgz':
+    resolution: {integrity: sha512-UXM3dE5kAZwzm52YPQzVGRR/RxJ2w0lluRaH+GfcLcbrdJW7uGPJOWjIunkuJGe8KrN5weoU2mv2wfuSqT5FwQ==, tarball: file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-mod-sdk-1.23.0-beta.4.tgz}
+    version: 1.23.0-beta.4
     engines: {node: '>=26'}
     hasBin: true
 
@@ -1036,13 +1044,17 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@rpgm-tools/neo-angband-content@1.23.0-beta.4': {}
+  '@rpgm-tools/neo-angband-content@file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-content-1.23.0-beta.4.tgz': {}
 
-  '@rpgm-tools/neo-angband-core@1.23.0-beta.4':
+  '@rpgm-tools/neo-angband-core@file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-core-1.23.0-beta.4.tgz':
     dependencies:
       '@rpgm-tools/neo-angband-mod-sdk': 1.23.0-beta.4
 
   '@rpgm-tools/neo-angband-mod-sdk@1.23.0-beta.4':
+    dependencies:
+      acorn: 8.19.0
+
+  '@rpgm-tools/neo-angband-mod-sdk@file:../../../_outbox/na-overhaul-core/sdk-local/3eafc1360/rpgm-tools-neo-angband-mod-sdk-1.23.0-beta.4.tgz':
     dependencies:
       acorn: 8.19.0
 

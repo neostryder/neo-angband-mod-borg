@@ -59,7 +59,7 @@ describe("remembered terrain through the API 2 bridge (#415)", () => {
     const base = knownWorld(game.view);
     const known = { ...base, level: { ...base.level!, cells: [{ x: 6, y: 5,
       remembered: { feat, passable, traps: [], objects: [], items: null },
-      visible: false, lit: null, seen: false, glow: false,
+      visible: false, lit: null, seen: false, glow: false, vault: false,
       actual: { feat: actual, traps: [], objects: [], monster: 0 },
     }] } };
     game.mod.view.world = async () => ({ ok: true, value: known });
@@ -79,7 +79,7 @@ describe("remembered terrain through the API 2 bridge (#415)", () => {
     const base = knownWorld(game.view);
     const known = { ...base, level: { ...base.level!, cells: [{ x: 6, y: 5,
       remembered: { feat: Core.FEAT.FLOOR, passable: true, traps: [], objects: [], items: null },
-      visible, lit: visible ? true : null, seen: visible, glow: true,
+      visible, lit: visible ? true : null, seen: visible, glow: true, vault: false,
     }] } };
     game.mod.view.world = async () => ({ ok: true, value: known });
     const view = borgView((await bridge.readWorld())!.view);
@@ -301,7 +301,7 @@ describe("activation credit for unworn candidates", () => {
       calls.push(ref);
       return Promise.resolve({ ok: true, value: { index: 1, name: "HASTE", aim: false, level: 1, power: 1, message: "", desc: "", effect: [] } });
     };
-    const before = { player: known.player!, equipment: known.equipment, inventory: known.inventory, stats: {} as LoadoutSimulation["before"]["stats"] };
+    const before = { player: known.player!, equipment: known.equipment, inventory: known.inventory, combat: { blows: 0, damage: null }, stats: {} as LoadoutSimulation["before"]["stats"] };
     game.mod.view.simulateLoadout = (change) => {
       const equipment = [...known.equipment];
       if (change.wield) equipment[4] = candidate;
