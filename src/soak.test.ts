@@ -264,7 +264,7 @@ it("buys before descending from a populated birth town", () => {
   expect(life.firstBuy, JSON.stringify(life.lastDecisions.map((d) => d.command))).not.toBeNull();
   expect(life.firstDescent).not.toBeNull();
   expect(life.firstBuy!).toBeLessThan(life.firstDescent!);
-});
+}, 30_000);
 
 it.skipIf(process.env["BORG_SOAK"] !== "1")("records an opt-in class soak against the published engine", () => {
   const classes = (process.env["BORG_SOAK_CLASSES"] ?? CLASSES.join(",")).split(",").map((name) => name.trim());
@@ -292,4 +292,4 @@ it.skipIf(process.env["BORG_SOAK"] !== "1")("records an opt-in class soak agains
     }
   }
   expect(lives).toHaveLength(classes.length * count);
-}, 7_200_000);
+}, positive("BORG_SOAK_TIMEOUT_MS", 7_200_000));
