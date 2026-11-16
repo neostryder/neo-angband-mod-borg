@@ -20,6 +20,10 @@ were not retagged.
 
 ## [Unreleased]
 
+### Fixed
+
+- [Visible] **The Borg no longer flees from four town monsters.** It used to treat anyone named Squint, the filthy street urchin, the battle-scarred veteran, and the mean-looking mercenary as scary, so it steered around them or ran away and spent turns before it could shop. The original only reacts to those names when they are capitalized, and the game's names are lowercase, so it never reacts to them at all. The Borg now ignores them in the same way as the original (neostryder/neo-angband#501).
+
 ## 1.4.0-beta.6 - 2026-11-15
 
 ### Changed
