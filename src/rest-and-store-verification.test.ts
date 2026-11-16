@@ -29,13 +29,17 @@
  *   own, unscripted choice.
  */
 
+import { BorgWorld } from "./world/model.js";
+import { makeBorgRng } from "./rng.js";
+import { borgThinkShopBuyUseful } from "./store/index.js";
+import { buildStoreDeps, buildThinkSession } from "./think-session.js";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import * as Core from "@rpgm-tools/neo-angband-core";
-import type { JsonRecord, KnownStoreItem, KnownWorldData, LoadoutSimulation } from "@rpgm-tools/neo-angband-mod-sdk";
+import type { LoadoutChange, JsonRecord, KnownStoreItem, KnownWorldData, LoadoutSimulation } from "@rpgm-tools/neo-angband-mod-sdk";
 import {
   ContentIdResolver,
   FEAT,
@@ -236,6 +240,64 @@ const suite = PACK_DIR ? describe : describe.skip;
 suite("the Borg's ladder reaches rest and the store", () => {
   const pack = PACK_DIR ? loadPack(PACK_DIR) : null;
 
+  it("compares remembered shop wares and excludes unvisited stock", async () => {
+    const { game, state, resolver } = makeGame(pack!, 441, "Warrior");
+    const deps = { reg: game.booted.registries.objects, resolver };
+    const food = state.stores![0]!.stock.find((obj) => obj.tval === TV.FOOD)!;
+    expect(food).toBeDefined();
+    for (const store of state.stores!.slice(0, 3)) {
+      store.stock = [Core.objectCopy(food)];
+      store.stock[0]!.number = 1;
+    }
+    for (const store of state.stores!.slice(0, 2)) {
+      state.actor.grid = findDoor(state, store.feat)!;
+      Core.buildKnownWorld(state, deps);
+    }
+    state.actor.grid = { x: 1, y: 1 };
+    const known = Core.buildKnownWorld(state, deps) as KnownWorldData;
+    expect(known.player!.shopnum).toBeNull();
+    expect(known.stores!.slice(0, 3).map((store) => store.stock.length)).toEqual([1, 1, 0]);
+    state.stores![0]!.stock = [];
+    const host = fakeGame({ engine: { core: Core } });
+    host.mod.view.world = async () => ({ ok: true, value: known });
+    const queried: number[] = [];
+    host.mod.view.simulateLoadout = async (change: LoadoutChange) => {
+      const refs = [...(change.wield ?? []), ...(change.carry ?? []).map((entry) => entry.item)];
+      const fromMemory = refs.filter((ref) => ref.from === "store");
+      for (const ref of fromMemory) {
+        if (ref.from !== "store") continue;
+        queried.push(ref.store);
+        if (!Core.rememberedStoreItem(state, ref.store, ref.index)) return { ok: false, reason: "refused", code: "unobserved-item", message: "The store item has no observed stock snapshot." };
+      }
+      const simulation = Core.simulateLoadout(state, change, { viewDeps: deps, storeItem: (store, index) => Core.rememberedStoreItem(state, store, index) })!;
+      Object.assign(simulation, { fromMemory });
+      return { ok: true, value: Core.knownLoadoutSimulation(state, simulation) as LoadoutSimulation };
+    };
+    const bridge = createBridge(host.mod);
+    await bridge.prime();
+    try {
+      const snapshot = (await bridge.readWorld())!;
+      const world = new BorgWorld();
+      const ctx = { world, view: snapshot.view, act: makeFakeActions(), rng: makeBorgRng(1) };
+      borgNotice(ctx);
+      world.self.trait[BI.LIGHT] = 1;
+      world.self.trait[BI.FOOD] = 1;
+      world.self.trait[BI.GOLD] = 10000;
+      const session = buildThinkSession(makeCoreResolvers(bridge.resolverInput()));
+      const storeDeps = buildStoreDeps(session);
+      expect(borgThinkShopBuyUseful(ctx, storeDeps)).toBe(false);
+      expect(await bridge.settleLoadouts()).toBe(3);
+      expect([...new Set(queried)]).toEqual([0, 1]);
+      expect(borgThinkShopBuyUseful(ctx, storeDeps)).toBe(true);
+      expect(world.self.goal.shop).toBe(0);
+      expect(snapshot.view.stores()[0]!.stock[0]!.number).toBe(1);
+      expect(host.truthCalls).toEqual([]);
+      expect(await host.mod.view.simulateLoadout({ carry: [{ item: { from: "store", store: 2, index: 0 } }] })).toMatchObject({ ok: false, code: "unobserved-item" });
+    } finally {
+      await bridge.dispose();
+    }
+  });
+
   it.each(["Warrior", "Mage", "Priest", "Rogue", "Ranger", "Paladin", "Druid", "Necromancer", "Blackguard"])("buys supplies before descending from an unseen-stock town as a %s", async (cls) => {
     const { game, state, resolver } = makeGame(pack!, 441, cls);
     const reg = game.booted.registries.objects;
@@ -284,10 +346,14 @@ suite("the Borg's ladder reaches rest and the store", () => {
     host.mod.view.world = async () => ({ ok: true, value: Core.buildKnownWorld(state, deps) as KnownWorldData });
     host.mod.view.simulateLoadout = async (change) => {
       const refs = [...(change.wield ?? []), ...(change.wieldAt ?? []).map((entry) => entry.item), ...(change.carry ?? []).map((entry) => entry.item)];
-      if (refs.some((ref) => ref.from === "store" && state.chunk.feat(state.actor.grid) !== state.stores![ref.store]!.feat)) {
-        return { ok: false, reason: "refused", code: "unobserved-item", message: "The store item is not currently seen." };
+      const fromMemory = refs.filter((ref) => ref.from === "store" && state.chunk.feat(state.actor.grid) !== state.stores![ref.store]!.feat);
+      if (fromMemory.some((ref) => ref.from === "store" && !Core.rememberedStoreItem(state, ref.store, ref.index))) {
+        return { ok: false, reason: "refused", code: "unobserved-item", message: "The store item has no observed stock snapshot." };
       }
-      const simulation = createAgentView(state, undefined, deps).simulateLoadout!(change);
+      const simulation = Core.simulateLoadout(state, change, { viewDeps: deps, storeItem: (store, index) =>
+        state.chunk.feat(state.actor.grid) === state.stores![store]!.feat
+          ? state.stores![store]!.stock[index] ?? null : Core.rememberedStoreItem(state, store, index) });
+      if (simulation && fromMemory.length) Object.assign(simulation, { fromMemory });
       expect(simulation).not.toBeNull();
       return { ok: true, value: Core.knownLoadoutSimulation(state, simulation!) as LoadoutSimulation };
     };

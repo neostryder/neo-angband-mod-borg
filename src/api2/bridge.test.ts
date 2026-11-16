@@ -506,31 +506,29 @@ describe("the gear signature", () => {
     expect(gearSignature([item({})], [null], [{ feat: 2, stock: [item({})] }], null)).not.toBe(base);
   });
 
-  it("retries a refused store simulation after entering the shop with unchanged remembered stock", async () => {
+  it("accepts remembered store simulations away from the entrance and rejects unvisited stock", async () => {
     const player = knownWorld(makeScenarioView()).player!;
-    let shopnum: number | null = null;
-    const signature = () => gearSignature([], [], [{ feat: 1, stock: [item({})] }], { ...player, shopnum });
-    const change = { carry: [{ item: { from: "store" as const, store: 0, index: 0 }, number: 1 }] };
+    const signature = gearSignature([], [], [{ feat: 1, stock: [item({})] }, { feat: 2, stock: [] }], { ...player, shopnum: null });
+    const remembered = { from: "store" as const, store: 0, index: 0 };
+    const change = { carry: [{ item: remembered, number: 1 }] };
+    const unknown = { carry: [{ item: { ...remembered, store: 1 }, number: 1 }] };
     const book = new LoadoutBook();
     const calls: LoadoutChange[] = [];
     const api = { view: { simulateLoadout: async (query: LoadoutChange) => {
       calls.push(query);
-      return shopnum === null && query.carry
-        ? { ok: false as const, reason: "refused", code: "unobserved-item", message: "The store item is not currently seen." }
-        : { ok: true as const, value: {} as LoadoutSimulation };
+      return query.carry?.some((entry) => entry.item.from === "store" && entry.item.store === 1)
+        ? { ok: false as const, reason: "refused", code: "unobserved-item", message: "The store item has no observed stock snapshot." }
+        : { ok: true as const, value: { fromMemory: query.carry ? [remembered] : [] } as unknown as LoadoutSimulation };
     } } } as never;
-    book.begin(signature());
+    book.begin(signature);
     expect(book.answer(change)).toBeNull();
-    await book.settle(api, () => ({ allowed: true }) as never);
-    expect(book.answer(change)).toBeNull();
-    shopnum = 0;
-    book.begin(signature());
-    expect(book.answer(change)).toBeNull();
-    await book.settle(api, () => ({ allowed: true }) as never);
-    expect(book.answer(change)).toEqual({ allowed: true });
+    expect(book.answer(unknown)).toBeNull();
+    await book.settle(api, (value) => ({ allowed: true, fromMemory: value.fromMemory }) as never);
+    expect(book.answer(change)).toEqual({ allowed: true, fromMemory: [remembered] });
+    expect(book.answer(unknown)).toBeNull();
     expect(calls.filter((query) => query.carry)).toHaveLength(2);
-  });
-);
+    expect(book.pending).toBe(false);
+  });});
 
 
 describe("default monster symbols through the API 2 bridge", () => {
