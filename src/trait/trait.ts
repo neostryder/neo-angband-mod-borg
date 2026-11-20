@@ -947,7 +947,7 @@ function noticeAmmo(c: Ctx, item: ItemView): void {
     (c.R.spells.equipsItem("act_firebrand") || c.R.spells.spellLegalFail("BRAND_AMMUNITION", 65)) &&
     item.number >= 5 && !item.ego && !item.artifact && isIdent(item)
   ) {
-    /* Both C branches count this stack; borgBrandWeapon remains a stub. */
+    /* Both C branches count this stack; borgBrandWeapon selects the quiver target. */
     t[BI.NEED_BRAND_WEAPON] = t[BI.NEED_BRAND_WEAPON]! + 20;
   }
 }
