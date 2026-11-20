@@ -21,9 +21,7 @@ import { trait, isIdent, withItemTarget } from "./deps.js";
 import { Spell, borgSpellOkayFail, borgSpellFail } from "./magic.js";
 import { borgReadScroll } from "./item-use.js";
 import { borgDecurseAny } from "./item-decurse.js";
-
-/** borg_cfg[BORG_ENCHANT_LIMIT] stock default (borg.txt / trait config). */
-const ENCHANT_LIMIT = 12;
+import { borgCfg } from "../trait/config.js";
 
 /** Enchant equipped armour to-ac (borg_enchant_to_a, enchant.c:111). */
 function borgEnchantToA(
@@ -46,7 +44,7 @@ function borgEnchantToA(
     if (!isArmourSlot(item)) continue;
     if (!isIdent(item, d)) continue;
     const a = item.toA;
-    if (canSpell ? a >= ENCHANT_LIMIT : a >= 8) continue;
+    if (canSpell ? a >= borgCfg().enchantLimit : a >= 8) continue;
     if (best && bestA < a) continue;
     best = item;
     bestA = a;
@@ -113,7 +111,7 @@ function pickLeastEnchantedWeapon(
     if (!isIdent(item, d)) continue;
     if (item.tval === TV.DIGGING) continue; /* skip the swap digger */
     const a = bonus(item);
-    if (canSpell ? a >= ENCHANT_LIMIT : a >= 8) continue;
+    if (canSpell ? a >= borgCfg().enchantLimit : a >= 8) continue;
     /* Skip a weak (< x3) non-artifact/ego bow (enchant.c:233). */
     if (
       item.tval === TV.BOW &&
