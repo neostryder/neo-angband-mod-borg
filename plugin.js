@@ -13622,7 +13622,10 @@ function doubleDistance(y1, x1, y2, x2) {
   return Math.max(iabs(y1 * 2 - y2 * 2), iabs(x1 * 2 - x2 * 2));
 }
 function firstCmd(...cmds) {
-  for (const c of cmds) if (c) return c;
+  for (const command of cmds) {
+    const c = command();
+    if (c) return c;
+  }
   return null;
 }
 function rf2(ctx, i, name) {
@@ -13854,10 +13857,10 @@ function borgEscapeStair(ctx) {
 function borgTeleportOffLevel(ctx) {
   if (ctx.world.self.goal.recalling || ctx.world.self.goal.descending) return null;
   return firstCmd(
-    borgReadScroll(ctx, SVAL.scroll.teleport_level),
-    borgActivateItem(ctx, "act_tele_level"),
-    borgActivateItem(ctx, "act_deep_descent"),
-    borgReadScroll(ctx, SVAL.scroll.deep_descent)
+    () => borgReadScroll(ctx, SVAL.scroll.teleport_level),
+    () => borgActivateItem(ctx, "act_tele_level"),
+    () => borgActivateItem(ctx, "act_deep_descent"),
+    () => borgReadScroll(ctx, SVAL.scroll.deep_descent)
   );
 }
 function primarilyCaster(ctx) {
@@ -13930,28 +13933,28 @@ function borgEscape(ctx, bQ) {
   const risky = fs.playsRisky ? 3 : 0;
   if (trait3(ctx, 118 /* ISHEAVYSTUN */) || bQ > idiv(av3 * (45 + risky), 10) || bQ > idiv(av3 * (40 + risky), 10) && uniq >= 10 && cdepth === 100 && curhp < 600 || bQ > idiv(av3 * (30 + risky), 10) && uniq >= 10 && cdepth === 99 && curhp < 600 || bQ > idiv(av3 * (25 + risky), 10) && uniq >= 1 && uniq <= 8 && cdepth >= 95 && curhp < 550 || bQ > idiv(av3 * (17 + risky), 10) && uniq >= 1 && uniq <= 8 && cdepth < 95 || bQ > idiv(av3 * (15 + risky), 10) && !uniq) {
     const taf = 15;
-    let cmd = firstCmd(borgEscapeStair(ctx));
+    let cmd = firstCmd(() => borgEscapeStair(ctx));
     if (!cmd && borgAllowTeleport(ctx)) {
       cmd = firstCmd(
-        borgDimensionDoor(ctx, taf - 10),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, taf - 10),
-        borgSpellFail(ctx, 69 /* PORTAL */, taf - 10),
-        borgShadowShift(ctx, taf - 10),
-        borgReadScroll(ctx, SVAL.scroll.teleport),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgTeleportOffLevel(ctx),
-        borgDimensionDoor(ctx, taf + 9),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, taf + 9),
-        borgSpellFail(ctx, 69 /* PORTAL */, taf + 9),
-        borgShadowShift(ctx, taf + 9),
-        borgUseStaff(ctx, SVAL.staff.teleportation),
-        borgSpellFail(ctx, 21 /* TELEPORT_LEVEL */, taf + 9),
-        borgCautionPhase(ctx, 75, 2) ? firstCmd(
-          borgReadScroll(ctx, SVAL.scroll.phase_door),
-          borgActivateItem(ctx, "act_tele_phase"),
-          borgSpellFail(ctx, 3 /* PHASE_DOOR */, taf),
-          borgSpellFail(ctx, 69 /* PORTAL */, taf)
+        () => borgDimensionDoor(ctx, taf - 10),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, taf - 10),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, taf - 10),
+        () => borgShadowShift(ctx, taf - 10),
+        () => borgReadScroll(ctx, SVAL.scroll.teleport),
+        () => borgUseStaffFail(ctx, SVAL.staff.teleportation),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgTeleportOffLevel(ctx),
+        () => borgDimensionDoor(ctx, taf + 9),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, taf + 9),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, taf + 9),
+        () => borgShadowShift(ctx, taf + 9),
+        () => borgUseStaff(ctx, SVAL.staff.teleportation),
+        () => borgSpellFail(ctx, 21 /* TELEPORT_LEVEL */, taf + 9),
+        () => borgCautionPhase(ctx, 75, 2) ? firstCmd(
+          () => borgReadScroll(ctx, SVAL.scroll.phase_door),
+          () => borgActivateItem(ctx, "act_tele_phase"),
+          () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, taf),
+          () => borgSpellFail(ctx, 69 /* PORTAL */, taf)
         ) : null
       );
     }
@@ -13960,14 +13963,14 @@ function borgEscape(ctx, bQ) {
       return cmd;
     }
     if (cdepth && clevel < 10 && curhp < idiv(maxhp * 1, 10) && borgAllowTeleport(ctx)) {
-      const c2 = firstCmd(borgDimensionDoor(ctx, 90), borgSpell(ctx, 14 /* TELEPORT_SELF */), borgSpell(ctx, 69 /* PORTAL */));
+      const c2 = firstCmd(() => borgDimensionDoor(ctx, 90), () => borgSpell(ctx, 14 /* TELEPORT_SELF */), () => borgSpell(ctx, 69 /* PORTAL */));
       if (c2) {
         resetAntisummon(ctx, fs);
         return c2;
       }
     }
     if (cdepth && (curhp < idiv(maxhp * 1, 10) || bQ > idiv(av3 * (45 + risky), 10))) {
-      const c3 = firstCmd(borgActivateItem(ctx, "act_tele_phase"), borgReadScroll(ctx, SVAL.scroll.phase_door));
+      const c3 = firstCmd(() => borgActivateItem(ctx, "act_tele_phase"), () => borgReadScroll(ctx, SVAL.scroll.phase_door));
       if (c3) {
         ctx.world.self.escapes--;
         resetAntisummon(ctx, fs);
@@ -13975,7 +13978,7 @@ function borgEscape(ctx, bQ) {
       }
     }
     if (cdepth && clevel < 10 && curhp < idiv(maxhp * 1, 10)) {
-      const c4 = firstCmd(borgSpellFail(ctx, 3 /* PHASE_DOOR */, 15), borgSpell(ctx, 69 /* PORTAL */));
+      const c4 = firstCmd(() => borgSpellFail(ctx, 3 /* PHASE_DOOR */, 15), () => borgSpell(ctx, 69 /* PORTAL */));
       if (c4) {
         resetAntisummon(ctx, fs);
         return c4;
@@ -13984,21 +13987,21 @@ function borgEscape(ctx, bQ) {
   }
   if (bQ < idiv(av3 * (25 + risky), 10) && uniq >= 1 && uniq <= 3 && cdepth >= 97) return null;
   if (trait3(ctx, 118 /* ISHEAVYSTUN */) || bQ > idiv(av3 * (3 + risky), 10) && trait3(ctx, 25 /* CLASS */) === CLASS_MAGE && trait3(ctx, 30 /* CURSP */) <= 20 && trait3(ctx, 36 /* MAXCLEVEL */) >= 45 || bQ > idiv(av3 * (13 + risky), 10) && uniq >= 1 && uniq <= 8 && cdepth !== 99 || bQ > idiv(av3 * (11 + risky), 10) && !uniq) {
-    let cmd = firstCmd(borgEscapeStair(ctx));
+    let cmd = firstCmd(() => borgEscapeStair(ctx));
     if (!cmd && borgAllowTeleport(ctx)) {
       cmd = firstCmd(
-        borgDimensionDoor(ctx, allowFail - 10),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail - 10),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail - 10),
-        borgShadowShift(ctx, allowFail - 10),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport),
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgUseStaff(ctx, SVAL.staff.teleportation)
+        () => borgDimensionDoor(ctx, allowFail - 10),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail - 10),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail - 10),
+        () => borgShadowShift(ctx, allowFail - 10),
+        () => borgUseStaffFail(ctx, SVAL.staff.teleportation),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgReadScroll(ctx, SVAL.scroll.teleport),
+        () => borgDimensionDoor(ctx, allowFail),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgShadowShift(ctx, allowFail),
+        () => borgUseStaff(ctx, SVAL.staff.teleportation)
       );
     }
     if (cmd) {
@@ -14007,10 +14010,10 @@ function borgEscape(ctx, bQ) {
     }
     if (borgCautionPhase(ctx, 50, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c2 = firstCmd(
-        borgSpell(ctx, 3 /* PHASE_DOOR */),
-        borgSpell(ctx, 69 /* PORTAL */),
-        borgReadScroll(ctx, SVAL.scroll.phase_door),
-        borgActivateItem(ctx, "act_tele_phase")
+        () => borgSpell(ctx, 3 /* PHASE_DOOR */),
+        () => borgSpell(ctx, 69 /* PORTAL */),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door),
+        () => borgActivateItem(ctx, "act_tele_phase")
       );
       if (c2) {
         resetAntisummon(ctx, fs);
@@ -14023,10 +14026,10 @@ function borgEscape(ctx, bQ) {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 25, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door)
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door)
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -14036,14 +14039,14 @@ function borgEscape(ctx, bQ) {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation),
-        borgReadScroll(ctx, SVAL.scroll.teleport),
-        borgActivateItem(ctx, "act_tele_phase")
+        () => borgDimensionDoor(ctx, allowFail),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgShadowShift(ctx, allowFail),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgUseStaffFail(ctx, SVAL.staff.teleportation),
+        () => borgReadScroll(ctx, SVAL.scroll.teleport),
+        () => borgActivateItem(ctx, "act_tele_phase")
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -14052,11 +14055,11 @@ function borgEscape(ctx, bQ) {
     }
     if (borgCautionPhase(ctx, 75, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door)
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgShadowShift(ctx, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door)
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -14079,11 +14082,11 @@ function borgEscape(ctx, bQ) {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgShadowShift(ctx, allowFail),
-        borgReadScroll(ctx, SVAL.scroll.phase_door)
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgShadowShift(ctx, allowFail),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door)
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -14093,13 +14096,13 @@ function borgEscape(ctx, bQ) {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgShadowShift(ctx, allowFail),
-        borgReadScroll(ctx, SVAL.scroll.teleport),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation)
+        () => borgDimensionDoor(ctx, allowFail),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgShadowShift(ctx, allowFail),
+        () => borgReadScroll(ctx, SVAL.scroll.teleport),
+        () => borgUseStaffFail(ctx, SVAL.staff.teleportation)
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -14112,10 +14115,10 @@ function borgEscape(ctx, bQ) {
       ctx.world.self.goal.leaving = true;
     if ((trait3(ctx, 25 /* CLASS */) === CLASS_MAGE || trait3(ctx, 25 /* CLASS */) === CLASS_NECROMANCER) && clevel <= 35 && borgCautionPhase(ctx, 65, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door)
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door)
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -14129,11 +14132,11 @@ function borgEscape(ctx, bQ) {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2)) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgShadowShift(ctx, allowFail),
-        borgReadScroll(ctx, SVAL.scroll.phase_door)
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgShadowShift(ctx, allowFail),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door)
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -14142,13 +14145,13 @@ function borgEscape(ctx, bQ) {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation)
+        () => borgDimensionDoor(ctx, allowFail),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgShadowShift(ctx, allowFail),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgReadScroll(ctx, SVAL.scroll.teleport),
+        () => borgUseStaffFail(ctx, SVAL.staff.teleportation)
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -14159,10 +14162,10 @@ function borgEscape(ctx, bQ) {
     if (!ctx.world.self.goal.leaving && !uniq) ctx.world.self.goal.leaving = true;
     if ((trait3(ctx, 25 /* CLASS */) === CLASS_MAGE || trait3(ctx, 25 /* CLASS */) === CLASS_NECROMANCER) && clevel <= 8 && borgCautionPhase(ctx, 65, 2)) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door),
-        borgActivateItem(ctx, "act_tele_long")
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door),
+        () => borgActivateItem(ctx, "act_tele_long")
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -14176,10 +14179,10 @@ function borgEscape(ctx, bQ) {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door)
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door)
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -14188,12 +14191,12 @@ function borgEscape(ctx, bQ) {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation)
+        () => borgDimensionDoor(ctx, allowFail),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgReadScroll(ctx, SVAL.scroll.teleport),
+        () => borgUseStaffFail(ctx, SVAL.staff.teleportation)
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -14202,7 +14205,7 @@ function borgEscape(ctx, bQ) {
     }
   }
   if ((borgSpellOkayFail(ctx, 3 /* PHASE_DOOR */, allowFail) || borgSpellOkayFail(ctx, 69 /* PORTAL */, allowFail)) && borgShootScootSafe(ctx, 20, 2)) {
-    const c = firstCmd(borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail), borgSpellFail(ctx, 69 /* PORTAL */, allowFail));
+    const c = firstCmd(() => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail), () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail));
     if (c) {
       ctx.world.self.escapes--;
       resetAntisummon(ctx, fs);
@@ -14214,10 +14217,10 @@ function borgEscape(ctx, bQ) {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door)
+        () => borgSpellFail(ctx, 3 /* PHASE_DOOR */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_phase"),
+        () => borgReadScroll(ctx, SVAL.scroll.phase_door)
       );
       if (c) {
         ctx.world.self.timesTwitch = 0;
@@ -14227,13 +14230,13 @@ function borgEscape(ctx, bQ) {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
-        borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation),
-        borgTeleportOffLevel(ctx)
+        () => borgDimensionDoor(ctx, allowFail),
+        () => borgSpellFail(ctx, 14 /* TELEPORT_SELF */, allowFail),
+        () => borgSpellFail(ctx, 69 /* PORTAL */, allowFail),
+        () => borgActivateItem(ctx, "act_tele_long"),
+        () => borgReadScroll(ctx, SVAL.scroll.teleport),
+        () => borgUseStaffFail(ctx, SVAL.staff.teleportation),
+        () => borgTeleportOffLevel(ctx)
       );
       if (c) {
         ctx.world.self.timesTwitch = 0;
@@ -15483,7 +15486,10 @@ function av2(ctx) {
   return getDangerGlobals(ctx.world).avoidance;
 }
 function firstCmd2(...cmds) {
-  for (const c of cmds) if (c) return c;
+  for (const command of cmds) {
+    const c = command();
+    if (c) return c;
+  }
   return null;
 }
 function borgHeal(ctx, danger2) {
@@ -15530,22 +15536,22 @@ function borgHeal(ctx, danger2) {
       if (c2) return c2;
     }
     if (pctDown >= 85 && danger2 >= curhp * 2) {
-      const c2 = firstCmd2(borgQuaffPotion(ctx, SVAL.potion.star_healing), borgQuaffPotion(ctx, SVAL.potion.life));
+      const c2 = firstCmd2(() => borgQuaffPotion(ctx, SVAL.potion.star_healing), () => borgQuaffPotion(ctx, SVAL.potion.life));
       if (c2) return c2;
     }
     if (danger2 < curhp + cswHeal) {
       const c2 = firstCmd2(
-        borgEat(ctx, TV.MUSHROOM, SVAL.mush.cure_mind),
-        borgQuaffPotion(ctx, SVAL.potion.cure_serious),
-        borgQuaffCrit(ctx, false),
-        borgQuaffPotion(ctx, SVAL.potion.healing),
-        borgUseStaffFail(ctx, SVAL.staff.healing),
-        borgActivateItem(ctx, "act_cure_confusion"),
-        borgUseStaffFail(ctx, SVAL.staff.curing)
+        () => borgEat(ctx, TV.MUSHROOM, SVAL.mush.cure_mind),
+        () => borgQuaffPotion(ctx, SVAL.potion.cure_serious),
+        () => borgQuaffCrit(ctx, false),
+        () => borgQuaffPotion(ctx, SVAL.potion.healing),
+        () => borgUseStaffFail(ctx, SVAL.staff.healing),
+        () => borgActivateItem(ctx, "act_cure_confusion"),
+        () => borgUseStaffFail(ctx, SVAL.staff.curing)
       );
       if (c2) return c2;
     }
-    const c = firstCmd2(borgQuaffCrit(ctx, true), borgQuaffPotion(ctx, SVAL.potion.cure_serious), borgQuaffPotion(ctx, SVAL.potion.healing));
+    const c = firstCmd2(() => borgQuaffCrit(ctx, true), () => borgQuaffPotion(ctx, SVAL.potion.cure_serious), () => borgQuaffPotion(ctx, SVAL.potion.healing));
     if (c) return c;
   }
   if (trait3(ctx, 112 /* ISBLIND */) && ctx.rng.randint0(100) < 85) {
@@ -15555,13 +15561,13 @@ function borgHeal(ctx, danger2) {
     }
     if (!(cls === 0 && curhp > idiv(maxhp, 4) && trait3(ctx, 37 /* ESP */))) {
       const c = firstCmd2(
-        borgEat(ctx, TV.MUSHROOM, SVAL.mush.fast_recovery),
-        borgQuaffPotion(ctx, SVAL.potion.cure_light),
-        borgQuaffPotion(ctx, SVAL.potion.cure_serious),
-        borgQuaffCrit(ctx, true),
-        borgUseStaffFail(ctx, SVAL.staff.healing),
-        borgUseStaffFail(ctx, SVAL.staff.curing),
-        borgQuaffPotion(ctx, SVAL.potion.healing)
+        () => borgEat(ctx, TV.MUSHROOM, SVAL.mush.fast_recovery),
+        () => borgQuaffPotion(ctx, SVAL.potion.cure_light),
+        () => borgQuaffPotion(ctx, SVAL.potion.cure_serious),
+        () => borgQuaffCrit(ctx, true),
+        () => borgUseStaffFail(ctx, SVAL.staff.healing),
+        () => borgUseStaffFail(ctx, SVAL.staff.curing),
+        () => borgQuaffPotion(ctx, SVAL.potion.healing)
       );
       if (c) return c;
     }
@@ -15573,34 +15579,34 @@ function borgHeal(ctx, danger2) {
   if (fs.fightingUnique >= 10) {
     if (curhp <= 700) {
       const c = firstCmd2(
-        curhp > 250 ? borgSpellFail(ctx, 82 /* HOLY_WORD */, 14) : null,
-        statsFix >= 5 ? borgQuaffPotion(ctx, SVAL.potion.life) : null,
-        hpDown > 500 && borgSlot(ctx, TV.POTION, SVAL.potion.star_healing) === null ? borgQuaffPotion(ctx, SVAL.potion.life) : null,
-        borgQuaffPotion(ctx, SVAL.potion.star_healing),
-        borgQuaffPotion(ctx, SVAL.potion.healing),
-        borgActivateItem(ctx, "act_heal1"),
-        borgActivateItem(ctx, "act_heal2"),
-        borgActivateItem(ctx, "act_heal3"),
-        curhp < 250 ? borgSpellFail(ctx, 82 /* HOLY_WORD */, 5) : null,
-        curhp > 550 ? borgSpellFail(ctx, 82 /* HOLY_WORD */, 15) : null,
-        borgSpellFail(ctx, 72 /* HEALING */, 15),
-        borgQuaffPotion(ctx, SVAL.potion.life),
-        borgZapRod(ctx, SVAL.rod.healing)
+        () => curhp > 250 ? borgSpellFail(ctx, 82 /* HOLY_WORD */, 14) : null,
+        () => statsFix >= 5 ? borgQuaffPotion(ctx, SVAL.potion.life) : null,
+        () => hpDown > 500 && borgSlot(ctx, TV.POTION, SVAL.potion.star_healing) === null ? borgQuaffPotion(ctx, SVAL.potion.life) : null,
+        () => borgQuaffPotion(ctx, SVAL.potion.star_healing),
+        () => borgQuaffPotion(ctx, SVAL.potion.healing),
+        () => borgActivateItem(ctx, "act_heal1"),
+        () => borgActivateItem(ctx, "act_heal2"),
+        () => borgActivateItem(ctx, "act_heal3"),
+        () => curhp < 250 ? borgSpellFail(ctx, 82 /* HOLY_WORD */, 5) : null,
+        () => curhp > 550 ? borgSpellFail(ctx, 82 /* HOLY_WORD */, 15) : null,
+        () => borgSpellFail(ctx, 72 /* HEALING */, 15),
+        () => borgQuaffPotion(ctx, SVAL.potion.life),
+        () => borgZapRod(ctx, SVAL.rod.healing)
       );
       if (c) return c;
     }
   }
   if (trait3(ctx, 30 /* CURSP */) < idiv(trait3(ctx, 31 /* MAXSP */), 5) && ctx.rng.randint0(100) < 50) {
-    const c = firstCmd2(borgUseStaffFail(ctx, SVAL.staff.the_magi), borgActivateItem(ctx, "act_staff_magi"));
+    const c = firstCmd2(() => borgUseStaffFail(ctx, SVAL.staff.the_magi), () => borgActivateItem(ctx, "act_staff_magi"));
     if (c) return c;
   }
   if (trait3(ctx, 30 /* CURSP */) < idiv(trait3(ctx, 31 /* MAXSP */), 10) || trait3(ctx, 30 /* CURSP */) < 70 && trait3(ctx, 31 /* MAXSP */) > 200) {
     if (fs.fightingUnique >= 10 || fs.fightingUnique && danger2 < av2(ctx) * 2 || trait3(ctx, 211 /* ATELEPORT */) + trait3(ctx, 212 /* AESCAPE */) === 0 && danger2 > av2(ctx)) {
       const c = firstCmd2(
-        borgUseStaffFail(ctx, SVAL.staff.the_magi),
-        borgQuaffPotion(ctx, SVAL.potion.restore_mana),
-        borgActivateItem(ctx, "act_restore_mana"),
-        borgActivateItem(ctx, "act_staff_magi")
+        () => borgUseStaffFail(ctx, SVAL.staff.the_magi),
+        () => borgQuaffPotion(ctx, SVAL.potion.restore_mana),
+        () => borgActivateItem(ctx, "act_restore_mana"),
+        () => borgActivateItem(ctx, "act_staff_magi")
       );
       if (c) return c;
     }
@@ -15608,7 +15614,7 @@ function borgHeal(ctx, danger2) {
   if (hpDown === 0) return null;
   if (danger2 === 0 && !trait3(ctx, 115 /* ISPOISONED */) && !trait3(ctx, 116 /* ISCUT */)) return null;
   if (statsFix >= 5 && fs.fightingUnique >= 10 && curhp > 650) {
-    const c = firstCmd2(borgEat(ctx, TV.MUSHROOM, SVAL.mush.restoring), borgActivateItem(ctx, "act_restore_all"));
+    const c = firstCmd2(() => borgEat(ctx, TV.MUSHROOM, SVAL.mush.restoring), () => borgActivateItem(ctx, "act_restore_all"));
     if (c) return c;
   }
   if (fs.fightingUnique >= 10) return null;
@@ -15620,15 +15626,15 @@ function borgHeal(ctx, danger2) {
   if ((pctDown <= 15 && chance < 98 || pctDown >= 16 && pctDown <= 25 && chance < 95 || pctDown >= 26 && pctDown <= 50 && chance < 80 || pctDown >= 51 && pctDown <= 65 && chance < 50 || pctDown >= 66 && pctDown <= 74 && chance < 25 || pctDown >= 75 && chance < 1) && !trait3(ctx, 118 /* ISHEAVYSTUN */) && !trait3(ctx, 117 /* ISSTUN */) && !trait3(ctx, 115 /* ISPOISONED */) && !trait3(ctx, 116 /* ISCUT */))
     return null;
   if (pctDown >= 30 && (pctDown <= 40 || trait3(ctx, 35 /* CLEVEL */) < 10) && danger2 < curhp + clwHeal && clwHeal > idiv(danger2, 3)) {
-    const c = firstCmd2(borgSpellFail(ctx, 59 /* MINOR_HEALING */, allowFail), borgQuaffPotion(ctx, SVAL.potion.cure_light), borgActivateItem(ctx, "act_cure_light"));
+    const c = firstCmd2(() => borgSpellFail(ctx, 59 /* MINOR_HEALING */, allowFail), () => borgQuaffPotion(ctx, SVAL.potion.cure_light), () => borgActivateItem(ctx, "act_cure_light"));
     if (c) return c;
   }
   if (pctDown >= 40 && (pctDown <= 50 || trait3(ctx, 35 /* CLEVEL */) < 20) && danger2 < curhp + cswHeal && cswHeal > idiv(danger2, 3)) {
-    const c = firstCmd2(borgQuaffPotion(ctx, SVAL.potion.cure_serious), borgActivateItem(ctx, "act_cure_serious"));
+    const c = firstCmd2(() => borgQuaffPotion(ctx, SVAL.potion.cure_serious), () => borgActivateItem(ctx, "act_cure_serious"));
     if (c) return c;
   }
   if (pctDown >= 50 && pctDown <= 55 && danger2 < curhp + ccwHeal && ccwHeal > idiv(danger2, 3)) {
-    const c = firstCmd2(borgActivateItem(ctx, "act_cure_critical"), borgQuaffCrit(ctx, false));
+    const c = firstCmd2(() => borgActivateItem(ctx, "act_cure_critical"), () => borgQuaffCrit(ctx, false));
     if (c) return c;
   }
   if (danger2 >= curhp && danger2 < maxhp && curhp < 50 && danger2 < ccwHeal) {
@@ -15641,74 +15647,74 @@ function borgHeal(ctx, danger2) {
   }
   if (pctDown >= 55 && danger2 < curhp + healHeal) {
     const c = firstCmd2(
-      !trait3(ctx, 211 /* ATELEPORT */) && !trait3(ctx, 212 /* AESCAPE */) || rodGood ? borgZapRod(ctx, SVAL.rod.healing) : null,
-      borgActivateItem(ctx, "act_cure_full"),
-      borgActivateItem(ctx, "act_cure_full2"),
-      borgActivateItem(ctx, "act_cure_nonorlybig"),
-      borgActivateItem(ctx, "act_heal1"),
-      borgActivateItem(ctx, "act_heal2"),
-      borgActivateItem(ctx, "act_heal3"),
-      borgUseStaffFail(ctx, SVAL.staff.healing),
-      borgSpellFail(ctx, 72 /* HEALING */, allowFail)
+      () => !trait3(ctx, 211 /* ATELEPORT */) && !trait3(ctx, 212 /* AESCAPE */) || rodGood ? borgZapRod(ctx, SVAL.rod.healing) : null,
+      () => borgActivateItem(ctx, "act_cure_full"),
+      () => borgActivateItem(ctx, "act_cure_full2"),
+      () => borgActivateItem(ctx, "act_cure_nonorlybig"),
+      () => borgActivateItem(ctx, "act_heal1"),
+      () => borgActivateItem(ctx, "act_heal2"),
+      () => borgActivateItem(ctx, "act_heal3"),
+      () => borgUseStaffFail(ctx, SVAL.staff.healing),
+      () => borgSpellFail(ctx, 72 /* HEALING */, allowFail)
     );
     if (c) return c;
   }
   if (trait3(ctx, 106 /* MAXDEPTH */) >= 98 && !trait3(ctx, 107 /* KING */) && !fs.fightingUnique && cls !== CLASS_PRIEST) return null;
   if (pctDown > 50 && danger2 < curhp + healHeal) {
     const c = firstCmd2(
-      borgUseStaffFail(ctx, SVAL.staff.healing),
-      fs.fightingEvilUnique ? borgSpellFail(ctx, 82 /* HOLY_WORD */, allowFail) : null,
-      borgSpellFail(ctx, 72 /* HEALING */, allowFail),
-      !trait3(ctx, 211 /* ATELEPORT */) && !trait3(ctx, 212 /* AESCAPE */) || rodGood ? borgZapRod(ctx, SVAL.rod.healing) : null,
-      borgZapRod(ctx, SVAL.rod.healing),
-      borgQuaffPotion(ctx, SVAL.potion.healing)
+      () => borgUseStaffFail(ctx, SVAL.staff.healing),
+      () => fs.fightingEvilUnique ? borgSpellFail(ctx, 82 /* HOLY_WORD */, allowFail) : null,
+      () => borgSpellFail(ctx, 72 /* HEALING */, allowFail),
+      () => !trait3(ctx, 211 /* ATELEPORT */) && !trait3(ctx, 212 /* AESCAPE */) || rodGood ? borgZapRod(ctx, SVAL.rod.healing) : null,
+      () => borgZapRod(ctx, SVAL.rod.healing),
+      () => borgQuaffPotion(ctx, SVAL.potion.healing)
     );
     if (c) return c;
   }
   if (pctDown > 65 && danger2 < curhp + healHeal) {
     const c = firstCmd2(
-      fs.fightingEvilUnique ? borgSpellFail(ctx, 82 /* HOLY_WORD */, allowFail) : null,
-      borgSpellFail(ctx, 72 /* HEALING */, allowFail),
-      borgUseStaffFail(ctx, SVAL.staff.healing),
-      !trait3(ctx, 211 /* ATELEPORT */) && !trait3(ctx, 212 /* AESCAPE */) || rodGood ? borgZapRod(ctx, SVAL.rod.healing) : null,
-      borgQuaffPotion(ctx, SVAL.potion.healing),
-      borgActivateItem(ctx, "act_cure_full"),
-      borgActivateItem(ctx, "act_heal1"),
-      fs.fightingUnique ? borgQuaffPotion(ctx, SVAL.potion.star_healing) : null,
-      fs.fightingUnique ? borgQuaffPotion(ctx, SVAL.potion.life) : null
+      () => fs.fightingEvilUnique ? borgSpellFail(ctx, 82 /* HOLY_WORD */, allowFail) : null,
+      () => borgSpellFail(ctx, 72 /* HEALING */, allowFail),
+      () => borgUseStaffFail(ctx, SVAL.staff.healing),
+      () => !trait3(ctx, 211 /* ATELEPORT */) && !trait3(ctx, 212 /* AESCAPE */) || rodGood ? borgZapRod(ctx, SVAL.rod.healing) : null,
+      () => borgQuaffPotion(ctx, SVAL.potion.healing),
+      () => borgActivateItem(ctx, "act_cure_full"),
+      () => borgActivateItem(ctx, "act_heal1"),
+      () => fs.fightingUnique ? borgQuaffPotion(ctx, SVAL.potion.star_healing) : null,
+      () => fs.fightingUnique ? borgQuaffPotion(ctx, SVAL.potion.life) : null
     );
     if (c) return c;
   }
   if (pctDown > 75 && danger2 > curhp && trait3(ctx, 211 /* ATELEPORT */) + trait3(ctx, 212 /* AESCAPE */) <= 0) {
-    const c = firstCmd2(borgQuaffPotion(ctx, SVAL.potion.healing), borgQuaffPotion(ctx, SVAL.potion.star_healing), borgQuaffPotion(ctx, SVAL.potion.life));
+    const c = firstCmd2(() => borgQuaffPotion(ctx, SVAL.potion.healing), () => borgQuaffPotion(ctx, SVAL.potion.star_healing), () => borgQuaffPotion(ctx, SVAL.potion.life));
     if (c) return c;
   }
   if (danger2 > idiv(av2(ctx) * 2, 10)) return null;
   if (trait3(ctx, 115 /* ISPOISONED */) && curhp < idiv(maxhp, 2)) {
     const c = firstCmd2(
-      borgSpellFail(ctx, 36 /* CURE_POISON */, 60),
-      borgSpellFail(ctx, 51 /* HERBAL_CURING */, 60),
-      borgQuaffPotion(ctx, SVAL.potion.cure_poison),
-      borgActivateItem(ctx, "act_cure_body"),
-      borgActivateItem(ctx, "act_cure_critical"),
-      borgActivateItem(ctx, "act_cure_full"),
-      borgUseStaff(ctx, SVAL.staff.curing),
-      borgEat(ctx, TV.MUSHROOM, SVAL.mush.fast_recovery),
-      borgEat(ctx, TV.MUSHROOM, SVAL.mush.purging),
-      borgQuaffCrit(ctx, true),
-      borgSpellFail(ctx, 72 /* HEALING */, 60),
-      borgSpellFail(ctx, 82 /* HOLY_WORD */, 60),
-      borgUseStaffFail(ctx, SVAL.staff.healing)
+      () => borgSpellFail(ctx, 36 /* CURE_POISON */, 60),
+      () => borgSpellFail(ctx, 51 /* HERBAL_CURING */, 60),
+      () => borgQuaffPotion(ctx, SVAL.potion.cure_poison),
+      () => borgActivateItem(ctx, "act_cure_body"),
+      () => borgActivateItem(ctx, "act_cure_critical"),
+      () => borgActivateItem(ctx, "act_cure_full"),
+      () => borgUseStaff(ctx, SVAL.staff.curing),
+      () => borgEat(ctx, TV.MUSHROOM, SVAL.mush.fast_recovery),
+      () => borgEat(ctx, TV.MUSHROOM, SVAL.mush.purging),
+      () => borgQuaffCrit(ctx, true),
+      () => borgSpellFail(ctx, 72 /* HEALING */, 60),
+      () => borgSpellFail(ctx, 82 /* HOLY_WORD */, 60),
+      () => borgUseStaffFail(ctx, SVAL.staff.healing)
     );
     if (c) return c;
   }
   if (trait3(ctx, 116 /* ISCUT */) && (curhp < idiv(maxhp, 3) || ctx.rng.randint0(100) < 20)) {
     const c = firstCmd2(
-      borgQuaffPotion(ctx, SVAL.potion.cure_serious),
-      borgQuaffPotion(ctx, SVAL.potion.cure_light),
-      borgQuaffCrit(ctx, curhp < 10),
-      borgSpell(ctx, 59 /* MINOR_HEALING */),
-      borgQuaffPotion(ctx, SVAL.potion.cure_critical)
+      () => borgQuaffPotion(ctx, SVAL.potion.cure_serious),
+      () => borgQuaffPotion(ctx, SVAL.potion.cure_light),
+      () => borgQuaffCrit(ctx, curhp < 10),
+      () => borgSpell(ctx, 59 /* MINOR_HEALING */),
+      () => borgQuaffPotion(ctx, SVAL.potion.cure_critical)
     );
     if (c) return c;
   }
@@ -15828,10 +15834,10 @@ function borgCaution(ctx, flow) {
   }
   if (trait3(ctx, 108 /* ISWEAK */)) {
     const c = firstCmd2(
-      borgSpell(ctx, 32 /* REMOVE_HUNGER */),
-      borgSpell(ctx, 51 /* HERBAL_CURING */),
-      borgQuaffPotion(ctx, SVAL.potion.restore_mana),
-      borgActivateItem(ctx, "act_restore_mana")
+      () => borgSpell(ctx, 32 /* REMOVE_HUNGER */),
+      () => borgSpell(ctx, 51 /* HERBAL_CURING */),
+      () => borgQuaffPotion(ctx, SVAL.potion.restore_mana),
+      () => borgActivateItem(ctx, "act_restore_mana")
     );
     if (c) return c;
     if (trait3(ctx, 105 /* CDEPTH */)) {
