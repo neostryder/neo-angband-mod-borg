@@ -40,6 +40,7 @@ import {
 import type { GamePack, GameState } from "@rpgm-tools/neo-angband-core";
 import { createBorg } from "./controller.js";
 import { makeCoreResolvers } from "./resolvers.js";
+import { storeScreen } from "../test/fixtures/store-screen.js";
 
 /** The game's checkout, holding the content pack a real boot needs. */
 function packRoot(): string | null {
@@ -153,6 +154,9 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
     playerRaces: game.players.races,
     playerClasses: game.players.classes,
   });
+  /* The host's store screen: with shop doors routable, the Borg walks into
+   * shops, and it is in one only while the screen a host would open is up. */
+  const screen = storeScreen(state);
   const borg = createBorg({
     /* Vary the Borg's private stream with the game seed. Every run used to
      * share one starting seed, so all four "different" runs drove an identical
@@ -164,6 +168,7 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
       races: game.booted.registries.monsters.races,
       objects: game.booted.registries.objects,
       state: state as never,
+      shopnum: () => screen.shopnum(),
       /* The attack-message table, on the same terms plugin.ts wires it. Without
        * it the Borg does not recognise being hit by something it cannot see, so
        * a run measured without it is a run measured on a different Borg. */
@@ -187,6 +192,7 @@ function playRun(pack: GamePack, seed: number, decisions: number): RunReport {
       if (!armed) return null;
       armed = false;
       const cmd = borg.controller(view, act);
+      screen.issued(cmd);
       if (cmd) commands[cmd.code] = (commands[cmd.code] ?? 0) + 1;
 
       let alone = true;

@@ -19,10 +19,11 @@ import type { BorgContext } from "../context.js";
 import { BI } from "../trait/trait-index.js";
 import { TV, SVAL } from "../item/svals.js";
 import { think } from "../think.js";
-import { buildStoreDeps, buildThinkSession, installThinkSession } from "../think-session.js";
+import { buildThinkSession, installThinkSession, getThinkSession, buildItemDeps, buildStoreDeps } from "../think-session.js";
 import { borgNotice } from "../trait/trait.js";
 import { perceive, makePerceiveMemo } from "../perceive.js";
 import type { BorgLoadoutChange } from "../trait/simulate.js";
+import { BEST_EXHAUSTIVE_LOADOUTS, borgWearBestOutside, borgWearStuff } from "../item/item-wear.js";
 import {
   BORG_HOME,
   SHOP_TEMPLE,
@@ -524,6 +525,17 @@ function shopScenario(
   return { ctx, session, inventory, equipment, stores };
 }
 
+/**
+ * A wear or takeoff the home's store screen cannot take (FORK #83): the store
+ * think leaves, and the town ladder's wear rung - the home plan's pending
+ * step, else borg_wear_stuff - issues the same command outside.
+ */
+function leaveThen(ctx: BorgContext) {
+  expect(think(ctx)).toMatchObject({ code: "shop-exit" });
+  const session = getThinkSession(ctx.world);
+  return borgWearBestOutside(ctx, buildStoreDeps(session)) ?? borgWearStuff(ctx, buildItemDeps(session));
+}
+
 describe("the production shop ladder", () => {
   it("moves on after inspecting an empty store instead of visiting it again", () => {
     const { ctx, session } = shopScenario(0);
@@ -569,9 +581,9 @@ describe("the production shop ladder", () => {
     expect(think(ctx)).toMatchObject({ code: "shop-buy", args: { index: 0, quantity: 1 } });
     stores[BORG_HOME]!.stock = [];
     inventory.push({ ...sword, handle: 99, number: 1 });
-    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 99 } });
+    expect(leaveThen(ctx)).toMatchObject({ code: "wield", args: { handle: 99 } });
     equipment[0] = inventory.pop()!;
-    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 42 } });
+    expect(leaveThen(ctx)).toMatchObject({ code: "wield", args: { handle: 42 } });
     inventory.pop();
     equipment[11] = boots;
     think(ctx);
@@ -585,21 +597,25 @@ describe("the production shop ladder", () => {
     const equipment = Array<ItemView | null>(12).fill(null);
     equipment[11] = old;
     const { ctx, inventory } = shopScenario(BORG_HOME, [boots], equipment, [], (change) => change.wieldAt?.length ? 1001 : 1000);
-    expect(think(ctx)).toMatchObject({ code: "takeoff", args: { handle: 10 } });
+    expect(leaveThen(ctx)).toMatchObject({ code: "takeoff", args: { handle: 10 } });
     equipment[11] = null;
     inventory.push(old);
-    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 11 } });
+    expect(leaveThen(ctx)).toMatchObject({ code: "wield", args: { handle: 11 } });
   });
 
   it.each([0, BORG_HOME])("replaces a non-artifact digger in store %i before trading", (shopNum) => {
     const sword = item({ handle: 20, tval: TV.SWORD, value: 100 });
     const { ctx } = shopScenario(shopNum, [sword], [item({ tval: TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
     ctx.world.self.goal.doBest = false;
-    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
+    /* The store think decides the replacement (one borg_wear_stuff, its panel
+     * tick and its draw) and leaves the store, FORK #83 ... */
+    expect(think(ctx)).toMatchObject({ code: "shop-exit" });
     expect(ctx.world.self.timeThisPanel).toBe(2);
     const expected = makeBorgRng(1);
     expected.randint0(100);
     expect(ctx.rng.randint0(100)).toBe(expected.randint0(100));
+    /* ... and the town rung wields it. */
+    expect(borgWearStuff(ctx, buildItemDeps(getThinkSession(ctx.world)))).toMatchObject({ code: "wield", args: { handle: 20 } });
   });
 
   it("requires a pack hole before replacing a shop digger", () => {
@@ -608,14 +624,14 @@ describe("the production shop ladder", () => {
     const { ctx } = shopScenario(0, pack, [item({ tval: TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
     expect(think(ctx)?.code).not.toBe("wield");
     pack.pop();
-    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
+    expect(leaveThen(ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
   });
 
   it.each([TV.SWORD, TV.DIGGING])("keeps ordinary weapons and artifact diggers out of the shop wear fallback (%i)", (tval) => {
     const { ctx } = shopScenario(0, [item({ handle: 20, tval: TV.SWORD, value: 100 })], [item({ tval, artifact: tval === TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
     expect(think(ctx)).toMatchObject({ code: "shop-exit" });
     const fallback = shopScenario(0, [item({ handle: 20, tval: TV.SWORD, value: 100 })], [item({ tval: TV.DIGGING })], [], (change) => change.wield?.length ? 1100 : 1000);
-    expect(think(fallback.ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
+    expect(leaveThen(fallback.ctx)).toMatchObject({ code: "wield", args: { handle: 20 } });
   });
 
   it.each([20000, 20010])("leaves during clock wrap %i before optimal wear or clearing shop goals", (clock) => {
@@ -631,7 +647,7 @@ describe("the production shop ladder", () => {
     expect(ctx.world.self.goal.doBest).toBe(true);
     wrapping = false;
     ctx.world.clock = 20011;
-    expect(think(ctx)).toMatchObject({ code: "wield" });
+    expect(leaveThen(ctx)).toMatchObject({ code: "wield" });
   });
 
   it.each(["pack", "home"])("defers home optimization when the %s is full", (full) => {
@@ -653,7 +669,7 @@ describe("the production shop ladder", () => {
       seen.push(change);
       return change.wieldAt?.length === 2 ? 1100 : 1000;
     });
-    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 10 } });
+    expect(leaveThen(ctx)).toMatchObject({ code: "wield", args: { handle: 10 } });
     const paired = seen.filter((change) => change.wieldAt?.length === 2);
     expect(paired[0]!.wieldAt).toEqual([
       { item: { from: "gear", handle: 10 }, slot: 3 },
@@ -671,7 +687,7 @@ describe("the production shop ladder", () => {
     think(ctx);
     expect(ctx.world.self.goal.doBest).toBe(true);
     ready = true;
-    expect(think({ ...ctx })).toMatchObject({ code: "wield", args: { handle: 20 } });
+    expect(leaveThen({ ...ctx })).toMatchObject({ code: "wield", args: { handle: 20 } });
   });
 });
 
@@ -700,3 +716,83 @@ describe("borgCountSell", () => {
     expect(borgCountSell(ctx, { sellEval: () => 1000 })).toBe(0);
   });
 });
+
+describe("a home too big for the C's exhaustive search (#61)", () => {
+  /* 13 carried and 12 home candidates over ten slots: far more combinations
+   * than BEST_EXHAUSTIVE_LOADOUTS, so the slot-by-slot search runs. */
+  const kinds = [TV.SWORD, TV.BOW, TV.SOFT_ARMOR, TV.CLOAK, TV.SHIELD, TV.HELM, TV.GLOVES, TV.BOOTS];
+  const pack = kinds.flatMap((tval, k) => [0, 1].map((j) => item({ handle: 100 + k * 2 + j, tval, sval: j + 1, value: 100 })));
+  const rings = [item({ handle: 200, tval: TV.RING, sval: 1, value: 100 }), item({ handle: 201, tval: TV.RING, sval: 2, value: 100 })];
+  const bonus = (handle: number) => (handle % 2 === 1 ? 20 : 5);
+
+  it("finds the best item for every slot when the slots add up independently", () => {
+    let scored = 0;
+    const { ctx } = shopScenario(BORG_HOME, [...pack, ...rings], [], [], (change) => {
+      scored++;
+      return 1000 + (change.wieldAt ?? []).reduce((sum, choice) => sum + bonus(choice.item.from === "gear" ? choice.item.handle : 0), 0);
+    });
+    /* The plan starts at once with the C's first slot: the better bow. */
+    expect(leaveThen(ctx)).toMatchObject({ code: "wield", args: { handle: 103 } });
+    const plan = ctx.world.self.goal.bestItems ?? [];
+    /* Every other slot takes its odd-handled (better) item; both rings are worn. */
+    expect(plan.filter((choice) => choice !== null)).toHaveLength(kinds.length + 1);
+    for (const choice of plan) if (choice && choice.tval !== TV.RING) expect(choice.sval).toBe(2);
+    expect(scored).toBeLessThan(BEST_EXHAUSTIVE_LOADOUTS);
+    expect(ctx.world.self.goal.doBest).toBe(false);
+  });
+
+  it("documented limit: a gain that only comes from two changes together is not found", () => {
+    const { ctx } = shopScenario(BORG_HOME, [...pack, ...rings], [], [], (change) =>
+      (change.wieldAt ?? []).filter((choice) => choice.slot === 2 || choice.slot === 3).length === 2 ? 1100 : 1000);
+    think(ctx);
+    /* The C's full walk would wear both rings; the search finishes without them. */
+    expect(ctx.world.self.goal.bestItems ?? null).toBeNull();
+    expect(ctx.world.self.goal.doBest).toBe(false);
+  });
+});
+
+describe("the home plan inside Neo's store screen (#83)", () => {
+  it("issues only commands the store phase accepts, and finishes the plan outside", () => {
+    /* A carried better weapon over a worn one: the C would take off and wield
+     * at the home (borg-item-wear.c:1077-1200); Neo's store takes only buy,
+     * sell and exit (web intent-gate.ts:47, 225). */
+    const old = item({ handle: 10, tval: TV.SWORD, sval: 1, value: 10 });
+    const better = item({ handle: 11, tval: TV.SWORD, sval: 2, value: 100 });
+    const { ctx, equipment, inventory } = shopScenario(BORG_HOME, [better], [old], [], (change) =>
+      (change.wieldAt ?? []).some((choice) => choice.item.from === "gear" && choice.item.handle === 11) ? 1100 : 1000);
+    const STORE = new Set(["shop-buy", "shop-sell", "shop-exit"]);
+    const inStore = think(ctx);
+    expect(STORE.has(inStore?.code ?? "")).toBe(true);
+    expect(inStore).toMatchObject({ code: "shop-exit" });
+    const session = getThinkSession(ctx.world);
+    expect(borgWearBestOutside(ctx, buildStoreDeps(session))).toMatchObject({ code: "takeoff", args: { handle: 10 } });
+    inventory.push(equipment[0]!);
+    equipment[0] = null;
+    expect(borgWearBestOutside(ctx, buildStoreDeps(session))).toMatchObject({ code: "wield", args: { handle: 11 } });
+  });
+
+  it("finishes the plan's wear before the ladder refills the emptied slot", () => {
+    /* Zoo seed 1381972077: after the plan's takeoff, "wear a weapon if wearing
+     * none" (borg-think-dungeon.c:1582) re-wielded first, and the plan took it
+     * off again, over and over. In the C the store loop runs the takeoff and
+     * the wear with no rung between them. */
+    const planned = item({ handle: 30, tval: TV.SWORD, sval: 3, value: 100 });
+    const preferred = item({ handle: 31, tval: TV.SWORD, sval: 4, value: 100 });
+    /* A lit torch and food, so the "back in bad shape" rung stays out of it. */
+    const torch = item({ handle: 32, tval: TV.LIGHT, sval: 1, value: 1, timeout: 2000, modifiers: [{ code: "LIGHT", value: 2 }] } as never);
+    const food = item({ handle: 33, tval: TV.FOOD, sval: SVAL.food.ration, number: 5, value: 3 });
+    const equipment: Array<ItemView | null> = Array(12).fill(null);
+    equipment[5] = torch;
+    const { ctx } = makeCtx({ inventory: [planned, preferred, food], equipment, power: 1000 });
+    ctx.world.wipeLevel(0);
+    const session = buildThinkSession({ loadoutPower: (_c, change) =>
+      (change.wield ?? []).some((ref) => ref.from === "gear" && ref.handle === 31) ? 2000 : 1000 });
+    installThinkSession(ctx.world, session);
+    borgNotice(ctx);
+    perceive(ctx.world, ctx.view, makePerceiveMemo());
+    ctx.world.self.goal.doBest = false;
+    ctx.world.self.goal.bestItems = [null, { tval: TV.SWORD, sval: 3, pval: 0, home: false }, null, null, null, null, null, null, null, null, null, null];
+    expect(think(ctx)).toMatchObject({ code: "wield", args: { handle: 30 } });
+  });
+});
+

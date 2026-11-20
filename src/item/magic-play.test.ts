@@ -15,6 +15,7 @@ import { createActFacade } from "../api2/act.js";
 import { fakeGame } from "../harness-api2.js";
 import { createBorg } from "../controller.js";
 import { makeCoreResolvers } from "../resolvers.js";
+import { storeScreen } from "../../test/fixtures/store-screen.js";
 import { borgBookHandle, borgBookPossessed, borgGetSpellNumber, borgSpellLegal, borgSpellFailRate } from "./magic.js";
 import { BorgWorld } from "../world/model.js";
 import { BORG_DARK } from "../world/grid.js";
@@ -179,14 +180,19 @@ async function caster(cls: string, experience = 0) {
   await bridge.prime();
   const resolvers = makeCoreResolvers(bridge.resolverInput());
   const borg = createBorg({ resolvers });
+  const screen = storeScreen(state);
   const read = async () => {
+    bridge.setInput({ phase: screen.shopnum() === null ? "play" : "store" } as Parameters<typeof bridge.setInput>[0]);
     const view = (await bridge.readWorld())!.view;
     const facade = createActFacade();
     const command = borg.controller(view, facade.act);
     const ctx: BorgContext = { world: borg.world, view, act: facade.act, rng: borg.rng, bookKind: resolvers.bookKind, spellEffect: resolvers.spellEffect };
     return { command, ctx, facade };
   };
-  const execute = (command: AgentCommand): number => game.registry.get(command.code)!(state, command);
+  const execute = (command: AgentCommand): number => {
+    screen.issued(command);
+    return game.registry.get(command.code)!(state, command);
+  };
   const carry = (bidx: number, note: string | null = null): number => {
     const book = player.cls.magic.books[bidx]!;
     for (const handle of state.gear.pack) {
@@ -270,11 +276,17 @@ describe.skipIf(CLASS_JSON === null)("spell progression through the engine and A
     expect(studies).toBeGreaterThan(0);
     let tested = false;
     const codes: string[] = [];
-    for (let attempt = 0; attempt < 40; attempt++) {
+    for (let attempt = 0; attempt < 200; attempt++) {
       run.player.csp = run.player.msp;
       const { ctx, command, facade } = await run.read();
       codes.push(`${command?.code}:${String(command?.args?.["spell"])}`);
       if (command?.code === "study") { run.execute(command); continue; }
+      if (command && command.code !== "cast") {
+        if (command.code === "descend" || command.code === "ascend") break;
+        for (const target of facade.take()) if ("x" in target) Core.targetSetLocation(run.game.state, target);
+        run.execute(command);
+        continue;
+      }
       if (command?.code !== "cast") continue;
       const sidx = command.args!["spell"] as number;
       const before = ctx.view.spellbooks().flatMap((b) => b.spells).find((s) => s.sidx === sidx)!;
