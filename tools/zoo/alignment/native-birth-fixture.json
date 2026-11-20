@@ -1,0 +1,222 @@
+{
+  "source": {
+    "C": "e473720ed88a0f0c7ca66815cef3000eb4a38bc3",
+    "Neo": "06a2321ce30a414df20d1b20d486446e7688171c",
+    "Borg": "9c17cb0c582fe129008899491372787e91abdade"
+  },
+  "cases": [
+    {
+      "seed": 303,
+      "class": "Warrior",
+      "race": "Human",
+      "stats": [
+        17,
+        10,
+        10,
+        16,
+        16
+      ],
+      "hp": 20
+    },
+    {
+      "seed": 304,
+      "class": "Mage",
+      "race": "Human",
+      "stats": [
+        17,
+        16,
+        10,
+        10,
+        16
+      ],
+      "hp": 10
+    },
+    {
+      "seed": 305,
+      "class": "Druid",
+      "race": "Human",
+      "stats": [
+        17,
+        10,
+        16,
+        10,
+        16
+      ],
+      "hp": 12
+    },
+    {
+      "seed": 306,
+      "class": "Priest",
+      "race": "Human",
+      "stats": [
+        17,
+        10,
+        16,
+        10,
+        16
+      ],
+      "hp": 13
+    },
+    {
+      "seed": 307,
+      "class": "Necromancer",
+      "race": "Human",
+      "stats": [
+        17,
+        16,
+        10,
+        10,
+        16
+      ],
+      "hp": 12
+    },
+    {
+      "seed": 308,
+      "class": "Paladin",
+      "race": "Human",
+      "stats": [
+        17,
+        10,
+        15,
+        12,
+        15
+      ],
+      "hp": 17
+    },
+    {
+      "seed": 309,
+      "class": "Rogue",
+      "race": "Human",
+      "stats": [
+        17,
+        12,
+        10,
+        17,
+        12
+      ],
+      "hp": 14
+    },
+    {
+      "seed": 310,
+      "class": "Ranger",
+      "race": "Human",
+      "stats": [
+        17,
+        10,
+        13,
+        16,
+        13
+      ],
+      "hp": 15
+    },
+    {
+      "seed": 311,
+      "class": "Blackguard",
+      "race": "Human",
+      "stats": [
+        17,
+        12,
+        10,
+        17,
+        12
+      ],
+      "hp": 18
+    }
+  ],
+  "native_options": {
+    "none": false,
+    "rogue_like_commands": false,
+    "autoexplore_commands": false,
+    "use_sound": false,
+    "show_damage": false,
+    "use_old_target": false,
+    "pickup_always": false,
+    "pickup_inven": true,
+    "show_flavors": false,
+    "show_target": true,
+    "highlight_player": false,
+    "disturb_near": true,
+    "solid_walls": false,
+    "hybrid_walls": false,
+    "view_yellow_light": false,
+    "animate_flicker": false,
+    "center_player": false,
+    "purple_uniques": false,
+    "auto_more": false,
+    "hp_changes_color": true,
+    "mouse_movement": true,
+    "notify_recharge": false,
+    "effective_speed": false,
+    "cheat_hear": false,
+    "score_hear": false,
+    "cheat_room": false,
+    "score_room": false,
+    "cheat_xtra": false,
+    "score_xtra": false,
+    "cheat_live": false,
+    "score_live": false,
+    "birth_randarts": false,
+    "birth_connect_stairs": true,
+    "birth_force_descend": false,
+    "birth_no_recall": false,
+    "birth_no_artifacts": false,
+    "birth_stacking": true,
+    "birth_lose_arts": false,
+    "birth_feelings": true,
+    "birth_no_selling": true,
+    "birth_start_kit": true,
+    "birth_ai_learn": true,
+    "birth_know_runes": false,
+    "birth_know_flavors": false,
+    "birth_levels_persist": false,
+    "birth_percent_damage": false
+  },
+  "native_active_options": {
+    "none": false,
+    "rogue_like_commands": false,
+    "autoexplore_commands": false,
+    "use_sound": false,
+    "show_damage": false,
+    "use_old_target": false,
+    "pickup_always": true,
+    "pickup_inven": true,
+    "show_flavors": false,
+    "show_target": true,
+    "highlight_player": false,
+    "disturb_near": true,
+    "solid_walls": false,
+    "hybrid_walls": false,
+    "view_yellow_light": false,
+    "animate_flicker": false,
+    "center_player": false,
+    "purple_uniques": false,
+    "auto_more": false,
+    "hp_changes_color": true,
+    "mouse_movement": true,
+    "notify_recharge": false,
+    "effective_speed": false,
+    "cheat_hear": false,
+    "score_hear": false,
+    "cheat_room": false,
+    "score_room": false,
+    "cheat_xtra": false,
+    "score_xtra": false,
+    "cheat_live": false,
+    "score_live": false,
+    "birth_randarts": false,
+    "birth_connect_stairs": true,
+    "birth_force_descend": false,
+    "birth_no_recall": false,
+    "birth_no_artifacts": false,
+    "birth_stacking": true,
+    "birth_lose_arts": false,
+    "birth_feelings": true,
+    "birth_no_selling": true,
+    "birth_start_kit": true,
+    "birth_ai_learn": true,
+    "birth_know_runes": false,
+    "birth_know_flavors": false,
+    "birth_levels_persist": false,
+    "birth_percent_damage": false
+  }
+}

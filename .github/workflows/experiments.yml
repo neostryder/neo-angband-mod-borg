@@ -1,0 +1,134 @@
+name: Standalone Borg experiments
+on:
+  pull_request:
+    paths: ['tools/zoo/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/experiments.yml']
+  workflow_dispatch:
+    inputs:
+      engine_sha:
+        description: Official Neo engine commit (full SHA)
+        default: d27ed50f9e3b650a43cceda5a0c007d03cc321df
+        required: true
+      suite:
+        description: Explicit birth/seed protocol
+        type: choice
+        options: [smoke-v1, death-survey-v1, neo-seeded-v2-classes-1800, classes-1800]
+        default: smoke-v1
+      games:
+        description: Number of assigned games (prefix of selected suite)
+        default: '18'
+        required: true
+      max_ticks:
+        description: Engine tick cap
+        default: '5000'
+        required: true
+      wall_seconds:
+        description: Watchdog seconds per game
+        default: '120'
+        required: true
+      workers:
+        description: Isolated game processes (1-8)
+        default: '2'
+        required: true
+permissions:
+  contents: read
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:headless
+  experiment:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      SUITE: ${{ inputs.suite }}
+      GAMES: ${{ inputs.games }}
+      MAX_TICKS: ${{ inputs.max_ticks }}
+      WALL_SECONDS: ${{ inputs.wall_seconds }}
+      WORKERS: ${{ inputs.workers }}
+      ENGINE_SHA: ${{ inputs.engine_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: borg
+          persist-credentials: false
+      - name: Validate engine pin
+        run: node -e 'if (!/^[0-9a-f]{40}$/.test(process.env.ENGINE_SHA)) process.exit(1)'
+      - uses: actions/checkout@v7
+        with:
+          repository: neostryder/neo-angband
+          ref: ${{ inputs.engine_sha }}
+          path: engine
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: borg/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Validate and save effective plan
+        working-directory: borg
+        run: |
+          node tools/zoo/experiment.mjs --suite "tools/zoo/ci/suites/$SUITE.json" --games "$GAMES" --max-ticks "$MAX_TICKS" --wall-seconds "$WALL_SECONDS" --workers "$WORKERS" --out "$RUNNER_TEMP/plan" --plan-only
+          node --input-type=module -e 'import{readFileSync}from"node:fs"; const s=JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/plan/suite.json")); if(Math.ceil(s.cases.length/Number(process.env.WORKERS))*s.wallSeconds > 330*60)throw Error("Worst-case game budget exceeds this job; use a smaller pilot or local/distributed workers")'
+      - run: pnpm install --frozen-lockfile
+        working-directory: engine
+      - run: pnpm exec tsc -b packages/core packages/mod-sdk packages/content
+        working-directory: engine
+      - run: pnpm install --frozen-lockfile
+        working-directory: borg
+      - name: Build selected profile
+        working-directory: borg
+        run: |
+          if [ "$SUITE" = classes-1800 ]; then
+            node tools/zoo/build.mjs --engine-dir ../engine --borg-dir . --out "$RUNNER_TEMP/build"
+          else
+            node tools/zoo/build.mjs --engine-dir ../engine --borg-dir . --out "$RUNNER_TEMP/build" --exact-tick-cap true --c-seed-startup true --c-gcc-coordinate-order true
+          fi
+      - name: Run and report every assignment
+        working-directory: borg
+        run: node tools/zoo/experiment.mjs --bundle "$RUNNER_TEMP/build/bundle.mjs" --suite "tools/zoo/ci/suites/$SUITE.json" --games "$GAMES" --max-ticks "$MAX_TICKS" --wall-seconds "$WALL_SECONDS" --workers "$WORKERS" --out "$RUNNER_TEMP/experiment"
+      - name: Retain partial and completed evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: standalone-borg-experiment
+          retention-days: 90
+          path: |
+            ${{ runner.temp }}/plan
+            ${{ runner.temp }}/build
+            ${{ runner.temp }}/experiment
+  engine-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: neostryder/neo-angband
+          ref: d27ed50f9e3b650a43cceda5a0c007d03cc321df
+          path: contract-engine
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.13.1
+      - working-directory: contract-engine
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: pnpm install --frozen-lockfile
+      - working-directory: contract-engine
+        run: pnpm exec tsc -b packages/core packages/mod-sdk packages/content
+      - name: Verify point-buy and native-menu RNG observations
+        env:
+          ALIGNMENT_ENGINE: ${{ github.workspace }}/contract-engine
+          ALIGNMENT_PACK: ${{ github.workspace }}/contract-engine/packages/content/pack
+          ALIGNMENT_ENGINE_PIN: d27ed50f9e3b650a43cceda5a0c007d03cc321df
+        run: node --test tools/zoo/alignment/profile-checks.mjs tools/zoo/alignment/seed-startup-checks.mjs
+      - name: Verify production host truth receipts and actual attacks
+        run: node tools/zoo/truth-host-engine-checks.mjs contract-engine

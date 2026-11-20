@@ -29,7 +29,12 @@
     "check": "node tools/build.mjs --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verify": "pnpm typecheck && pnpm test && pnpm check"
+    "verify": "pnpm typecheck && pnpm test && pnpm check",
+    "experiment": "node tools/zoo/experiment.mjs",
+    "test:headless": "node --test tools/zoo/experiment-checks.mjs tools/zoo/ci/report-checks.mjs tools/zoo/ci/runner-checks.mjs tools/zoo/message-host-checks.mjs tools/zoo/dossier-checks.mjs tools/zoo/truth-host-checks.mjs tools/zoo/serve-report-checks.mjs tools/zoo/review-fix-checks.mjs",
+    "report": "node tools/zoo/report.mjs",
+    "replay": "node tools/zoo/replay.mjs",
+    "report:serve": "node tools/zoo/serve-report.mjs"
   },
   "devDependencies": {
     "@rpgm-tools/neo-angband-content": "1.23.0-beta.4",
