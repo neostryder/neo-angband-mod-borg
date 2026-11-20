@@ -3,8 +3,9 @@
  *
  * Each helper checks for a decurse means (Remove Curse scroll / staff / spell /
  * *Remove Curse* / an act_remove_curse activation) and, if found, returns the
- * command. The specific cursed item is then chosen by the engine menu (the C
- * pressed the item letter after invoking the effect); that selection is deferred.
+ * command carrying the cursed item's handle (the C pressed its letter).
+ * The engine's default curse selection is the first removable curse, matching
+ * the C's final Enter key, without inventing a hidden curse index.
  *
  * The swap subsystem (weapon_swap / armour_swap / decurse_*_swap) is a separate
  * borg module (borg-trait-swap) not part of P8.5, so borg_decurse_armour/weapon
@@ -17,7 +18,7 @@ import type { BorgContext, AgentCommand } from "./types.js";
 import { BI } from "../trait/trait-index.js";
 import { TV, SVAL } from "./svals.js";
 import type { ItemDeps } from "./deps.js";
-import { hasSlot } from "./deps.js";
+import { hasSlot, packItems, withItemTarget } from "./deps.js";
 import { Spell, borgSpell, borgSpellOkayFail } from "./magic.js";
 import {
   borgReadScroll,
@@ -80,6 +81,15 @@ export function borgDecurseAny(
   playerHas?: (flag: string) => boolean,
 ): AgentCommand | null {
   if (!ctx.world.self.trait[BI.FIRST_CURSED]) return null;
+  /* FIRST_CURSED is a presence marker in the port, not a gear handle. C's
+   * inventory indices scan pack, worn slots, then quiver. Resolve that order
+   * against the current public views, including the real gear identities. */
+  const target = [
+    ...packItems(ctx),
+    ...ctx.view.equipment().filter((item) => item !== null),
+    ...(ctx.view.quiver?.() ?? []),
+  ].find((item) => item.handle > 0 && item.number > 0 && item.curses.length > 0);
+  if (!target) return null;
   if (!decurseMeans(ctx, d, playerHas)) return null;
-  return decurseCommand(ctx, d);
+  return withItemTarget(ctx, decurseCommand(ctx, d), target.handle);
 }

@@ -1,0 +1,36 @@
+/** Legal registered item commands, no dungeon loop or natural-life replay. */
+import {expect,it} from "vitest";
+import * as Core from "@rpgm-tools/neo-angband-core";
+import {registeredPack} from "../../test/fixtures/registered-items.js";
+import {BorgWorld} from "../world/model.js";
+import {makeFakeActions} from "../harness.js";
+import {makeBorgRng} from "../rng.js";
+import {BI} from "../trait/trait-index.js";
+import {SVAL} from "./svals.js";
+import {borgDecurseAny} from "./item-decurse.js";
+it.each(["pack","worn","quiver"])("removes the first removable curse from real %s gear without a prompt",where=>{
+ const game=Core.startGame(registeredPack(),{seed:441,depth:0,raceName:"Human",className:"Warrior"});
+ const {state}=game,reg=game.booted.registries.objects,z=game.booted.registries.constants,p=state.actor.player;
+ const kind=reg.kinds.find(k=>k.tval===(where==="quiver"?Core.TV.ARROW:Core.TV.SWORD))!;
+ const obj=Core.objectPrep(state.rng,reg,z,kind,1,"average");obj.number=1;obj.notice|=Core.OBJ_NOTICE.ASSESSED;
+ const curse=reg.curses.findIndex(c=>c?.name==="air swing");expect(curse).toBeGreaterThan(0);
+ expect(Core.appendObjectCurse(state.rng,obj,curse,5,reg.curses)).toBe(true);
+ const second=reg.curses.findIndex((c,i)=>i>curse&&Boolean(c?.name));expect(second).toBeGreaterThan(curse);
+ expect(Core.appendObjectCurse(state.rng,obj,second,5,reg.curses)).toBe(true);
+ const target=Core.invenCarry(state.gear!,p,obj,z)!;expect(target).toBeGreaterThan(0);
+ if(where==="worn")expect(game.registry.get("wield")!(state,{code:"wield",args:{handle:target}})).toBeGreaterThan(0);
+ const sk=reg.lookupKind(Core.TV.SCROLL,SVAL.scroll.remove_curse!)!;
+ const scroll=Core.objectPrep(state.rng,reg,z,sk,1,"average");scroll.number=1;
+ const sh=Core.invenCarry(state.gear!,p,scroll,z)!;game.flavor.objectFlavorAware(sk,state.flavorAwareDeps??Core.NOOP_FLAVOR_AWARE_DEPS);
+ Core.playerLearnAllRunes(p,state.runeEnv);Core.calcInventory(state.gear!,z);
+ const view=Core.createAgentView(state,undefined,{reg});
+ if(where==="quiver")expect(view.quiver?.().some(i=>i.handle===target)).toBe(true);
+ const known=[...view.inventory(),...view.equipment().filter(i=>i!==null),...(view.quiver?.()??[])].find(i=>i.handle===target)!;
+ expect(known.curses.length).toBeGreaterThan(0);
+ const world=new BorgWorld();world.self.trait[BI.LIGHT]=1;world.self.trait[BI.FIRST_CURSED]=1;
+ const ctx={world,view,act:makeFakeActions(),rng:makeBorgRng(1)};
+ const cmd=borgDecurseAny(ctx);expect(cmd).toEqual({code:"read",args:{handle:sh,tgtitem:{handle:target}}});
+ expect(game.registry.get("read")!(state,cmd!)).toBe(z.moveEnergy);
+ expect(state.itemRequest).toBeFalsy();expect(state.gear!.store.get(target)?.curses?.[curse]?.power??0).toBe(0);
+ expect(state.gear!.store.get(target)?.curses?.[second]?.power).toBeGreaterThan(0);
+});
