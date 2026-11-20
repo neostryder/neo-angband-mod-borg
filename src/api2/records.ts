@@ -171,6 +171,7 @@ export async function magicRecords(
   const kinds = new Map<string, { tval: number; sval: number }>();
   const counts = new Map<number, number>();
   const spells = new Map<string, { name: string; aim: boolean }>();
+  const dungeonBooks = new Set<string>();
   const effectAim = new Map(effects.map((effect) => [effect.name, effect.aim]));
   /* Bound kinds include class books and artifact bases. Each tval's ordinal is
    * its sval, as assigned by the engine's object and book registration. */
@@ -185,6 +186,7 @@ export async function magicRecords(
     let sidx = 0;
     for (const book of Array.isArray(cls["book"]) ? cls["book"] : []) {
       if (book === null || typeof book !== "object" || Array.isArray(book)) continue;
+      if (book["quality"] === "dungeon" && typeof book["name"] === "string") dungeonBooks.add(`${String(cls["name"])}:${book["name"]}`);
       for (const spell of Array.isArray(book["spell"]) ? book["spell"] : []) {
         if (spell === null || typeof spell !== "object" || Array.isArray(spell)) continue;
         /* The C stores the first effect, including RANDOM (borg-magic.c:759). */
@@ -198,7 +200,10 @@ export async function magicRecords(
     }
   }
   return {
-    bookKind: (tval, name) => kinds.get(`${String(tval)}:${name}`) ?? null,
+    bookKind: (tval, name, cls) => {
+      const kind = kinds.get(`${String(tval)}:${name}`);
+      return kind ? { ...kind, ...(dungeonBooks.has(`${String(cls)}:${name}`) ? { dungeon: true } : {}) } : null;
+    },
     spellEffect: (cls, sidx) => spells.get(`${cls}:${String(sidx)}`) ?? null,
   };
 }

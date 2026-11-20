@@ -7725,7 +7725,7 @@ function borgNotice(ctx, opts = {}) {
   };
   borgNoticePlayer(c);
   borgNoticeEquipment(c);
-  borgNoticeInventory(c);
+  borgNoticeInventory(c, ctx);
   finishNotice(c);
   ctx.world.self.trait = t;
   if (opts.noticeSwap ?? true) {
@@ -8197,10 +8197,11 @@ function applyCurses(t, item) {
     }
   }
 }
-function borgNoticeInventory(c) {
+function borgNoticeInventory(c, ctx) {
   const { t, d, inven, R: R2 } = c;
   const sv = R2.svals;
   const equip = c.equip;
+  const books = ctx.view.spellbooks().slice(0, 9).map((book) => ctx.bookKind?.(book.tval, book.name));
   for (let i = 0; i < PACK_SIZE - t[158 /* QUIVER_SLOTS */]; i++) {
     const item = inven[i];
     if (!present(item)) {
@@ -8216,6 +8217,10 @@ function borgNoticeInventory(c) {
     if (item.curses.length > 0) {
       t[160 /* WHERE_CURSED */] = t[160 /* WHERE_CURSED */] | BORG_INVEN;
       if (!t[159 /* FIRST_CURSED */]) t[159 /* FIRST_CURSED */] = 1;
+    }
+    if (item.aware && !(isCursed(item) && !item.artifact)) {
+      const book = books.findIndex((kind) => kind?.tval === item.tval && kind.sval === item.sval);
+      if (book >= 0) d.amtBook[book] += item.number;
     }
     creditHas(c, item);
     switch (item.tval) {
@@ -9360,6 +9365,7 @@ function borgPower(ctx, opts = {}) {
   let value = 0;
   value += powerEquipment(t, d, R2, equip, cls);
   value += powerInventory(t, d, R2, equip, cls);
+  value += powerBooks(ctx, t, d);
   let i = 1;
   for (; i <= t[106 /* MAXDEPTH */] + 50; i++) {
     if (borgPrepared(ctx, i, opts) !== null) break;
@@ -9859,6 +9865,25 @@ function powerInventory(t, d, R2, equip, cls) {
     ) * 1e3;
   }
   void H2;
+  return value;
+}
+function powerBooks(ctx, t, d) {
+  let value = 0;
+  for (const [index, book] of ctx.view.spellbooks().slice(0, 9).entries()) {
+    const copies = d.amtBook[index] ?? 0;
+    if (!copies) continue;
+    const spells = book.spells.slice(0, 9);
+    if (ctx.bookKind?.(book.tval, book.name, ctx.view.player().cls)?.dungeon) {
+      for (const spell of spells) {
+        if (spell.level <= t[36 /* MAXCLEVEL */] && spell.mana <= t[31 /* MAXSP */]) value += 15e3;
+      }
+    } else {
+      const when = spells.reduce((level, spell) => Math.min(level, spell.level), 99);
+      if (when > 5 && when >= t[36 /* MAXCLEVEL */] + 2) continue;
+      value += 5e5;
+      if (t[0 /* STR */] > 5 && copies > 1) value += 1e4;
+    }
+  }
   return value;
 }
 
@@ -18767,6 +18792,7 @@ async function magicRecords(api, effects) {
   const kinds = /* @__PURE__ */ new Map();
   const counts = /* @__PURE__ */ new Map();
   const spells = /* @__PURE__ */ new Map();
+  const dungeonBooks = /* @__PURE__ */ new Set();
   const effectAim = new Map(effects.map((effect) => [effect.name, effect.aim]));
   for (const object of [...objects ?? []].sort((a, b) => a.index - b.index)) {
     const tval = object.tval;
@@ -18779,6 +18805,7 @@ async function magicRecords(api, effects) {
     let sidx = 0;
     for (const book of Array.isArray(cls["book"]) ? cls["book"] : []) {
       if (book === null || typeof book !== "object" || Array.isArray(book)) continue;
+      if (book["quality"] === "dungeon" && typeof book["name"] === "string") dungeonBooks.add(`${String(cls["name"])}:${book["name"]}`);
       for (const spell of Array.isArray(book["spell"]) ? book["spell"] : []) {
         if (spell === null || typeof spell !== "object" || Array.isArray(spell)) continue;
         const effect = Array.isArray(spell["effect"]) ? spell["effect"][0] : null;
@@ -18791,7 +18818,10 @@ async function magicRecords(api, effects) {
     }
   }
   return {
-    bookKind: (tval, name) => kinds.get(`${String(tval)}:${name}`) ?? null,
+    bookKind: (tval, name, cls) => {
+      const kind = kinds.get(`${String(tval)}:${name}`);
+      return kind ? { ...kind, ...dungeonBooks.has(`${String(cls)}:${name}`) ? { dungeon: true } : {} } : null;
+    },
     spellEffect: (cls, sidx) => spells.get(`${cls}:${String(sidx)}`) ?? null
   };
 }
