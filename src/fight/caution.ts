@@ -652,6 +652,22 @@ export function borgCaution(
   const backOff = borgBackAway(ctx, flow, posDanger, nasty, surrounded);
   if (backOff) return backOff;
 
+  /* borg-caution.c:1900-1951: low reserves/HP and bleeding or poison can
+   * independently set the journey flags after the tactical escape passes. */
+  if ((trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 3) ||
+      (trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 2) && trait(ctx, BI.CURHP) < trait(ctx, BI.CLEVEL) * 3)) &&
+    trait(ctx, BI.ACCW) < 3 && trait(ctx, BI.AHEAL) < 1 &&
+    trait(ctx, BI.CDEPTH) && ctx.rng.randint0(100) < 25) {
+    self.goal.leaving = true;
+    self.goal.fleeing = true;
+  }
+  if ((trait(ctx, BI.ISCUT) || trait(ctx, BI.ISPOISONED)) &&
+    trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 2) &&
+    trait(ctx, BI.CDEPTH) && ctx.rng.randint0(100) < 25) {
+    self.goal.leaving = true;
+    self.goal.fleeing = true;
+  }
+
   /* borg_caution spends reserve healing before recall and unknown items. */
   if (
     trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 10) ||

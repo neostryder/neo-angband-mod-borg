@@ -15851,6 +15851,14 @@ function borgCaution(ctx, flow) {
   }
   const backOff = borgBackAway(ctx, flow, posDanger, nasty, surrounded);
   if (backOff) return backOff;
+  if ((trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 3) || trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 2) && trait3(ctx, 27 /* CURHP */) < trait3(ctx, 35 /* CLEVEL */) * 3) && trait3(ctx, 231 /* ACCW */) < 3 && trait3(ctx, 214 /* AHEAL */) < 1 && trait3(ctx, 105 /* CDEPTH */) && ctx.rng.randint0(100) < 25) {
+    self.goal.leaving = true;
+    self.goal.fleeing = true;
+  }
+  if ((trait3(ctx, 116 /* ISCUT */) || trait3(ctx, 115 /* ISPOISONED */)) && trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 2) && trait3(ctx, 105 /* CDEPTH */) && ctx.rng.randint0(100) < 25) {
+    self.goal.leaving = true;
+    self.goal.fleeing = true;
+  }
   if (trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 10) || posDanger > trait3(ctx, 27 /* CURHP */) && trait3(ctx, 211 /* ATELEPORT */) + trait3(ctx, 212 /* AESCAPE */) <= 2 && trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 4) || trait3(ctx, 215 /* AEZHEAL */) > 5 && trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 4) || trait3(ctx, 28 /* MAXHP */) - trait3(ctx, 27 /* CURHP */) >= 600 && fs.fightingUnique && trait3(ctx, 105 /* CDEPTH */) >= 85) {
     const c = borgQuaffPotion(ctx, SVAL.potion.star_healing) ?? borgQuaffPotion(ctx, SVAL.potion.healing) ?? borgQuaffPotion(ctx, SVAL.potion.life);
     if (c) return c;
