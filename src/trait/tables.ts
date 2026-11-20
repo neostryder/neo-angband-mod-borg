@@ -43,6 +43,13 @@ export const BORG_ADJ_STR_TH: readonly number[] = [
   4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 15, 15,
 ];
 
+/** adj_str_blow - the game's strength-to-blows table borg_calc_blows reads
+ * (player-calcs.c:548, borg-trait.c:1056). */
+export const ADJ_STR_BLOW: readonly number[] = [
+  3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 30, 40, 50, 60, 70, 80,
+  90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240,
+];
+
 /** borg_adj_dex_blow - blows by DEX index (trait.c:262). */
 export const BORG_ADJ_DEX_BLOW: readonly number[] = [
   0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,

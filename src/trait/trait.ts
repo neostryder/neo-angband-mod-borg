@@ -43,6 +43,14 @@ import {
 } from "./trait-index.js";
 import {
   ADJ_STR_HOLD,
+  ADJ_STR_BLOW,
+  BORG_ADJ_CON_MHP,
+  BORG_ADJ_DEX_BLOW,
+  BORG_BLOWS_TABLE,
+  BORG_ADJ_DEX_DIS,
+  BORG_ADJ_INT_DIS,
+  BORG_ADJ_INT_DEV,
+  BORG_ADJ_WIS_SAV,
   BORG_ADJ_DEX_TA,
   BORG_ADJ_DEX_TH,
   BORG_ADJ_STR_TD,
@@ -110,6 +118,13 @@ interface Ctx {
   temp: Temp;
   cls: number;
   spellStat: number;
+  /**
+   * The race/class frame carries C's skill, infravision, flag and blow
+   * inputs, so the item-dependent traits are derived from the items as
+   * borg_notice does (borg-trait.c:1233-2050, 2914-2924). Without it they
+   * fall back to the engine's figures for the gear actually worn.
+   */
+  derive: boolean;
 }
 
 /**
@@ -154,6 +169,7 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
     temp: ctx.world.self.temp,
     cls,
     spellStat,
+    derive: R.frame.skills !== undefined && R.frame.skillsPerTen !== undefined,
   };
 
   borgNoticePlayer(c);
@@ -294,13 +310,15 @@ function borgNoticePlayer(c: Ctx): void {
     t[BI.ISFIXSTR + i] = drained?.[i] ? 1 : 0;
   }
 
-  /* Net speed and infravision: game-derived (see fidelity note). */
-  t[BI.SPEED] = p.speed;
+  /* Net speed and infravision: game-derived (see fidelity note), unless the
+   * frame lets the equipment notice derive them as the C does. */
+  if (!c.derive) t[BI.SPEED] = p.speed;
   /* FORK diegoami/neo-angband-borg-mod-tracker#41: BI_LIGHT starts at zero
    * as in C borg_notice (borg-trait.c:2825). The
    * equipment loop below rebuilds it; public p.light already includes gear.
    * Keep the separate original-C238 duplicate modifier unchanged here. */
-  t[BI.INFRA] = p.seeInfra;
+  /* Base infravision (purely racial), borg-trait.c:1253. */
+  t[BI.INFRA] = c.derive ? (c.R.frame.infra ?? 0) : p.seeInfra;
 
   /* Sauron's death is his row in the known kill list (borg-trait.c:3136). C copies
    * borg_race_death[borg_sauron_id], and that id is the race named "Sauron, the
@@ -330,6 +348,25 @@ function uniqueSlain(player: PlayerView, localId: string, cName: string): boolea
 }
 
 /**
+ * borg_calc_blows (borg-trait.c:1040-1077): blows from the weapon's weight,
+ * the class's blow parameters and the STR/DEX indices. birth_percent_damage
+ * is not readable by the Borg; Neo's default is off, so the floor is one blow.
+ */
+function borgCalcBlows(c: Ctx, item: ItemView): number {
+  const t = c.t;
+  const f = c.R.frame;
+  const weight = item.weight * item.number;
+  const minWeight = f.minWeight ?? 0;
+  const div = Math.max(weight < minWeight ? minWeight : weight, 1);
+  let strIndex = Math.trunc((ADJ_STR_BLOW[t[BI.STR_INDEX]!]! * (f.attMultiply ?? 0)) / div);
+  if (strIndex > 11) strIndex = 11;
+  const dexIndex = Math.min(BORG_ADJ_DEX_BLOW[t[BI.DEX_INDEX]!]!, 11);
+  const blowEnergy = BORG_BLOWS_TABLE[strIndex]![dexIndex]!;
+  const blows = Math.min(Math.trunc(10000 / blowEnergy), 100 * (f.maxAttacks ?? 1));
+  return Math.trunc(Math.max(blows + 100 * (mod(item, "BLOWS") + t[BI.EXTRA_BLOWS]!), 100) / 100);
+}
+
+/**
  * borg_notice_equipment - the equipment loop (borg-trait.c:1233-2180). Item
  * sums re-derived from ItemView; skills taken from the game-derived
  * PlayerView.skills (see fidelity note).
@@ -341,9 +378,11 @@ function borgNoticeEquipment(c: Ctx): void {
   let extraMight = 0;
   let myNumFire = 1;
 
-  /* Player-level flags == player_flags(player) (trait.c:1296). PlayerView
-   * .objectFlags already ORs racial + class + equipment flags. */
-  const pf = p.objectFlags;
+  /* Player-level flags == player_flags(player) (trait.c:1296): the race's and
+   * class's object flags. PlayerView.objectFlags also ORs in the worn gear, which
+   * the loop below adds item by item anyway; with the frame the C set is used. */
+  const pf = c.derive ? (c.R.frame.playerFlags ?? []) : p.objectFlags;
+  if (c.derive && c.R.frame.raceResistDisen) t[BI.RDIS] = 1;
   if (pf.includes("SLOW_DIGEST")) t[BI.SDIG] = 1;
   if (pf.includes("FEATHER")) t[BI.FEATH] = 1;
   if (pf.includes("REGEN")) t[BI.REG] = 1;
@@ -363,6 +402,24 @@ function borgNoticeEquipment(c: Ctx): void {
   if (pf.includes("SUST_WIS")) t[BI.SWIS] = 1;
   if (pf.includes("SUST_DEX")) t[BI.SDEX] = 1;
   if (pf.includes("SUST_CON")) t[BI.SCON] = 1;
+
+  if (c.derive) {
+    /* Base skills: race->r_skills + class->c_skills (trait.c:1256-1290). */
+    const base = c.R.frame.skills!;
+    t[BI.DISP] = base[0] ?? 0;
+    t[BI.DISM] = base[1] ?? 0;
+    t[BI.DEV] = base[2] ?? 0;
+    t[BI.SAV] = base[3] ?? 0;
+    t[BI.SRCH] = base[4] ?? 0;
+    t[BI.STL] = base[5] ?? 0;
+    t[BI.THN] = base[6] ?? 0;
+    t[BI.THB] = base[7] ?? 0;
+    t[BI.THT] = base[8] ?? 0;
+    t[BI.DIG] = base[9] ?? 0;
+    /* if hasting (trait.c:1392-1395). */
+    if (p.status.fast || p.status.sprint) t[BI.SPEED] = t[BI.SPEED]! + 10;
+    else if (p.status.terror) t[BI.SPEED] = t[BI.SPEED]! + 5;
+  }
 
   /* Scan worn equipment (trait.c:1414). */
   for (let i = 0; i < equip.length; i++) {
@@ -548,6 +605,13 @@ function borgNoticeEquipment(c: Ctx): void {
     t[BI.STL] = t[BI.STL]! - 10;
     t[BI.CRSAGRV] = 1;
   }
+  if (c.derive) {
+    /* Speed curses and bloating (trait.c:1787-1790, 1854-1856); the engine's
+     * net speed already carries them on the fallback path. */
+    if (t[BI.CRSSLOW]!) t[BI.SPEED] = t[BI.SPEED]! - 5;
+    if (t[BI.CRSANNOY]!) t[BI.SPEED] = t[BI.SPEED]! - 10;
+    if (t[BI.ISGORGED]!) t[BI.SPEED] = t[BI.SPEED]! - 10;
+  }
 
   /* Rebuild used-stats and indices (trait.c:1804-1834). */
   const statAdj = c.R.frame.statAdj;
@@ -561,6 +625,15 @@ function borgNoticeEquipment(c: Ctx): void {
 
   const strIdx = t[BI.STR_INDEX]!;
   const dexIdx = t[BI.DEX_INDEX]!;
+
+  /* 'Hitpoints' as the C values them (borg-trait.c:1836): the rolled
+   * player_hp[lev-1] plus the CON bonus at this notice's CON index, so a
+   * loadout with different CON is worth different HP. Only with the rolled
+   * figure in the frame; otherwise the game's max HP for the gear worn. */
+  const rolledHp = c.R.frame.playerHp;
+  if (rolledHp !== undefined) {
+    t[BI.HP_ADJ] = rolledHp + Math.trunc((BORG_ADJ_CON_MHP[t[BI.CON_INDEX]!]! * t[BI.CLEVEL]!) / 100);
+  }
 
   /* Spell-point / fail adjustment for casters (trait.c:1841). */
   if (c.spellStat >= 0) {
@@ -633,8 +706,8 @@ function borgNoticeEquipment(c: Ctx): void {
   }
   /* BI_SHOTS: the game already computes net shots (tenths); use it when a bow
    * is worn, else the borg's 1 (num_fire). */
-  if (present(bow) && p.shots > 0) t[BI.SHOTS] = Math.trunc(p.shots / 10) || 1;
-  else t[BI.SHOTS] = myNumFire;
+  if (!c.derive && present(bow) && p.shots > 0) t[BI.SHOTS] = Math.trunc(p.shots / 10) || 1;
+  else t[BI.SHOTS] = myNumFire; /* borg-trait.c:1947 */
 
   /* Weapon (trait.c:1950). */
   const wep = equip[SLOT_WIELD];
@@ -652,7 +725,7 @@ function borgNoticeEquipment(c: Ctx): void {
     if (hold >= wep.weight / 10) {
       /* Blows: game-derived num_blows (hundredths) rather than the class-table
        * recompute (att_multiply/min_weight/max_attacks absent from AgentView). */
-      t[BI.BLOWS] = p.blows > 0 ? Math.trunc(p.blows / 100) || 1 : 1;
+      t[BI.BLOWS] = c.derive ? borgCalcBlows(c, wep) : p.blows > 0 ? Math.trunc(p.blows / 100) || 1 : 1;
       t[BI.DIG] = t[BI.DIG]! + Math.trunc(wep.weight / 10);
     }
   }
@@ -661,7 +734,23 @@ function borgNoticeEquipment(c: Ctx): void {
    * toward (see fidelity note). SKILL order: DISARM_PHYS, DISARM_MAGIC, DEVICE,
    * SAVE, SEARCH, STEALTH, TO_HIT_MELEE, TO_HIT_BOW, TO_HIT_THROW, DIGGING. */
   const sk = p.skills;
-  if (sk.length >= 10) {
+  if (c.derive) {
+    /* borg-trait.c:1994-2036: stealth bonus, stat adjustments, then the class
+     * increment per ten levels of BI_MAXCLEVEL. */
+    const per = c.R.frame.skillsPerTen!;
+    const ml = t[BI.MAXCLEVEL]!;
+    const lv = (i: number) => Math.trunc(((per[i] ?? 0) * ml) / 10);
+    t[BI.STL] = t[BI.STL]! + 1;
+    t[BI.DISP] = t[BI.DISP]! + BORG_ADJ_DEX_DIS[t[BI.DEX_INDEX]!]! + lv(0);
+    t[BI.DISM] = t[BI.DISM]! + BORG_ADJ_INT_DIS[t[BI.INT_INDEX]!]! + lv(1);
+    t[BI.DEV] = t[BI.DEV]! + BORG_ADJ_INT_DEV[t[BI.INT_INDEX]!]! + lv(2);
+    t[BI.SAV] = t[BI.SAV]! + BORG_ADJ_WIS_SAV[t[BI.WIS_INDEX]!]! + lv(3);
+    t[BI.SRCH] = t[BI.SRCH]! + lv(4);
+    t[BI.STL] = t[BI.STL]! + lv(5);
+    t[BI.THN] = t[BI.THN]! + lv(6);
+    t[BI.THB] = t[BI.THB]! + lv(7);
+    t[BI.THT] = t[BI.THT]! + lv(8);
+  } else if (sk.length >= 10) {
     t[BI.DISP] = sk[0]!;
     t[BI.DISM] = sk[1]!;
     t[BI.DEV] = sk[2]!;
@@ -1131,6 +1220,13 @@ function finishNotice(c: Ctx): void {
   /* Carry capacity (trait.c:2914). Encumbrance speed penalty is already folded
    * into the game-derived BI_SPEED, so it is not re-applied here. */
   t[BI.CARRY] = BORG_ADJ_STR_WGT[t[BI.STR_INDEX]!]! * 100;
+  if (c.derive) {
+    /* Encumbrance and top speed (trait.c:2916-2924), on the derived speed. */
+    if (t[BI.WEIGHT]! > t[BI.CARRY]! / 2) {
+      t[BI.SPEED] = t[BI.SPEED]! - Math.trunc((t[BI.WEIGHT]! - Math.trunc(t[BI.CARRY]! / 2)) / Math.trunc(t[BI.CARRY]! / 10));
+    }
+    if (t[BI.SPEED]! > 199) t[BI.SPEED] = 199;
+  }
 
   /* Big-fight prep (trait.c:2934). */
   t[BI.PREP_BIG_FIGHT] = 0;
