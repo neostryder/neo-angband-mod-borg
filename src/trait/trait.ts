@@ -158,7 +158,7 @@ export function borgNotice(ctx: BorgContext, opts: BorgTraitOpts = {}): void {
 
   borgNoticePlayer(c);
   borgNoticeEquipment(c);
-  borgNoticeInventory(c);
+  borgNoticeInventory(c, ctx);
   finishNotice(c);
 
   /* Publish the finished buffer. */
@@ -784,10 +784,13 @@ function applyCurses(t: number[], item: ItemView): void {
  * identity switch is ported verbatim, gated on the caller-supplied svals table
  * (config.ts); absent svals mean these amounts stay 0 (faithful "unaware").
  */
-function borgNoticeInventory(c: Ctx): void {
+function borgNoticeInventory(c: Ctx, ctx: BorgContext): void {
   const { t, d, inven, R } = c;
   const sv = R.svals;
   const equip = c.equip;
+  // borg-trait.c:2244-2256: count only books this class can browse. Book
+  // indices are class-local; global svals differ for shared class books.
+  const books = ctx.view.spellbooks().slice(0, 9).map(book => ctx.bookKind?.(book.tval, book.name));
 
   for (let i = 0; i < PACK_SIZE - t[BI.QUIVER_SLOTS]!; i++) {
     const item = inven[i];
@@ -809,6 +812,11 @@ function borgNoticeInventory(c: Ctx): void {
     if (item.curses.length > 0) {
       t[BI.WHERE_CURSED] = t[BI.WHERE_CURSED]! | BORG_INVEN;
       if (!t[BI.FIRST_CURSED]!) t[BI.FIRST_CURSED] = 1;
+    }
+
+    if (item.aware && !(isCursed(item) && !item.artifact)) {
+      const book = books.findIndex(kind => kind?.tval === item.tval && kind.sval === item.sval);
+      if (book >= 0) d.amtBook[book]! += item.number;
     }
 
     /* has[] by role (trait.c:2243). Keyed on the resolved sval identity. */

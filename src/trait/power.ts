@@ -11,8 +11,8 @@
  *   AgentView does not expose, so with the default empty activation[] it
  *   contributes 0. Ported structurally as a no-op scan; wire activation counts
  *   in to enable it.
- * - The spellbook reward (power.c:1770-1829) needs borg_get_spell_entry (the
- *   magic subsystem); omitted with a caveat (amt_book stays 0 by default).
+ * - Spellbook rewards use class-local book counts and registered dungeon-book
+ *   metadata, matching power.c:1768-1829.
  * - Weapon/armour backup values are produced by borgNotice. Tactical actions and
  *   SR-availability folds remain outside the data/value leaf.
  * - spell_chance / spell_stat come from the spell seam / class map.
@@ -59,6 +59,7 @@ export function borgPower(ctx: BorgContext, opts: BorgTraitOpts = {}): number {
   let value = 0;
   value += powerEquipment(t, d, R, equip, cls);
   value += powerInventory(t, d, R, equip, cls);
+  value += powerBooks(ctx, t, d);
 
   /* Deep-level prep bonus (power.c:1899). Scan surface..maxdepth+50, stop at
    * the first depth the borg is not prepared for. */
@@ -727,9 +728,6 @@ function powerInventory(
   )
     value += 5000;
 
-  /* Books (power.c:1768): needs the magic subsystem's spell tables; omitted
-   * (amt_book is 0 by default). */
-
   /* Encumbrance penalty from weight (power.c:1834). */
   if (t[BI.WEIGHT]! > Math.trunc(t[BI.CARRY]! / 2)) {
     value -=
@@ -740,5 +738,26 @@ function powerInventory(
   }
 
   void H;
+  return value;
+}
+
+/** borg-power.c:1768-1829, using the current class's registered books. */
+function powerBooks(ctx: BorgContext, t: number[], d: BorgDerived): number {
+  let value = 0;
+  for (const [index, book] of ctx.view.spellbooks().slice(0, 9).entries()) {
+    const copies = d.amtBook[index] ?? 0;
+    if (!copies) continue;
+    const spells = book.spells.slice(0, 9);
+    if (ctx.bookKind?.(book.tval, book.name, ctx.view.player().cls)?.dungeon) {
+      for (const spell of spells) {
+        if (spell.level <= t[BI.MAXCLEVEL]! && spell.mana <= t[BI.MAXSP]!) value += 15000;
+      }
+    } else {
+      const when = spells.reduce((level, spell) => Math.min(level, spell.level), 99);
+      if (when > 5 && when >= t[BI.MAXCLEVEL]! + 2) continue;
+      value += 500000;
+      if (t[BI.STR]! > 5 && copies > 1) value += 10000;
+    }
+  }
   return value;
 }
