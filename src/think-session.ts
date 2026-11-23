@@ -345,6 +345,21 @@ function simulationBaseline(
   return base;
 }
 
+/** Per-think memo for the home search's own baseline (see bestEval). */
+const BEST_BASELINES = new WeakMap<ThinkSession, { ctx: BorgContext; base: number | null }>();
+
+function bestBaseline(
+  session: ThinkSession,
+  ctx: BorgContext,
+  resolve: (c: BorgContext, change: BorgLoadoutChange) => number | null,
+): number | null {
+  const cached = BEST_BASELINES.get(session);
+  if (cached && cached.ctx === ctx) return cached.base;
+  const base = resolve(ctx, { copyInto: true }) ?? null;
+  BEST_BASELINES.set(session, { ctx, base });
+  return base;
+}
+
 /** FORK: B81 shares borg-item-analyze.c:611-622 with the store consumers;
  * a store must see the same C per-item value as the inventory decisions. */
 function analyzedItemValue(session: ThinkSession, item: ItemView): number {
@@ -425,9 +440,11 @@ export function buildItemDeps(session: ThinkSession): WearDeps & SpaceDeps & Rec
             const base = simulationBaseline(session, c, res.loadoutPower!);
             return base === null ? null : w.self.power + score - base;
           },
+          /* borg_best_stuff_aux scores copy-in trials noticed with notice_swap
+           * true; the baseline is the same trial with nothing copied in. */
           bestEval: (wieldAt) => {
-            const score = res.loadoutPower!(c, { wieldAt });
-            const base = simulationBaseline(session, c, res.loadoutPower!);
+            const score = res.loadoutPower!(c, { wieldAt, copyInto: true });
+            const base = bestBaseline(session, c, res.loadoutPower!);
             return score === null || base === null ? null : w.self.power + score - base;
           },
           /* borg-junk.c:1319-1357 keeps the item in the pack during removal. */
