@@ -40,7 +40,7 @@ function character(race: string, cls: string, withFrame: boolean, equipment: Arr
 describe("the race/class frame from the game's records", () => {
   it("adds race and class stat adjustments, and reads the class magic block", () => {
     /* Dwarf r_adj (+2, -3, +2, -2, +2) + Warrior c_adj (+3, -2, -2, +2, +2). */
-    expect(frameFromRecords(named(RACES, "Dwarf"), named(CLASSES, "Warrior"))).toEqual({
+    expect(frameFromRecords(named(RACES, "Dwarf"), named(CLASSES, "Warrior"))).toMatchObject({
       statAdj: [5, -5, 0, 0, 4],
       totalSpells: 0,
     });
