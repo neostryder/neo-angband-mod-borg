@@ -10854,8 +10854,14 @@ function decurseCommand(ctx, d) {
 }
 function borgDecurseAny(ctx, d, playerHas2) {
   if (!ctx.world.self.trait[159 /* FIRST_CURSED */]) return null;
+  const target = [
+    ...packItems(ctx),
+    ...ctx.view.equipment().filter((item) => item !== null),
+    ...ctx.view.quiver?.() ?? []
+  ].find((item) => item.handle > 0 && item.number > 0 && item.curses.length > 0);
+  if (!target) return null;
   if (!decurseMeans(ctx, d, playerHas2)) return null;
-  return decurseCommand(ctx, d);
+  return withItemTarget(ctx, decurseCommand(ctx, d), target.handle);
 }
 
 // src/item/item-enchant.ts
