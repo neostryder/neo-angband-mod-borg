@@ -58,8 +58,12 @@ function dist(y1: number, x1: number, y2: number, x2: number): number {
 function doubleDistance(y1: number, x1: number, y2: number, x2: number): number {
   return Math.max(iabs(y1 * 2 - y2 * 2), iabs(x1 * 2 - x2 * 2));
 }
-function firstCmd(...cmds: Array<AgentCommand | null>): AgentCommand | null {
-  for (const c of cmds) if (c) return c;
+// C || evaluates later command helpers only when earlier helpers fail.
+function firstCmd(...cmds: Array<() => AgentCommand | null>): AgentCommand | null {
+  for (const command of cmds) {
+    const c = command();
+    if (c) return c;
+  }
   return null;
 }
 function rf(ctx: BorgContext, i: number, name: string): boolean {
@@ -356,10 +360,10 @@ function borgEscapeStair(ctx: BorgContext): AgentCommand | null {
 function borgTeleportOffLevel(ctx: BorgContext): AgentCommand | null {
   if (ctx.world.self.goal.recalling || ctx.world.self.goal.descending) return null;
   return firstCmd(
-    borgReadScroll(ctx, SVAL.scroll.teleport_level!),
-    borgActivateItem(ctx, "act_tele_level"),
-    borgActivateItem(ctx, "act_deep_descent"),
-    borgReadScroll(ctx, SVAL.scroll.deep_descent!),
+    () => (borgReadScroll(ctx, SVAL.scroll.teleport_level!)),
+    () => (borgActivateItem(ctx, "act_tele_level")),
+    () => (borgActivateItem(ctx, "act_deep_descent")),
+    () => (borgReadScroll(ctx, SVAL.scroll.deep_descent!)),
   );
 }
 
@@ -499,31 +503,31 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     (bQ > idiv(av * (15 + risky), 10) && !uniq)
   ) {
     const taf = 15;
-    let cmd = firstCmd(borgEscapeStair(ctx));
+    let cmd = firstCmd(() => (borgEscapeStair(ctx)));
     if (!cmd && borgAllowTeleport(ctx)) {
       cmd = firstCmd(
-        borgDimensionDoor(ctx, taf - 10),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, taf - 10),
-        borgSpellFail(ctx, Spell.PORTAL, taf - 10),
-        borgShadowShift(ctx, taf - 10),
-        borgReadScroll(ctx, SVAL.scroll.teleport!),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation!),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgTeleportOffLevel(ctx),
-        borgDimensionDoor(ctx, taf + 9),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, taf + 9),
-        borgSpellFail(ctx, Spell.PORTAL, taf + 9),
-        borgShadowShift(ctx, taf + 9),
-        borgUseStaff(ctx, SVAL.staff.teleportation!),
-        borgSpellFail(ctx, Spell.TELEPORT_LEVEL, taf + 9),
-        borgCautionPhase(ctx, 75, 2)
+        () => (borgDimensionDoor(ctx, taf - 10)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, taf - 10)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, taf - 10)),
+        () => (borgShadowShift(ctx, taf - 10)),
+        () => (borgReadScroll(ctx, SVAL.scroll.teleport!)),
+        () => (borgUseStaffFail(ctx, SVAL.staff.teleportation!)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgTeleportOffLevel(ctx)),
+        () => (borgDimensionDoor(ctx, taf + 9)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, taf + 9)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, taf + 9)),
+        () => (borgShadowShift(ctx, taf + 9)),
+        () => (borgUseStaff(ctx, SVAL.staff.teleportation!)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_LEVEL, taf + 9)),
+        () => (borgCautionPhase(ctx, 75, 2)
           ? firstCmd(
-              borgReadScroll(ctx, SVAL.scroll.phase_door!),
-              borgActivateItem(ctx, "act_tele_phase"),
-              borgSpellFail(ctx, Spell.PHASE_DOOR, taf),
-              borgSpellFail(ctx, Spell.PORTAL, taf),
+              () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
+              () => (borgActivateItem(ctx, "act_tele_phase")),
+              () => (borgSpellFail(ctx, Spell.PHASE_DOOR, taf)),
+              () => (borgSpellFail(ctx, Spell.PORTAL, taf)),
             )
-          : null,
+          : null),
       );
     }
     if (cmd) {
@@ -537,7 +541,7 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
       curhp < idiv(maxhp * 1, 10) &&
       borgAllowTeleport(ctx)
     ) {
-      const c2 = firstCmd(borgDimensionDoor(ctx, 90), borgSpell(ctx, Spell.TELEPORT_SELF), borgSpell(ctx, Spell.PORTAL));
+      const c2 = firstCmd(() => (borgDimensionDoor(ctx, 90)), () => (borgSpell(ctx, Spell.TELEPORT_SELF)), () => (borgSpell(ctx, Spell.PORTAL)));
       if (c2) {
         resetAntisummon(ctx, fs);
         return c2;
@@ -547,7 +551,7 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
       cdepth &&
       (curhp < idiv(maxhp * 1, 10) || bQ > idiv(av * (45 + risky), 10))
     ) {
-      const c3 = firstCmd(borgActivateItem(ctx, "act_tele_phase"), borgReadScroll(ctx, SVAL.scroll.phase_door!));
+      const c3 = firstCmd(() => (borgActivateItem(ctx, "act_tele_phase")), () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)));
       if (c3) {
         ctx.world.self.escapes--;
         resetAntisummon(ctx, fs);
@@ -555,7 +559,7 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
       }
     }
     if (cdepth && clevel < 10 && curhp < idiv(maxhp * 1, 10)) {
-      const c4 = firstCmd(borgSpellFail(ctx, Spell.PHASE_DOOR, 15), borgSpell(ctx, Spell.PORTAL));
+      const c4 = firstCmd(() => (borgSpellFail(ctx, Spell.PHASE_DOOR, 15)), () => (borgSpell(ctx, Spell.PORTAL)));
       if (c4) {
         resetAntisummon(ctx, fs);
         return c4;
@@ -573,21 +577,21 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     (bQ > idiv(av * (13 + risky), 10) && uniq >= 1 && uniq <= 8 && cdepth !== 99) ||
     (bQ > idiv(av * (11 + risky), 10) && !uniq)
   ) {
-    let cmd = firstCmd(borgEscapeStair(ctx));
+    let cmd = firstCmd(() => (borgEscapeStair(ctx)));
     if (!cmd && borgAllowTeleport(ctx)) {
       cmd = firstCmd(
-        borgDimensionDoor(ctx, allowFail - 10),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail - 10),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail - 10),
-        borgShadowShift(ctx, allowFail - 10),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation!),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport!),
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgUseStaff(ctx, SVAL.staff.teleportation!),
+        () => (borgDimensionDoor(ctx, allowFail - 10)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail - 10)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail - 10)),
+        () => (borgShadowShift(ctx, allowFail - 10)),
+        () => (borgUseStaffFail(ctx, SVAL.staff.teleportation!)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgReadScroll(ctx, SVAL.scroll.teleport!)),
+        () => (borgDimensionDoor(ctx, allowFail)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgShadowShift(ctx, allowFail)),
+        () => (borgUseStaff(ctx, SVAL.staff.teleportation!)),
       );
     }
     if (cmd) {
@@ -596,10 +600,10 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     }
     if (borgCautionPhase(ctx, 50, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c2 = firstCmd(
-        borgSpell(ctx, Spell.PHASE_DOOR),
-        borgSpell(ctx, Spell.PORTAL),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
-        borgActivateItem(ctx, "act_tele_phase"),
+        () => (borgSpell(ctx, Spell.PHASE_DOOR)),
+        () => (borgSpell(ctx, Spell.PORTAL)),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
       );
       if (c2) {
         resetAntisummon(ctx, fs);
@@ -620,10 +624,10 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 25, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -633,14 +637,14 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation!),
-        borgReadScroll(ctx, SVAL.scroll.teleport!),
-        borgActivateItem(ctx, "act_tele_phase"),
+        () => (borgDimensionDoor(ctx, allowFail)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgShadowShift(ctx, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgUseStaffFail(ctx, SVAL.staff.teleportation!)),
+        () => (borgReadScroll(ctx, SVAL.scroll.teleport!)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -649,11 +653,11 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     }
     if (borgCautionPhase(ctx, 75, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgShadowShift(ctx, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -684,11 +688,11 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgShadowShift(ctx, allowFail),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgShadowShift(ctx, allowFail)),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -698,13 +702,13 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgShadowShift(ctx, allowFail),
-        borgReadScroll(ctx, SVAL.scroll.teleport!),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation!),
+        () => (borgDimensionDoor(ctx, allowFail)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgShadowShift(ctx, allowFail)),
+        () => (borgReadScroll(ctx, SVAL.scroll.teleport!)),
+        () => (borgUseStaffFail(ctx, SVAL.staff.teleportation!)),
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -722,10 +726,10 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
       ctx.world.clock - fs.tAntisummon > 50
     ) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -745,11 +749,11 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2)) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgShadowShift(ctx, allowFail),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgShadowShift(ctx, allowFail)),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -758,13 +762,13 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgShadowShift(ctx, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport!),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation!),
+        () => (borgDimensionDoor(ctx, allowFail)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgShadowShift(ctx, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgReadScroll(ctx, SVAL.scroll.teleport!)),
+        () => (borgUseStaffFail(ctx, SVAL.staff.teleportation!)),
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -779,10 +783,10 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
       borgCautionPhase(ctx, 65, 2)
     ) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
-        borgActivateItem(ctx, "act_tele_long"),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
       );
       if (c) {
         ctx.world.self.escapes--;
@@ -804,10 +808,10 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -816,12 +820,12 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport!),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation!),
+        () => (borgDimensionDoor(ctx, allowFail)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgReadScroll(ctx, SVAL.scroll.teleport!)),
+        () => (borgUseStaffFail(ctx, SVAL.staff.teleportation!)),
       );
       if (c) {
         resetAntisummon(ctx, fs);
@@ -835,7 +839,7 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     (borgSpellOkayFail(ctx, Spell.PHASE_DOOR, allowFail) || borgSpellOkayFail(ctx, Spell.PORTAL, allowFail)) &&
     borgShootScootSafe(ctx, 20, 2)
   ) {
-    const c = firstCmd(borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail), borgSpellFail(ctx, Spell.PORTAL, allowFail));
+    const c = firstCmd(() => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)), () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)));
     if (c) {
       ctx.world.self.escapes--;
       resetAntisummon(ctx, fs);
@@ -850,10 +854,10 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     if (stair) return stair;
     if (borgCautionPhase(ctx, 20, 2) && ctx.world.clock - fs.tAntisummon > 50) {
       const c = firstCmd(
-        borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_phase"),
-        borgReadScroll(ctx, SVAL.scroll.phase_door!),
+        () => (borgSpellFail(ctx, Spell.PHASE_DOOR, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_phase")),
+        () => (borgReadScroll(ctx, SVAL.scroll.phase_door!)),
       );
       if (c) {
         ctx.world.self.timesTwitch = 0;
@@ -863,13 +867,13 @@ export function borgEscape(ctx: BorgContext, bQ: number): AgentCommand | null {
     }
     if (borgAllowTeleport(ctx)) {
       const c = firstCmd(
-        borgDimensionDoor(ctx, allowFail),
-        borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail),
-        borgSpellFail(ctx, Spell.PORTAL, allowFail),
-        borgActivateItem(ctx, "act_tele_long"),
-        borgReadScroll(ctx, SVAL.scroll.teleport!),
-        borgUseStaffFail(ctx, SVAL.staff.teleportation!),
-        borgTeleportOffLevel(ctx),
+        () => (borgDimensionDoor(ctx, allowFail)),
+        () => (borgSpellFail(ctx, Spell.TELEPORT_SELF, allowFail)),
+        () => (borgSpellFail(ctx, Spell.PORTAL, allowFail)),
+        () => (borgActivateItem(ctx, "act_tele_long")),
+        () => (borgReadScroll(ctx, SVAL.scroll.teleport!)),
+        () => (borgUseStaffFail(ctx, SVAL.staff.teleportation!)),
+        () => (borgTeleportOffLevel(ctx)),
       );
       if (c) {
         ctx.world.self.timesTwitch = 0;
