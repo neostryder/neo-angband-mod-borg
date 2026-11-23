@@ -10924,10 +10924,21 @@ function pickLeastEnchantedWeapon(ctx, d, playerHas2, bonus) {
   }
   return best;
 }
-function borgBrandWeapon(ctx, _d) {
+function borgBrandWeapon(ctx, d, playerHas2) {
   if (!trait3(ctx, 243 /* NEED_BRAND_WEAPON */)) return null;
   if (!trait3(ctx, 239 /* ABRAND */)) return null;
-  return null;
+  let best = null;
+  for (const ammo of ctx.view.quiver?.() ?? []) {
+    if (ammo.number < 20 || !isIdent(ammo, d) || ammo.tval !== trait3(ctx, 152 /* AMMO_TVAL */) || ammo.ego) continue;
+    if (best && best.toH > ammo.toH) continue;
+    best = ammo;
+  }
+  if (!best) return null;
+  return withItemTarget(
+    ctx,
+    borgActivateItem(ctx, "act_firebrand", d) ?? borgSpellFail(ctx, 117 /* BRAND_AMMUNITION */, 65, playerHas2),
+    best.handle
+  );
 }
 function isArmourSlot(item) {
   switch (item.tval) {
@@ -10961,7 +10972,7 @@ function borgEnchanting(ctx, d, playerHas2) {
   const decurse = borgDecurseAny(ctx, d, playerHas2);
   if (decurse) return decurse;
   if (trait3(ctx, 105 /* CDEPTH */)) return null;
-  return borgBrandWeapon(ctx, d) || borgEnchantToH(ctx, d, playerHas2) || borgEnchantToD(ctx, d, playerHas2) || borgEnchantToA(ctx, d, playerHas2);
+  return borgBrandWeapon(ctx, d, playerHas2) || borgEnchantToH(ctx, d, playerHas2) || borgEnchantToD(ctx, d, playerHas2) || borgEnchantToA(ctx, d, playerHas2);
 }
 
 // src/item/light.ts
