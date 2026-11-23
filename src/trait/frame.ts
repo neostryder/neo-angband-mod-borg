@@ -19,11 +19,54 @@ function statsOf(record: Json | undefined): number[] {
   return STAT_KEYS.map((key) => (typeof obj[key] === "number" ? obj[key] : 0));
 }
 
+/** SKILL order (player.h), keyed as the p_race / class records name them. */
+const SKILL_KEYS = [
+  "skill-disarm-phys", "skill-disarm-magic", "skill-device", "skill-save", "skill-search",
+  "skill-stealth", "skill-melee", "skill-shoot", "skill-throw", "skill-dig",
+] as const;
+
+/** A race skill is a number; a class skill is { base, incr }. */
+function skillPart(record: Json | undefined, key: string, part: "base" | "incr"): number {
+  const v = record?.[key];
+  if (typeof v === "number") return part === "base" ? v : 0;
+  if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+    const n = (v as Json)[part];
+    return typeof n === "number" ? n : 0;
+  }
+  return 0;
+}
+
+/** "SUST_DEX | FREE_ACT" entries, as the records list object flags. */
+function flagsOf(record: Json | undefined): string[] {
+  const v = record?.["obj-flags"];
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((entry) => (typeof entry === "string" ? entry.split("|").map((f) => f.trim()).filter(Boolean) : []));
+}
+
+function numberOf(record: Json | undefined, key: string): number | undefined {
+  const v = record?.[key];
+  return typeof v === "number" ? v : undefined;
+}
+
 /** The frame for one race/class pair, from their records. */
 export function frameFromRecords(race: Json | undefined, cls: Json | undefined): BorgFrame {
   const r = statsOf(race);
   const c = statsOf(cls);
-  const frame: BorgFrame = { statAdj: r.map((v, i) => v + (c[i] ?? 0)) };
+  const values = Array.isArray(race?.["values"]) ? (race["values"] as unknown[]) : [];
+  const maxAttacks = numberOf(cls, "max-attacks");
+  const minWeight = numberOf(cls, "min-weight");
+  const attMultiply = numberOf(cls, "strength-multiplier");
+  const frame: BorgFrame = {
+    statAdj: r.map((v, i) => v + (c[i] ?? 0)),
+    skills: SKILL_KEYS.map((key) => skillPart(race, key, "base") + skillPart(cls, key, "base")),
+    skillsPerTen: SKILL_KEYS.map((key) => skillPart(cls, key, "incr")),
+    infra: numberOf(race, "infravision") ?? 0,
+    playerFlags: [...new Set([...flagsOf(race), ...flagsOf(cls)])],
+    raceResistDisen: values.some((v) => typeof v === "string" && /^RES_DISEN\[[1-9]/.test(v)),
+    ...(maxAttacks !== undefined ? { maxAttacks } : {}),
+    ...(minWeight !== undefined ? { minWeight } : {}),
+    ...(attMultiply !== undefined ? { attMultiply } : {}),
+  };
   const magic = cls?.["magic"];
   if (magic !== null && typeof magic === "object" && !Array.isArray(magic)) {
     const m = magic as Json;

@@ -1115,6 +1115,220 @@ var BORG_ADJ_STR_TH = [
   15,
   15
 ];
+var ADJ_STR_BLOW = [
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  20,
+  30,
+  40,
+  50,
+  60,
+  70,
+  80,
+  90,
+  100,
+  110,
+  120,
+  130,
+  140,
+  150,
+  160,
+  170,
+  180,
+  190,
+  200,
+  210,
+  220,
+  230,
+  240
+];
+var BORG_ADJ_DEX_BLOW = [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  8,
+  9,
+  9,
+  9,
+  10,
+  10,
+  11,
+  11,
+  11
+];
+var BORG_BLOWS_TABLE = [
+  [100, 100, 95, 85, 75, 60, 50, 42, 35, 30, 25, 23],
+  [100, 95, 85, 75, 60, 50, 42, 35, 30, 25, 23, 21],
+  [95, 85, 75, 60, 50, 42, 35, 30, 26, 23, 21, 20],
+  [85, 75, 60, 50, 42, 36, 32, 28, 25, 22, 20, 19],
+  [75, 60, 50, 42, 36, 33, 28, 25, 23, 21, 19, 18],
+  [60, 50, 42, 36, 33, 30, 27, 24, 22, 21, 19, 17],
+  [50, 42, 36, 33, 30, 27, 25, 23, 21, 20, 18, 17],
+  [42, 36, 33, 30, 28, 26, 24, 22, 20, 19, 18, 17],
+  [36, 33, 30, 28, 26, 24, 22, 21, 20, 19, 17, 16],
+  [35, 32, 29, 26, 24, 22, 21, 20, 19, 18, 17, 16],
+  [34, 30, 27, 25, 23, 22, 21, 20, 19, 18, 17, 16],
+  [33, 29, 26, 24, 22, 21, 20, 19, 18, 17, 16, 15]
+];
+var BORG_ADJ_DEX_DIS = [
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  4,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  19,
+  19
+];
+var BORG_ADJ_INT_DIS = [
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  4,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  19,
+  19
+];
+var BORG_ADJ_INT_DEV = [
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  9,
+  9,
+  10,
+  10,
+  11,
+  11,
+  12,
+  13
+];
 var BORG_ADJ_STR_DIG = [
   0,
   0,
@@ -1155,6 +1369,46 @@ var BORG_ADJ_STR_DIG = [
   100,
   100
 ];
+var BORG_ADJ_WIS_SAV = [
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19
+];
 var BORG_ADJ_STR_WGT = [
   5,
   6,
@@ -1194,6 +1448,46 @@ var BORG_ADJ_STR_WGT = [
   30,
   30,
   30
+];
+var BORG_ADJ_CON_MHP = [
+  -250,
+  -150,
+  -100,
+  -75,
+  -50,
+  -25,
+  -10,
+  -5,
+  0,
+  5,
+  10,
+  25,
+  50,
+  75,
+  100,
+  150,
+  175,
+  200,
+  225,
+  250,
+  275,
+  300,
+  350,
+  400,
+  450,
+  500,
+  550,
+  600,
+  650,
+  700,
+  750,
+  800,
+  900,
+  1e3,
+  1100,
+  1250,
+  1250,
+  1250
 ];
 var BORG_ADJ_MAG_FAIL = [
   99,
@@ -5121,6 +5415,7 @@ function wornInSlot(ctx, slot) {
   return null;
 }
 var BEST_ORDER = [1, 0, 6, 7, 8, 9, 10, 11, 3, 2, 5, 4];
+var BEST_EXHAUSTIVE_LOADOUTS = 2e3;
 var BEST_SLOTS = [
   "bow",
   "weapon",
@@ -5151,36 +5446,76 @@ function borgBestStuff(ctx, shopNum, d, stores) {
     let best = [...trial];
     let power = ctx.world.self.power;
     let incomplete = false;
-    const search = (n) => {
+    const score = () => {
+      const choices = trial.flatMap((choice, k) => choice ? [{ item: choice.ref, slot: BEST_ORDER[k] }] : []);
+      return d?.bestEval ? d.bestEval(choices) : ctx.world.self.power;
+    };
+    const fits = (choice, n) => {
+      const item = choice.item;
+      if (!item.number || !isAware(item, d) || !itemValue(item, d)) return false;
+      if (isCursed(item) && !d?.uncursable?.(item)) return false;
+      if (d?.randarts && item.artifact && !isIdent(item, d)) return false;
+      if (wieldSlot(item) !== BEST_SLOTS[n]) return false;
+      if (n === 9 && trial[8] === choice) return false;
+      if (n === 8 && trial[9] === choice) return false;
+      const worn = equipment2[BEST_ORDER[n]];
+      if (worn && isOneRing2(worn, stores)) return false;
+      return true;
+    };
+    const exhaustive = (n) => {
       if (n === BEST_ORDER.length) {
-        const choices = trial.flatMap((choice, k) => choice ? [{ item: choice.ref, slot: BEST_ORDER[k] }] : []);
-        const score = d?.bestEval ? d.bestEval(choices) : ctx.world.self.power;
-        if (score === null) {
+        const s = score();
+        if (s === null) {
           incomplete = true;
           return;
         }
-        if (score > power) {
-          power = score;
+        if (s > power) {
+          power = s;
           best = [...trial];
         }
         return;
       }
-      search(n + 1);
+      exhaustive(n + 1);
       for (const choice of candidates) {
-        const item = choice.item;
-        if (!item.number || !isAware(item, d) || !itemValue(item, d)) continue;
-        if (isCursed(item) && !d?.uncursable?.(item)) continue;
-        if (d?.randarts && item.artifact && !isIdent(item, d)) continue;
-        if (wieldSlot(item) !== BEST_SLOTS[n]) continue;
-        if (n === 9 && trial[8] === choice) continue;
-        const worn = equipment2[BEST_ORDER[n]];
-        if (worn && isOneRing2(worn, stores)) continue;
+        if (!fits(choice, n)) continue;
         trial[n] = choice;
-        search(n + 1);
+        exhaustive(n + 1);
         trial[n] = null;
       }
     };
-    search(0);
+    const ascent = () => {
+      for (let pass = 0; pass < BEST_ORDER.length; pass++) {
+        let improved2 = false;
+        for (let n = 0; n < BEST_ORDER.length; n++) {
+          const held = trial[n] ?? null;
+          for (const choice of [null, ...candidates]) {
+            if (choice === held) continue;
+            if (choice !== null && !fits(choice, n)) continue;
+            trial[n] = choice;
+            const s = score();
+            trial[n] = held;
+            if (s === null) {
+              incomplete = true;
+              continue;
+            }
+            if (s > power) {
+              power = s;
+              best = [...trial];
+              best[n] = choice;
+              improved2 = true;
+            }
+          }
+          trial[n] = best[n] ?? null;
+        }
+        if (!improved2 || incomplete) break;
+      }
+    };
+    let loadouts = 1;
+    for (let n = 0; n < BEST_ORDER.length && loadouts <= BEST_EXHAUSTIVE_LOADOUTS; n++) {
+      loadouts *= 1 + candidates.filter((choice) => fits(choice, n)).length;
+    }
+    if (loadouts <= BEST_EXHAUSTIVE_LOADOUTS) exhaustive(0);
+    else ascent();
     if (incomplete) return null;
     goal.bestItems = best.map((choice) => choice ? {
       tval: choice.item.tval,
@@ -5190,8 +5525,29 @@ function borgBestStuff(ctx, shopNum, d, stores) {
     } : null);
     goal.doBest = false;
   }
+  const step = bestStep(ctx, stores);
+  if (step === "done") return null;
+  if (step === null) return null;
+  if (!step.inStore) return ctx.act.shopExit();
+  step.commit();
+  return step.cmd;
+}
+function borgWearBestOutside(ctx, stores) {
+  if (!ctx.world.self.goal.bestItems) return null;
+  const step = bestStep(ctx, stores);
+  if (step === "done" || step === null) return null;
+  if (step.inStore) {
+    ctx.world.self.goal.doBest = true;
+    return null;
+  }
+  step.commit();
+  return step.cmd;
+}
+function bestStep(ctx, stores) {
+  const goal = ctx.world.self.goal;
   const plan = goal.bestItems;
   if (!plan) return null;
+  const none = () => void 0;
   for (let n = 0; n < plan.length; n++) {
     const choice = plan[n];
     if (!choice) continue;
@@ -5200,26 +5556,28 @@ function borgBestStuff(ctx, shopNum, d, stores) {
     if (choice.home) {
       if (worn?.number) {
         if (borgHomeFull(ctx, stores)) continue;
-        return ctx.act.shopSell(worn.handle, worn.number);
+        return { cmd: ctx.act.shopSell(worn.handle, worn.number), inStore: true, commit: none };
       }
       if (borgInventoryFull(ctx, stores)) continue;
       const item2 = homeWares(ctx).find(matches);
       if (!item2) return null;
-      choice.home = false;
-      return ctx.act.shopBuy(item2.index, 1);
+      return { cmd: ctx.act.shopBuy(item2.index, 1), inStore: true, commit: () => {
+        choice.home = false;
+      } };
     }
     if (worn?.number) {
       if (borgInventoryFull(ctx, stores)) continue;
-      return ctx.act.takeoff(worn.handle);
+      return { cmd: ctx.act.takeoff(worn.handle), inStore: false, commit: none };
     }
     const item = [...packItems(ctx), ...ctx.view.equipment().filter((entry) => entry !== null)].find(matches);
     if (!item) return null;
-    plan[n] = null;
-    return ctx.act.wear(item.handle);
+    return { cmd: ctx.act.wear(item.handle), inStore: false, commit: () => {
+      plan[n] = null;
+    } };
   }
   goal.doBest = plan.some((choice) => choice !== null);
   delete goal.bestItems;
-  return null;
+  return "done";
 }
 var RIGHT_RING = 2;
 var LEFT_RING = 3;
@@ -7721,7 +8079,8 @@ function borgNotice(ctx, opts = {}) {
     quiver,
     temp: ctx.world.self.temp,
     cls,
-    spellStat
+    spellStat,
+    derive: R2.frame.skills !== void 0 && R2.frame.skillsPerTen !== void 0
   };
   borgNoticePlayer(c);
   borgNoticeEquipment(c);
@@ -7807,8 +8166,8 @@ function borgNoticePlayer(c) {
     t[10 /* CSTR */ + i] = p.stats[i] ?? 10;
     t[127 /* ISFIXSTR */ + i] = drained?.[i] ? 1 : 0;
   }
-  t[44 /* SPEED */] = p.speed;
-  t[52 /* INFRA */] = p.seeInfra;
+  if (!c.derive) t[44 /* SPEED */] = p.speed;
+  t[52 /* INFRA */] = c.derive ? c.R.frame.infra ?? 0 : p.seeInfra;
   t[263 /* SAURON_DEAD */] = uniqueSlain(p, "sauron-the-sorcerer", "Sauron, the Sorcerer") ? 1 : 0;
 }
 function localRaceId(raceId) {
@@ -7824,12 +8183,26 @@ function uniqueSlain(player, localId, cName) {
   }
   return false;
 }
+function borgCalcBlows(c, item) {
+  const t = c.t;
+  const f = c.R.frame;
+  const weight = item.weight * item.number;
+  const minWeight = f.minWeight ?? 0;
+  const div2 = Math.max(weight < minWeight ? minWeight : weight, 1);
+  let strIndex = Math.trunc(ADJ_STR_BLOW[t[15 /* STR_INDEX */]] * (f.attMultiply ?? 0) / div2);
+  if (strIndex > 11) strIndex = 11;
+  const dexIndex = Math.min(BORG_ADJ_DEX_BLOW[t[18 /* DEX_INDEX */]], 11);
+  const blowEnergy = BORG_BLOWS_TABLE[strIndex][dexIndex];
+  const blows = Math.min(Math.trunc(1e4 / blowEnergy), 100 * (f.maxAttacks ?? 1));
+  return Math.trunc(Math.max(blows + 100 * (mod(item, "BLOWS") + t[147 /* EXTRA_BLOWS */]), 100) / 100);
+}
 function borgNoticeEquipment(c) {
   const { t, p, equip } = c;
   let extraShots = 0;
   let extraMight = 0;
   let myNumFire = 1;
-  const pf = p.objectFlags;
+  const pf = c.derive ? c.R.frame.playerFlags ?? [] : p.objectFlags;
+  if (c.derive && c.R.frame.raceResistDisen) t[84 /* RDIS */] = 1;
   if (pf.includes("SLOW_DIGEST")) t[48 /* SDIG */] = 1;
   if (pf.includes("FEATHER")) t[49 /* FEATH */] = 1;
   if (pf.includes("REGEN")) t[50 /* REG */] = 1;
@@ -7849,6 +8222,21 @@ function borgNoticeEquipment(c) {
   if (pf.includes("SUST_WIS")) t[22 /* SWIS */] = 1;
   if (pf.includes("SUST_DEX")) t[23 /* SDEX */] = 1;
   if (pf.includes("SUST_CON")) t[24 /* SCON */] = 1;
+  if (c.derive) {
+    const base = c.R.frame.skills;
+    t[54 /* DISP */] = base[0] ?? 0;
+    t[55 /* DISM */] = base[1] ?? 0;
+    t[56 /* DEV */] = base[2] ?? 0;
+    t[57 /* SAV */] = base[3] ?? 0;
+    t[59 /* SRCH */] = base[4] ?? 0;
+    t[58 /* STL */] = base[5] ?? 0;
+    t[60 /* THN */] = base[6] ?? 0;
+    t[61 /* THB */] = base[7] ?? 0;
+    t[62 /* THT */] = base[8] ?? 0;
+    t[63 /* DIG */] = base[9] ?? 0;
+    if (p.status.fast || p.status.sprint) t[44 /* SPEED */] = t[44 /* SPEED */] + 10;
+    else if (p.status.terror) t[44 /* SPEED */] = t[44 /* SPEED */] + 5;
+  }
   for (let i = 0; i < equip.length; i++) {
     const item = equip[i];
     if (!present(item)) continue;
@@ -7964,6 +8352,11 @@ function borgNoticeEquipment(c) {
     t[58 /* STL */] = t[58 /* STL */] - 10;
     t[174 /* CRSAGRV */] = 1;
   }
+  if (c.derive) {
+    if (t[180 /* CRSSLOW */]) t[44 /* SPEED */] = t[44 /* SPEED */] - 5;
+    if (t[181 /* CRSANNOY */]) t[44 /* SPEED */] = t[44 /* SPEED */] - 10;
+    if (t[111 /* ISGORGED */]) t[44 /* SPEED */] = t[44 /* SPEED */] - 10;
+  }
   const statAdj = c.R.frame.statAdj;
   for (let i = 0; i < STAT_MAX; i++) {
     let add = t[5 /* ASTR */ + i];
@@ -7974,6 +8367,10 @@ function borgNoticeEquipment(c) {
   }
   const strIdx = t[15 /* STR_INDEX */];
   const dexIdx = t[18 /* DEX_INDEX */];
+  const rolledHp = c.R.frame.playerHp;
+  if (rolledHp !== void 0) {
+    t[29 /* HP_ADJ */] = rolledHp + Math.trunc(BORG_ADJ_CON_MHP[t[19 /* CON_INDEX */]] * t[35 /* CLEVEL */] / 100);
+  }
   if (c.spellStat >= 0) {
     const si = t[15 /* STR_INDEX */ + c.spellStat];
     const spellFirst = c.R.frame.spellFirst ?? 1;
@@ -8033,7 +8430,7 @@ function borgNoticeEquipment(c) {
     }
     t[144 /* SLING */] = bow.sval === c.R.svals.sling ? 1 : 0;
   }
-  if (present(bow) && p.shots > 0) t[148 /* SHOTS */] = Math.trunc(p.shots / 10) || 1;
+  if (!c.derive && present(bow) && p.shots > 0) t[148 /* SHOTS */] = Math.trunc(p.shots / 10) || 1;
   else t[148 /* SHOTS */] = myNumFire;
   const wep = equip[SLOT_WIELD];
   if (present(wep) && wep.curses.length === 0) {
@@ -8047,12 +8444,26 @@ function borgNoticeEquipment(c) {
       t[134 /* TOHIT */] = t[134 /* TOHIT */] + 2 * (hold - Math.trunc(wep.weight / 10));
     }
     if (hold >= wep.weight / 10) {
-      t[146 /* BLOWS */] = p.blows > 0 ? Math.trunc(p.blows / 100) || 1 : 1;
+      t[146 /* BLOWS */] = c.derive ? borgCalcBlows(c, wep) : p.blows > 0 ? Math.trunc(p.blows / 100) || 1 : 1;
       t[63 /* DIG */] = t[63 /* DIG */] + Math.trunc(wep.weight / 10);
     }
   }
   const sk = p.skills;
-  if (sk.length >= 10) {
+  if (c.derive) {
+    const per = c.R.frame.skillsPerTen;
+    const ml = t[36 /* MAXCLEVEL */];
+    const lv = (i) => Math.trunc((per[i] ?? 0) * ml / 10);
+    t[58 /* STL */] = t[58 /* STL */] + 1;
+    t[54 /* DISP */] = t[54 /* DISP */] + BORG_ADJ_DEX_DIS[t[18 /* DEX_INDEX */]] + lv(0);
+    t[55 /* DISM */] = t[55 /* DISM */] + BORG_ADJ_INT_DIS[t[16 /* INT_INDEX */]] + lv(1);
+    t[56 /* DEV */] = t[56 /* DEV */] + BORG_ADJ_INT_DEV[t[16 /* INT_INDEX */]] + lv(2);
+    t[57 /* SAV */] = t[57 /* SAV */] + BORG_ADJ_WIS_SAV[t[17 /* WIS_INDEX */]] + lv(3);
+    t[59 /* SRCH */] = t[59 /* SRCH */] + lv(4);
+    t[58 /* STL */] = t[58 /* STL */] + lv(5);
+    t[60 /* THN */] = t[60 /* THN */] + lv(6);
+    t[61 /* THB */] = t[61 /* THB */] + lv(7);
+    t[62 /* THT */] = t[62 /* THT */] + lv(8);
+  } else if (sk.length >= 10) {
     t[54 /* DISP */] = sk[0];
     t[55 /* DISM */] = sk[1];
     t[56 /* DEV */] = sk[2];
@@ -8462,6 +8873,12 @@ function applySpellGrants(c) {
 function finishNotice(c) {
   const { t, R: R2 } = c;
   t[261 /* CARRY */] = BORG_ADJ_STR_WGT[t[15 /* STR_INDEX */]] * 100;
+  if (c.derive) {
+    if (t[260 /* WEIGHT */] > t[261 /* CARRY */] / 2) {
+      t[44 /* SPEED */] = t[44 /* SPEED */] - Math.trunc((t[260 /* WEIGHT */] - Math.trunc(t[261 /* CARRY */] / 2)) / Math.trunc(t[261 /* CARRY */] / 10));
+    }
+    if (t[44 /* SPEED */] > 199) t[44 /* SPEED */] = 199;
+  }
   t[264 /* PREP_BIG_FIGHT */] = 0;
   if (t[106 /* MAXDEPTH */] >= 99) {
     let totalBigHeal = 0;
@@ -9862,6 +10279,100 @@ function powerInventory(t, d, R2, equip, cls) {
   return value;
 }
 
+// src/trait/local-loadout.ts
+var SLOT_INDEX = {
+  weapon: 0,
+  bow: 1,
+  amulet: 4,
+  light: 5,
+  body: 6,
+  cloak: 7,
+  shield: 8,
+  helm: 9,
+  gloves: 10,
+  boots: 11
+};
+var RING_SLOTS = [2, 3];
+var wareHandle = -1;
+function applyLoadoutChange(ctx, change) {
+  const equipment2 = [...ctx.view.equipment()];
+  const inventory = [...ctx.view.inventory()];
+  const take = (ref, number) => {
+    if (ref.from === "store") {
+      const ware = ctx.view.stores()[ref.store]?.stock[ref.index];
+      if (!ware) return null;
+      return { ...ware, handle: wareHandle--, number };
+    }
+    const slot = equipment2.findIndex((item) => item?.handle === ref.handle);
+    if (slot >= 0) {
+      const worn = equipment2[slot];
+      equipment2[slot] = null;
+      return worn;
+    }
+    const at = inventory.findIndex((item) => item.handle === ref.handle);
+    if (at < 0) return null;
+    const stack = inventory[at];
+    if (stack.number <= number) {
+      inventory.splice(at, 1);
+      return stack;
+    }
+    inventory[at] = { ...stack, number: stack.number - number };
+    return { ...stack, number };
+  };
+  for (const { handle, number } of change.release ?? []) {
+    const slot = equipment2.findIndex((item) => item?.handle === handle);
+    if (slot >= 0) {
+      equipment2[slot] = null;
+      continue;
+    }
+    const at = inventory.findIndex((item) => item.handle === handle);
+    if (at < 0) return null;
+    const stack = inventory[at];
+    const n = number ?? stack.number;
+    if (n >= stack.number) inventory.splice(at, 1);
+    else inventory[at] = { ...stack, number: stack.number - n };
+  }
+  for (const slot of change.remove ?? []) {
+    const worn = equipment2[slot];
+    if (worn) inventory.push(worn);
+    equipment2[slot] = null;
+  }
+  const wearAt = (item, slot) => {
+    const displaced = equipment2[slot];
+    if (displaced) inventory.push(displaced);
+    equipment2[slot] = item;
+  };
+  if (change.copyInto) {
+    for (const { item: ref, slot } of change.wieldAt ?? []) {
+      const source = ref.from === "store" ? ctx.view.stores()[ref.store]?.stock[ref.index] : [...ctx.view.equipment(), ...ctx.view.inventory()].find((item) => item?.handle === ref.handle) ?? void 0;
+      if (!source) return null;
+      equipment2[slot] = { ...source, number: 1 };
+    }
+    return { equipment: equipment2, inventory };
+  }
+  const placed = [];
+  for (const { item: ref, slot } of change.wieldAt ?? []) {
+    const item = take(ref, 1);
+    if (!item) return null;
+    placed.push({ item: { ...item, number: 1 }, slot });
+  }
+  for (const { item, slot } of placed) wearAt(item, slot);
+  for (const ref of change.wield ?? []) {
+    const item = take(ref, 1);
+    if (!item) return null;
+    const kind = wieldSlot(item);
+    if (kind === null) return null;
+    const slot = kind === "ring" ? RING_SLOTS.find((s) => !equipment2[s]) ?? RING_SLOTS[0] : SLOT_INDEX[kind];
+    wearAt({ ...item, number: 1 }, slot);
+  }
+  for (const { item: ref, number } of change.carry ?? []) {
+    const item = take(ref, number ?? 1);
+    if (!item) return null;
+    inventory.push(item);
+  }
+  return { equipment: equipment2, inventory };
+}
+
 // src/trait/simulate.ts
 function shadowWorld(world) {
   const sim = Object.create(world);
@@ -9901,17 +10412,32 @@ function borgNoticeWithout(ctx, handle) {
   return reduced;
 }
 function borgSimulatePower(ctx, change, opts = {}) {
-  const view = ctx.view;
-  const answer = view.simulateLoadout?.(change);
+  const local = localAnswer(ctx, change, opts);
+  const { copyInto, ...engineChange } = change;
+  const answer = local?.answer ?? ctx.view.simulateLoadout?.(engineChange);
   if (!answer) return null;
+  const simOpts = local ? { ...opts, frame: local.frame } : opts;
   const simCtx = {
     ...ctx,
     world: shadowWorld(ctx.world),
     view: shadowView(ctx.view, answer)
   };
   inheritWeaponSwap(simCtx.world, ctx.world);
-  borgNotice(simCtx, { ...opts, noticeSwap: false });
-  return borgPower(simCtx, opts);
+  borgNotice(simCtx, { ...simOpts, noticeSwap: copyInto === true });
+  return borgPower(simCtx, simOpts);
+}
+function localAnswer(ctx, change, opts) {
+  const frame = resolveOpts(opts, ctx).frame;
+  if (frame.skills === void 0 || frame.skillsPerTen === void 0) return null;
+  const loadout = applyLoadoutChange(ctx, change);
+  if (!loadout) return null;
+  const player = ctx.view.player();
+  const conIndex = ctx.world.self.trait[19 /* CON_INDEX */] ?? 0;
+  const playerHp = frame.playerHp ?? player.maxHp - Math.trunc((BORG_ADJ_CON_MHP[conIndex] ?? 0) * player.level / 100);
+  return {
+    answer: { after: { player, equipment: loadout.equipment, inventory: loadout.inventory } },
+    frame: { ...frame, playerHp }
+  };
 }
 function borgSimulateDangerAnswer(ctx, change) {
   const answer = ctx.view.simulateLoadout?.(change);
@@ -10828,7 +11354,7 @@ function borgThinkStore(ctx, shopNum, d, wearDeps) {
   const weapon = ctx.view.equipment()[0];
   if (weapon?.tval === TV.DIGGING && !weapon.artifact) {
     const wear = borgWearStuff(ctx, wearDeps);
-    if (wear) return wear;
+    if (wear) return ctx.act.shopExit();
   }
   if (borgChooseShop(ctx, d)) {
     const sell = borgThinkShopSell(ctx, shopNum, d);
@@ -16017,6 +16543,14 @@ function simulationBaseline(session, ctx, resolve) {
   BASELINES.set(session, { ctx, base });
   return base;
 }
+var BEST_BASELINES = /* @__PURE__ */ new WeakMap();
+function bestBaseline(session, ctx, resolve) {
+  const cached = BEST_BASELINES.get(session);
+  if (cached && cached.ctx === ctx) return cached.base;
+  const base = resolve(ctx, { copyInto: true }) ?? null;
+  BEST_BASELINES.set(session, { ctx, base });
+  return base;
+}
 function analyzedItemValue(session, item) {
   if (isCursed(item)) return perItemValue(item);
   if (!item.aware) return guessedValue(item);
@@ -16081,9 +16615,11 @@ function buildItemDeps(session) {
         const base = simulationBaseline(session, c, res.loadoutPower);
         return base === null ? null : w.self.power + score - base;
       },
+      /* borg_best_stuff_aux scores copy-in trials noticed with notice_swap
+       * true; the baseline is the same trial with nothing copied in. */
       bestEval: (wieldAt) => {
-        const score = res.loadoutPower(c, { wieldAt });
-        const base = simulationBaseline(session, c, res.loadoutPower);
+        const score = res.loadoutPower(c, { wieldAt, copyInto: true });
+        const base = bestBaseline(session, c, res.loadoutPower);
         return score === null || base === null ? null : w.self.power + score - base;
       },
       /* borg-junk.c:1319-1357 keeps the item in the pack during removal. */
@@ -16860,6 +17396,10 @@ function borgThinkDungeon(ctx, session) {
   {
     const cmd = borgPlayMagic(ctx, false);
     if (cmd) return cmd;
+  }
+  {
+    const best = T(ctx, 105 /* CDEPTH */) === 0 ? borgWearBestOutside(ctx, buildStoreDeps(session)) : null;
+    if (best) return best;
   }
   if (borgWieldIsDigger(ctx) || !borgHasWeapon(ctx)) {
     const cmd = borgWearStuff(ctx, itemDeps);
@@ -18600,10 +19140,54 @@ function statsOf(record) {
   const obj = stats !== null && typeof stats === "object" && !Array.isArray(stats) ? stats : {};
   return STAT_KEYS.map((key) => typeof obj[key] === "number" ? obj[key] : 0);
 }
+var SKILL_KEYS = [
+  "skill-disarm-phys",
+  "skill-disarm-magic",
+  "skill-device",
+  "skill-save",
+  "skill-search",
+  "skill-stealth",
+  "skill-melee",
+  "skill-shoot",
+  "skill-throw",
+  "skill-dig"
+];
+function skillPart(record, key, part) {
+  const v = record?.[key];
+  if (typeof v === "number") return part === "base" ? v : 0;
+  if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+    const n = v[part];
+    return typeof n === "number" ? n : 0;
+  }
+  return 0;
+}
+function flagsOf(record) {
+  const v = record?.["obj-flags"];
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((entry) => typeof entry === "string" ? entry.split("|").map((f) => f.trim()).filter(Boolean) : []);
+}
+function numberOf(record, key) {
+  const v = record?.[key];
+  return typeof v === "number" ? v : void 0;
+}
 function frameFromRecords(race, cls) {
   const r = statsOf(race);
   const c = statsOf(cls);
-  const frame = { statAdj: r.map((v, i) => v + (c[i] ?? 0)) };
+  const values = Array.isArray(race?.["values"]) ? race["values"] : [];
+  const maxAttacks = numberOf(cls, "max-attacks");
+  const minWeight = numberOf(cls, "min-weight");
+  const attMultiply = numberOf(cls, "strength-multiplier");
+  const frame = {
+    statAdj: r.map((v, i) => v + (c[i] ?? 0)),
+    skills: SKILL_KEYS.map((key) => skillPart(race, key, "base") + skillPart(cls, key, "base")),
+    skillsPerTen: SKILL_KEYS.map((key) => skillPart(cls, key, "incr")),
+    infra: numberOf(race, "infravision") ?? 0,
+    playerFlags: [.../* @__PURE__ */ new Set([...flagsOf(race), ...flagsOf(cls)])],
+    raceResistDisen: values.some((v) => typeof v === "string" && /^RES_DISEN\[[1-9]/.test(v)),
+    ...maxAttacks !== void 0 ? { maxAttacks } : {},
+    ...minWeight !== void 0 ? { minWeight } : {},
+    ...attMultiply !== void 0 ? { attMultiply } : {}
+  };
   const magic = cls?.["magic"];
   if (magic !== null && typeof magic === "object" && !Array.isArray(magic)) {
     const m = magic;

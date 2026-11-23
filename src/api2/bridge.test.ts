@@ -550,3 +550,27 @@ describe("public birth options for backup equipment",()=>{
     flag=false;await bridge.readWorld();expect(bridge.resolverInput().birthRandarts?.()).toBe(false);await bridge.dispose();
   });
 });
+
+describe("activation identities for the gear the Borg may try on (#75 review P4)", () => {
+  it("reads the activations of carried and home items, not only worn ones", async () => {
+    const { game, bridge } = await primed();
+    const amulet = (handle: number, artifactName: string): KnownItem => ({
+      handle, kindKey: "kind:0", baseName: "amulet", carried: true, aware: true, label: "amulet", nameColor: "white",
+      tval: TV.AMULET, sval: 1, pval: 0, number: 1, weight: 3, ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0,
+      ego: false, artifact: true, flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [],
+      egoName: null, artifactName, activation: true, charging: 0, unknownRunes: false, inscription: null, value: 1000,
+    });
+    const base = knownWorld(game.view);
+    const home = { feat: Core.FEAT.HOME, featName: "Home", isHome: true, owner: { name: "", purse: 0 }, stock: [{ ...amulet(0, "of Home"), index: 0 }] };
+    const known = { ...base, inventory: [amulet(1, "of Pack")], stores: [home] };
+    game.mod.view.world = () => Promise.resolve({ ok: true, value: known as typeof base });
+    const asked: string[] = [];
+    game.mod.content.activation = (ref) => {
+      if ("artifact" in ref && typeof ref.artifact === "string") asked.push(ref.artifact);
+      return Promise.resolve({ ok: true, value: null });
+    };
+    await bridge.readWorld();
+    expect(asked).toEqual(expect.arrayContaining(["of Pack", "of Home"]));
+  });
+});
+

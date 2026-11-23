@@ -217,6 +217,26 @@ export interface BorgFrame {
   spellWeight?: number;
   /** stat_max[i] > stat_cur[i] per stat (drained) - for BI_ISFIX* flags. */
   statDrained?: readonly boolean[];
+  /**
+   * race->r_skills + class->c_skills per skill, in SKILL order (DISARM_PHYS,
+   * DISARM_MAGIC, DEVICE, SAVE, SEARCH, STEALTH, TO_HIT_MELEE, TO_HIT_BOW,
+   * TO_HIT_THROW, DIGGING). With it, borg_notice derives the item-dependent
+   * traits as the C does (borg-trait.c:1233-2050) instead of reading the
+   * engine's figures for the gear actually worn.
+   */
+  skills?: readonly number[];
+  /** class->x_skills per skill (SKILL order): the per-ten-levels increment. */
+  skillsPerTen?: readonly number[];
+  /** race->infra. */
+  infra?: number;
+  /** player_flags(): the race's and class's object flags (OF_* names). */
+  playerFlags?: readonly string[];
+  /** race->el_info[ELEM_DISEN].res_level > 0. */
+  raceResistDisen?: boolean;
+  /** class->max_attacks, class->min_weight, class->att_multiply (borg_calc_blows). */
+  maxAttacks?: number;
+  minWeight?: number;
+  attMultiply?: number;
 }
 
 /** Neutral frame. */

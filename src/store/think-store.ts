@@ -177,11 +177,14 @@ export function borgThinkStore(
   const best = borgBestStuff(ctx, shopNum, wearDeps, d);
   if (best) return best;
 
-  /* borg-think-store.c:313-318 replaces only non-artifact diggers here. */
+  /* borg-think-store.c:313-318 replaces only non-artifact diggers here.
+   * FORK diegoami/neo-angband-borg-mod-tracker#83: Neo's store phase takes no
+   * wield, so a replacement leaves the store and the town rung "wear a weapon
+   * if using a digger" (borg-think-dungeon.c:1582) wields it. */
   const weapon = ctx.view.equipment()[0];
   if (weapon?.tval === TV.DIGGING && !weapon.artifact) {
     const wear = borgWearStuff(ctx, wearDeps);
-    if (wear) return wear;
+    if (wear) return ctx.act.shopExit();
   }
 
   if (borgChooseShop(ctx, d)) {

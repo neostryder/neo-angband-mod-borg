@@ -77,6 +77,7 @@ import {
   borgMaintainLight,
   borgUseThings,
   borgWearStuff,
+  borgWearBestOutside,
   borgSwapRings,
   borgWearRings,
   borgRemoveStuff,
@@ -881,6 +882,15 @@ export function borgThinkDungeon(
   {
     const cmd = borgPlayMagic(ctx, false);
     if (cmd) return cmd;
+  }
+
+  /* FORK diegoami/neo-angband-borg-mod-tracker#83: the home plan's takeoff or
+   * wear that the store screen could not take. In the C these run inside the
+   * store loop with no other rung between a takeoff and its wear, so here they
+   * come before the rungs that would refill an emptied slot first. */
+  {
+    const best = T(ctx, BI.CDEPTH) === 0 ? borgWearBestOutside(ctx, buildStoreDeps(session)) : null;
+    if (best) return best;
   }
 
   /* Wear a weapon if using a digger or nothing (:1582). */

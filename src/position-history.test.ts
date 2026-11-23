@@ -40,7 +40,10 @@ async function historyGame(refuse = false) {
     borg,
     history,
     passes,
-    async decide(x: number, y: number, depth = 1, retries = 0, shopnum: number | null = null) {
+    /* `shopnum` is the door under the player; `phase` is the host's input
+     * phase, "store" while the store screen is up (Api2Phase). A host opens
+     * the screen on the door, so a shop decision defaults to "store". */
+    async decide(x: number, y: number, depth = 1, retries = 0, shopnum: number | null = null, phase: "play" | "store" = shopnum === null ? "play" : "store") {
       const snapshot = knownWorld(makeScenarioView({
         width: 90,
         height: 7,
@@ -49,7 +52,7 @@ async function historyGame(refuse = false) {
       }));
       known = { ...snapshot, player: { ...snapshot.player!, shopnum } };
       pending = retries;
-      await tick(game.mod, game.input({ phase: shopnum === null ? "play" : "store" }));
+      await tick(game.mod, game.input({ phase }));
     },
   };
 }
@@ -114,5 +117,18 @@ describe("position history through the controller", () => {
     await run.decide(10, 3, 0);
     expect(run.borg.world.self.inShop).toBe(false);
     expect(run.history()).toEqual([[10, 3], [10, 3]]);
+  });
+
+  it("is not in a shop on a door once the store screen has closed (#58)", async () => {
+    const run = await historyGame();
+    await run.decide(10, 3, 0);
+    await run.decide(10, 3, 0, 0, 0, "store");
+    expect(run.borg.world.self.inShop).toBe(true);
+    /* shop-exit closed the screen; the character still stands on the door. */
+    await run.decide(10, 3, 0, 0, 0, "play");
+    expect(run.borg.world.self.inShop).toBe(false);
+    const last = run.game.submitted.at(-1)?.intent;
+    expect(last).toBeDefined();
+    expect(JSON.stringify(last)).not.toContain("shop-exit");
   });
 });
