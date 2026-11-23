@@ -15851,6 +15851,20 @@ function borgCaution(ctx, flow) {
   }
   const backOff = borgBackAway(ctx, flow, posDanger, nasty, surrounded);
   if (backOff) return backOff;
+  if (trait3(ctx, 114 /* ISCONFUSED */)) {
+    const d = { activateItem: (act) => getThinkSession(ctx.world).resolvers.activateHandle?.(ctx, act) ?? null };
+    if (trait3(ctx, 28 /* MAXHP */) - trait3(ctx, 27 /* CURHP */) >= 300) {
+      const heal = borgQuaffPotion(ctx, SVAL.potion.healing, d) ?? borgQuaffPotion(ctx, SVAL.potion.star_healing, d) ?? borgQuaffPotion(ctx, SVAL.potion.life, d);
+      if (heal) return heal;
+    }
+    const cure = borgEat(ctx, TV.MUSHROOM, SVAL.mush.cure_mind, d) ?? borgQuaffPotion(ctx, SVAL.potion.cure_serious, d) ?? borgQuaffCrit(ctx, false, d) ?? borgQuaffPotion(ctx, SVAL.potion.healing, d) ?? borgActivateItem(ctx, "act_cure_confusion", d) ?? borgUseStaffFail(ctx, SVAL.staff.healing, d);
+    if (cure) return cure;
+  }
+  if (trait3(ctx, 113 /* ISAFRAID */) && !trait3(ctx, 186 /* CRSFEAR */) && (ctx.rng.randint0(100) < 70 || trait3(ctx, 25 /* CLASS */) === CLASS_WARRIOR && trait3(ctx, 155 /* AMISSILES */) <= 0)) {
+    const d = { activateItem: (act) => getThinkSession(ctx.world).resolvers.activateHandle?.(ctx, act) ?? null };
+    const cure = borgEat(ctx, TV.MUSHROOM, SVAL.mush.cure_mind, d) ?? borgQuaffPotion(ctx, SVAL.potion.boldness, d) ?? borgQuaffPotion(ctx, SVAL.potion.heroism, d) ?? borgQuaffPotion(ctx, SVAL.potion.berserk, d) ?? borgSpellFail(ctx, 119 /* BERSERK_STRENGTH */, 25) ?? borgSpellFail(ctx, 62 /* HEROISM */, 25) ?? borgActivateItem(ctx, "act_cure_paranoia", d) ?? borgActivateItem(ctx, "act_hero", d) ?? borgActivateItem(ctx, "act_shero", d) ?? borgActivateItem(ctx, "act_cure_mind", d) ?? borgActivateItem(ctx, "act_rage_bless_resist", d) ?? borgActivateItem(ctx, "act_rem_fear_pois", d) ?? borgSpellFail(ctx, 82 /* HOLY_WORD */, 25);
+    if (cure) return cure;
+  }
   if (trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 10) || posDanger > trait3(ctx, 27 /* CURHP */) && trait3(ctx, 211 /* ATELEPORT */) + trait3(ctx, 212 /* AESCAPE */) <= 2 && trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 4) || trait3(ctx, 215 /* AEZHEAL */) > 5 && trait3(ctx, 27 /* CURHP */) < idiv(trait3(ctx, 28 /* MAXHP */), 4) || trait3(ctx, 28 /* MAXHP */) - trait3(ctx, 27 /* CURHP */) >= 600 && fs.fightingUnique && trait3(ctx, 105 /* CDEPTH */) >= 85) {
     const c = borgQuaffPotion(ctx, SVAL.potion.star_healing) ?? borgQuaffPotion(ctx, SVAL.potion.healing) ?? borgQuaffPotion(ctx, SVAL.potion.life);
     if (c) return c;

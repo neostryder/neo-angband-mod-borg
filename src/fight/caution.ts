@@ -12,9 +12,8 @@
  * the class-ordered heal/defend attempt, the restock check, the *** Stairs ***
  * section, starvation relief, desperate stairs, strategic retreat, the escape
  * attempt, *** Back away ***, and the
- * final emergency ez-heal, recall and recall waiting. What is left to later stages of the think ladder is
- * the cure ladder from caution.c:1846 and the food/light maintenance flows,
- * which belong to the item and flow subsystems that own those commands.
+ * late confusion/fear cures, final emergency ez-heal, recall and recall waiting.
+ * General food/light maintenance remains in the later think-ladder rungs.
  *
  * Back away is the one that matters most in ordinary play and it is the easiest
  * to mistake for flow's business: it is not pathfinding, it is a single step
@@ -23,7 +22,7 @@
 
 import type { AgentCommand } from "@rpgm-tools/neo-angband-core";
 import type { BorgContext } from "../context.js";
-import { BI, CLASS_MAGE, CLASS_PRIEST, CLASS_PALADIN } from "../trait/trait-index.js";
+import { BI, CLASS_MAGE, CLASS_PRIEST, CLASS_PALADIN, CLASS_WARRIOR } from "../trait/trait-index.js";
 import { trait } from "../item/deps.js";
 import { borgDanger, getDangerGlobals } from "../danger/index.js";
 import {
@@ -652,6 +651,33 @@ export function borgCaution(
   const backOff = borgBackAway(ctx, flow, posDanger, nasty, surrounded);
   if (backOff) return backOff;
 
+  /* borg-caution.c:1852-1896: a second cure pass, also while fleeing. */
+  if (trait(ctx, BI.ISCONFUSED)) {
+    const d = { activateItem: (act: string) => getThinkSession(ctx.world).resolvers.activateHandle?.(ctx, act) ?? null };
+    if (trait(ctx, BI.MAXHP) - trait(ctx, BI.CURHP) >= 300) {
+      const heal = borgQuaffPotion(ctx, SVAL.potion.healing!, d) ??
+        borgQuaffPotion(ctx, SVAL.potion.star_healing!, d) ?? borgQuaffPotion(ctx, SVAL.potion.life!, d);
+      if (heal) return heal;
+    }
+    const cure = borgEat(ctx, TV.MUSHROOM, SVAL.mush.cure_mind!, d) ??
+      borgQuaffPotion(ctx, SVAL.potion.cure_serious!, d) ?? borgQuaffCrit(ctx, false, d) ??
+      borgQuaffPotion(ctx, SVAL.potion.healing!, d) ?? borgActivateItem(ctx, "act_cure_confusion", d) ??
+      borgUseStaffFail(ctx, SVAL.staff.healing!, d);
+    if (cure) return cure;
+  }
+  if (trait(ctx, BI.ISAFRAID) && !trait(ctx, BI.CRSFEAR) &&
+    (ctx.rng.randint0(100) < 70 || (trait(ctx, BI.CLASS) === CLASS_WARRIOR && trait(ctx, BI.AMISSILES) <= 0))) {
+    const d = { activateItem: (act: string) => getThinkSession(ctx.world).resolvers.activateHandle?.(ctx, act) ?? null };
+    const cure = borgEat(ctx, TV.MUSHROOM, SVAL.mush.cure_mind!, d) ??
+      borgQuaffPotion(ctx, SVAL.potion.boldness!, d) ?? borgQuaffPotion(ctx, SVAL.potion.heroism!, d) ??
+      borgQuaffPotion(ctx, SVAL.potion.berserk!, d) ?? borgSpellFail(ctx, Spell.BERSERK_STRENGTH, 25) ??
+      borgSpellFail(ctx, Spell.HEROISM, 25) ?? borgActivateItem(ctx, "act_cure_paranoia", d) ??
+      borgActivateItem(ctx, "act_hero", d) ?? borgActivateItem(ctx, "act_shero", d) ??
+      borgActivateItem(ctx, "act_cure_mind", d) ?? borgActivateItem(ctx, "act_rage_bless_resist", d) ??
+      borgActivateItem(ctx, "act_rem_fear_pois", d) ?? borgSpellFail(ctx, Spell.HOLY_WORD, 25);
+    if (cure) return cure;
+  }
+
   /* borg_caution spends reserve healing before recall and unknown items. */
   if (
     trait(ctx, BI.CURHP) < idiv(trait(ctx, BI.MAXHP), 10) ||
@@ -704,9 +730,7 @@ export function borgCaution(
     if (c) return c;
   }
 
-  /* Remaining C tail (the cure ladder from caution.c:1846 on, and the
-   * food maintenance flows) emits item and flow commands whose owning
-   * subsystems sit later in the ladder; yield to it. */
+  /* General food/light maintenance remains in the later think-ladder rungs. */
   return null;
 }
 
