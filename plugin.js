@@ -10859,7 +10859,6 @@ function borgDecurseAny(ctx, d, playerHas2) {
 }
 
 // src/item/item-enchant.ts
-var ENCHANT_LIMIT = 12;
 function borgEnchantToA(ctx, d, playerHas2) {
   if (!trait3(ctx, 240 /* NEED_ENCHANT_TO_A */)) return null;
   if (!trait3(ctx, 237 /* AENCH_ARM */) && !trait3(ctx, 238 /* AENCH_SARM */)) return null;
@@ -10871,7 +10870,7 @@ function borgEnchantToA(ctx, d, playerHas2) {
     if (!isArmourSlot(item)) continue;
     if (!isIdent(item, d)) continue;
     const a = item.toA;
-    if (canSpell ? a >= ENCHANT_LIMIT : a >= 8) continue;
+    if (canSpell ? a >= borgCfg().enchantLimit : a >= 8) continue;
     if (best && bestA < a) continue;
     best = item;
     bestA = a;
@@ -10915,7 +10914,7 @@ function pickLeastEnchantedWeapon(ctx, d, playerHas2, bonus) {
     if (!isIdent(item, d)) continue;
     if (item.tval === TV.DIGGING) continue;
     const a = bonus(item);
-    if (canSpell ? a >= ENCHANT_LIMIT : a >= 8) continue;
+    if (canSpell ? a >= borgCfg().enchantLimit : a >= 8) continue;
     if (item.tval === TV.BOW && trait3(ctx, 154 /* AMMO_POWER */) < 3 && !item.artifact && !item.ego)
       continue;
     if (best && bestA < a) continue;
