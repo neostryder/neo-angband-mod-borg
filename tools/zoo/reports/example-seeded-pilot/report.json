@@ -1,0 +1,645 @@
+{
+  "schema": "neo-headless-report@1",
+  "suite": {
+    "schema": "neo-headless-suite@1",
+    "birthProfile": "c-seeded-point-buy-v2",
+    "turns": 2000,
+    "wallSeconds": 600,
+    "saveGames": true,
+    "cases": [
+      {
+        "seed": 2125085038,
+        "race": "Human",
+        "class": "Warrior",
+        "id": "0-2125085038",
+        "index": 0
+      },
+      {
+        "seed": 1434615677,
+        "race": "Human",
+        "class": "Mage",
+        "id": "1-1434615677",
+        "index": 1
+      }
+    ],
+    "id": "experiment-b354ae489f539654"
+  },
+  "assigned": 2,
+  "recorded": 2,
+  "counts": {
+    "turn_cap": 2
+  },
+  "errors": [],
+  "cells": [
+    {
+      "seed": 2125085038,
+      "race": "Human",
+      "class": "Warrior",
+      "id": "0-2125085038",
+      "index": 0,
+      "suite": "experiment-b354ae489f539654",
+      "outcome": "turn_cap",
+      "error": null,
+      "turn": 2000,
+      "level": 1,
+      "depth": 1,
+      "maxDepth": 1,
+      "hp": 20,
+      "cause": null,
+      "wallSeconds": 4.1837076909999995,
+      "build": {
+        "engine": {
+          "repository": "neostryder/neo-angband",
+          "commit": "d27ed50f9e3b650a43cceda5a0c007d03cc321df",
+          "dirty": true,
+          "version": "1.23.0-beta.4"
+        },
+        "borg": {
+          "repository": "diegoami/neo-angband-borg-mod-tracker",
+          "commit": "5c3e09953423778eeebe95d8d0de738b313c8f62",
+          "dirty": false,
+          "manifest": {
+            "format": "neo-angband/mod/manifest",
+            "schemaVersion": 2,
+            "data": {
+              "id": "borg",
+              "name": "Borg",
+              "version": "1.4.0-beta.5",
+              "api": ">=2.1.0 <3.0.0",
+              "runtime": "in-process",
+              "engine": {
+                "range": ">=1.23.0-beta.1",
+                "because": "The first Neo Angband release with mod API 2, the truth domain the Borg reads perceived monsters through, and the loadout simulation."
+              },
+              "dependencies": {
+                "required": {
+                  "core": {
+                    "range": "*"
+                  }
+                }
+              },
+              "capabilities": [
+                "command:add",
+                "state:player.read",
+                "state:monsters.read",
+                "state:map.read",
+                "state:inventory.read",
+                "state:floor.read",
+                "state:stores.read",
+                "state:spells.read",
+                "state:turn.read",
+                "state:monsters-actual.read",
+                "state:interaction.read",
+                "input:intent",
+                "input:prompt.reply",
+                "event:message",
+                "ui:title",
+                "profiles:manage",
+                "saves:manage"
+              ],
+              "description": "Angband's automatic player, ported from the borg in Angband 4.2.6. It plays through the same commands you use, over the frozen agent API, so it is an ordinary mod with no privileged code inside the engine.\n\nInstalling and enabling it does not give it your character. Press Ctrl-Z in play to hand over the keyboard; it warns you and asks you to confirm first. It is deterministic and draws only on its own seeded random number generator, so your save is not flagged as non-reproducible. Only one autoplayer can hold the keyboard at a time.",
+              "author": "neostryder",
+              "license": "GPL-2.0-only",
+              "repository": "https://github.com/neostryder/neo-angband-mod-borg",
+              "shape": "plugin",
+              "facets": [
+                "plugin"
+              ],
+              "rules": [
+                {
+                  "flag": "borg.playsRisky",
+                  "title": "Play risky",
+                  "description": "borg_plays_risky. Skip the early hit-point and character-level gates that hold the Borg above a depth, wait longer before drinking a cure, and back away later in a losing fight. It reaches deeper sooner and dies more.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsDamage",
+                  "title": "Value melee and missile damage",
+                  "description": "borg_worships_damage. Add weight to weapon and bow damage when the Borg scores a set of gear, so a trade that costs armour for damage looks better than it otherwise would.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsSpeed",
+                  "title": "Value speed",
+                  "description": "borg_worships_speed. Add weight to a speed bonus when scoring gear.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsHp",
+                  "title": "Value hit points",
+                  "description": "borg_worships_hp. Add weight to constitution and hit points when scoring gear.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsMana",
+                  "title": "Value spell points",
+                  "description": "borg_worships_mana. Add weight to spell points when scoring gear. Has no effect on a warrior, who has no spell points.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsAc",
+                  "title": "Value armour class",
+                  "description": "borg_worships_ac. Add weight to armour class when scoring gear.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsGold",
+                  "title": "Value gold",
+                  "description": "borg_worships_gold. Sell harder, walk down rather than pay for a recall, and put off the first deep recall. It buys better equipment sooner and spends longer in town doing it. Upstream stops applying this past character level 20.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.selfScum",
+                  "title": "Save up for something it wants",
+                  "description": "borg_self_scum. Let the Borg set itself a gold target and work in town until it can afford one item it has decided it needs. It only does this from character level 10, with a permanent light source and food in the pack.",
+                  "default": true,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.munchkinStart",
+                  "title": "Skimp on stockpiles for an early munchkin run",
+                  "description": "borg_munchkin_start. Below character level borg_munchkin_level (12), value stockpiles of resist poison and speed potions, phase door, word of recall and the deeper cures less than it normally would, on the assumption that a young character is cashing out early. Upstream, this setting also makes the Borg stair-scum for loot to sell at this stage. That part is not ported, so here it changes what the Borg carries and leaves how it dives alone.",
+                  "default": false,
+                  "requiresReload": true
+                }
+              ]
+            }
+          }
+        },
+        "bundleSha256": "4d7a437662d4292c7d14696065cdc4baf03d38dfad8317dce8ef333eb30df4d6",
+        "appliedPatches": [
+          "c-native-menu-birth-and-borg-startup-v2",
+          "gcc14-native-rand-loc-y-before-x"
+        ]
+      },
+      "evidence": "0-2125085038/run",
+      "settings": {
+        "borg.playsRisky": false,
+        "borg.worshipsDamage": false,
+        "borg.worshipsSpeed": false,
+        "borg.worshipsHp": false,
+        "borg.worshipsMana": false,
+        "borg.worshipsAc": false,
+        "borg.worshipsGold": false,
+        "borg.selfScum": true,
+        "borg.munchkinStart": false
+      },
+      "birth": {
+        "race": "Human",
+        "class": "Warrior",
+        "method": "native default recommended point buy",
+        "profile": "c-seeded-point-buy-v2",
+        "stats": [
+          17,
+          10,
+          10,
+          16,
+          16
+        ],
+        "options": {
+          "birth_randarts": false,
+          "birth_connect_stairs": true,
+          "birth_force_descend": false,
+          "birth_no_recall": false,
+          "birth_no_artifacts": false,
+          "birth_stacking": true,
+          "birth_lose_arts": false,
+          "birth_feelings": true,
+          "birth_no_selling": true,
+          "birth_start_kit": true,
+          "birth_ai_learn": true,
+          "birth_know_runes": false,
+          "birth_know_flavors": false,
+          "birth_levels_persist": false,
+          "birth_percent_damage": false
+        },
+        "inventory": [
+          {
+            "handle": 1,
+            "location": "pack",
+            "slot": -1,
+            "description": "a Ration of Food",
+            "tval": 28,
+            "sval": 5,
+            "number": 1,
+            "weight": 8,
+            "timeout": 0,
+            "dd": 0,
+            "ds": 0,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 2,
+            "location": "equipped",
+            "slot": 5,
+            "description": "a Wooden Torch (5000 turns)",
+            "tval": 19,
+            "sval": 1,
+            "number": 1,
+            "weight": 22,
+            "timeout": 5000,
+            "dd": 1,
+            "ds": 1,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 3,
+            "location": "pack",
+            "slot": -1,
+            "description": "a Potion of Berserk Strength",
+            "tval": 26,
+            "sval": 26,
+            "number": 1,
+            "weight": 4,
+            "timeout": 0,
+            "dd": 0,
+            "ds": 0,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 4,
+            "location": "equipped",
+            "slot": 0,
+            "description": "a Dagger (1d4) (+0,+0)",
+            "tval": 9,
+            "sval": 1,
+            "number": 1,
+            "weight": 12,
+            "timeout": 0,
+            "dd": 1,
+            "ds": 4,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 5,
+            "location": "equipped",
+            "slot": 6,
+            "description": "Soft Leather Armour [8,+0]",
+            "tval": 16,
+            "sval": 2,
+            "number": 1,
+            "weight": 80,
+            "timeout": 0,
+            "dd": 0,
+            "ds": 0,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 6,
+            "location": "pack",
+            "slot": -1,
+            "description": "a Scroll of Word of Recall",
+            "tval": 25,
+            "sval": 24,
+            "number": 1,
+            "weight": 5,
+            "timeout": 0,
+            "dd": 0,
+            "ds": 0,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 7,
+            "location": "pack",
+            "slot": -1,
+            "description": "2 Wooden Torches (5000 turns)",
+            "tval": 19,
+            "sval": 1,
+            "number": 2,
+            "weight": 22,
+            "timeout": 5000,
+            "dd": 1,
+            "ds": 1,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          }
+        ],
+        "gold": 140,
+        "hp": 20,
+        "maxHp": 20,
+        "sp": 0,
+        "maxSp": 0,
+        "grid": {
+          "x": 37,
+          "y": 3
+        }
+      },
+      "evidencePath": "worker-0/0-2125085038/run"
+    },
+    {
+      "seed": 1434615677,
+      "race": "Human",
+      "class": "Mage",
+      "id": "1-1434615677",
+      "index": 1,
+      "suite": "experiment-b354ae489f539654",
+      "outcome": "turn_cap",
+      "error": null,
+      "turn": 2000,
+      "level": 1,
+      "depth": 1,
+      "maxDepth": 1,
+      "hp": 6,
+      "cause": null,
+      "wallSeconds": 8.967921313,
+      "build": {
+        "engine": {
+          "repository": "neostryder/neo-angband",
+          "commit": "d27ed50f9e3b650a43cceda5a0c007d03cc321df",
+          "dirty": true,
+          "version": "1.23.0-beta.4"
+        },
+        "borg": {
+          "repository": "diegoami/neo-angband-borg-mod-tracker",
+          "commit": "5c3e09953423778eeebe95d8d0de738b313c8f62",
+          "dirty": false,
+          "manifest": {
+            "format": "neo-angband/mod/manifest",
+            "schemaVersion": 2,
+            "data": {
+              "id": "borg",
+              "name": "Borg",
+              "version": "1.4.0-beta.5",
+              "api": ">=2.1.0 <3.0.0",
+              "runtime": "in-process",
+              "engine": {
+                "range": ">=1.23.0-beta.1",
+                "because": "The first Neo Angband release with mod API 2, the truth domain the Borg reads perceived monsters through, and the loadout simulation."
+              },
+              "dependencies": {
+                "required": {
+                  "core": {
+                    "range": "*"
+                  }
+                }
+              },
+              "capabilities": [
+                "command:add",
+                "state:player.read",
+                "state:monsters.read",
+                "state:map.read",
+                "state:inventory.read",
+                "state:floor.read",
+                "state:stores.read",
+                "state:spells.read",
+                "state:turn.read",
+                "state:monsters-actual.read",
+                "state:interaction.read",
+                "input:intent",
+                "input:prompt.reply",
+                "event:message",
+                "ui:title",
+                "profiles:manage",
+                "saves:manage"
+              ],
+              "description": "Angband's automatic player, ported from the borg in Angband 4.2.6. It plays through the same commands you use, over the frozen agent API, so it is an ordinary mod with no privileged code inside the engine.\n\nInstalling and enabling it does not give it your character. Press Ctrl-Z in play to hand over the keyboard; it warns you and asks you to confirm first. It is deterministic and draws only on its own seeded random number generator, so your save is not flagged as non-reproducible. Only one autoplayer can hold the keyboard at a time.",
+              "author": "neostryder",
+              "license": "GPL-2.0-only",
+              "repository": "https://github.com/neostryder/neo-angband-mod-borg",
+              "shape": "plugin",
+              "facets": [
+                "plugin"
+              ],
+              "rules": [
+                {
+                  "flag": "borg.playsRisky",
+                  "title": "Play risky",
+                  "description": "borg_plays_risky. Skip the early hit-point and character-level gates that hold the Borg above a depth, wait longer before drinking a cure, and back away later in a losing fight. It reaches deeper sooner and dies more.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsDamage",
+                  "title": "Value melee and missile damage",
+                  "description": "borg_worships_damage. Add weight to weapon and bow damage when the Borg scores a set of gear, so a trade that costs armour for damage looks better than it otherwise would.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsSpeed",
+                  "title": "Value speed",
+                  "description": "borg_worships_speed. Add weight to a speed bonus when scoring gear.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsHp",
+                  "title": "Value hit points",
+                  "description": "borg_worships_hp. Add weight to constitution and hit points when scoring gear.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsMana",
+                  "title": "Value spell points",
+                  "description": "borg_worships_mana. Add weight to spell points when scoring gear. Has no effect on a warrior, who has no spell points.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsAc",
+                  "title": "Value armour class",
+                  "description": "borg_worships_ac. Add weight to armour class when scoring gear.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.worshipsGold",
+                  "title": "Value gold",
+                  "description": "borg_worships_gold. Sell harder, walk down rather than pay for a recall, and put off the first deep recall. It buys better equipment sooner and spends longer in town doing it. Upstream stops applying this past character level 20.",
+                  "default": false,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.selfScum",
+                  "title": "Save up for something it wants",
+                  "description": "borg_self_scum. Let the Borg set itself a gold target and work in town until it can afford one item it has decided it needs. It only does this from character level 10, with a permanent light source and food in the pack.",
+                  "default": true,
+                  "requiresReload": true
+                },
+                {
+                  "flag": "borg.munchkinStart",
+                  "title": "Skimp on stockpiles for an early munchkin run",
+                  "description": "borg_munchkin_start. Below character level borg_munchkin_level (12), value stockpiles of resist poison and speed potions, phase door, word of recall and the deeper cures less than it normally would, on the assumption that a young character is cashing out early. Upstream, this setting also makes the Borg stair-scum for loot to sell at this stage. That part is not ported, so here it changes what the Borg carries and leaves how it dives alone.",
+                  "default": false,
+                  "requiresReload": true
+                }
+              ]
+            }
+          }
+        },
+        "bundleSha256": "4d7a437662d4292c7d14696065cdc4baf03d38dfad8317dce8ef333eb30df4d6",
+        "appliedPatches": [
+          "c-native-menu-birth-and-borg-startup-v2",
+          "gcc14-native-rand-loc-y-before-x"
+        ]
+      },
+      "evidence": "1-1434615677/run",
+      "settings": {
+        "borg.playsRisky": false,
+        "borg.worshipsDamage": false,
+        "borg.worshipsSpeed": false,
+        "borg.worshipsHp": false,
+        "borg.worshipsMana": false,
+        "borg.worshipsAc": false,
+        "borg.worshipsGold": false,
+        "borg.selfScum": true,
+        "borg.munchkinStart": false
+      },
+      "birth": {
+        "race": "Human",
+        "class": "Mage",
+        "method": "native default recommended point buy",
+        "profile": "c-seeded-point-buy-v2",
+        "stats": [
+          17,
+          16,
+          10,
+          10,
+          16
+        ],
+        "options": {
+          "birth_randarts": false,
+          "birth_connect_stairs": true,
+          "birth_force_descend": false,
+          "birth_no_recall": false,
+          "birth_no_artifacts": false,
+          "birth_stacking": true,
+          "birth_lose_arts": false,
+          "birth_feelings": true,
+          "birth_no_selling": true,
+          "birth_start_kit": true,
+          "birth_ai_learn": true,
+          "birth_know_runes": false,
+          "birth_know_flavors": false,
+          "birth_levels_persist": false,
+          "birth_percent_damage": false
+        },
+        "inventory": [
+          {
+            "handle": 1,
+            "location": "pack",
+            "slot": -1,
+            "description": "2 Rations of Food",
+            "tval": 28,
+            "sval": 5,
+            "number": 2,
+            "weight": 8,
+            "timeout": 0,
+            "dd": 0,
+            "ds": 0,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 2,
+            "location": "equipped",
+            "slot": 5,
+            "description": "a Wooden Torch (5000 turns)",
+            "tval": 19,
+            "sval": 1,
+            "number": 1,
+            "weight": 22,
+            "timeout": 5000,
+            "dd": 1,
+            "ds": 1,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 3,
+            "location": "equipped",
+            "slot": 0,
+            "description": "a Rapier (1d6) (+0,+0)",
+            "tval": 9,
+            "sval": 3,
+            "number": 1,
+            "weight": 40,
+            "timeout": 0,
+            "dd": 1,
+            "ds": 6,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 4,
+            "location": "pack",
+            "slot": -1,
+            "description": "a Scroll of Word of Recall",
+            "tval": 25,
+            "sval": 24,
+            "number": 1,
+            "weight": 5,
+            "timeout": 0,
+            "dd": 0,
+            "ds": 0,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          },
+          {
+            "handle": 5,
+            "location": "pack",
+            "slot": -1,
+            "description": "a Book of Magic Spells [First Spells]",
+            "tval": 30,
+            "sval": 1,
+            "number": 1,
+            "weight": 30,
+            "timeout": 0,
+            "dd": 1,
+            "ds": 1,
+            "toH": 0,
+            "toD": 0,
+            "toA": 0
+          }
+        ],
+        "gold": 334,
+        "hp": 10,
+        "maxHp": 10,
+        "sp": 2,
+        "maxSp": 2,
+        "grid": {
+          "x": 28,
+          "y": 4
+        }
+      },
+      "evidencePath": "worker-1/1-1434615677/run"
+    }
+  ],
+  "execution": [
+    {
+      "shard": 0,
+      "code": 0,
+      "signal": null
+    },
+    {
+      "shard": 1,
+      "code": 0,
+      "signal": null
+    }
+  ]
+}

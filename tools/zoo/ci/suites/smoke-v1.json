@@ -1,0 +1,99 @@
+{
+  "schema": "neo-headless-suite@1",
+  "id": "smoke-v1",
+  "birthProfile": "c-seeded-point-buy-v2",
+  "turns": 5000,
+  "wallSeconds": 120,
+  "cases": [
+    {
+      "seed": 3000,
+      "race": "Human",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3001,
+      "race": "Half-Elf",
+      "class": "Mage"
+    },
+    {
+      "seed": 3002,
+      "race": "Elf",
+      "class": "Druid"
+    },
+    {
+      "seed": 3003,
+      "race": "Hobbit",
+      "class": "Priest"
+    },
+    {
+      "seed": 3004,
+      "race": "Gnome",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3005,
+      "race": "Dwarf",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3006,
+      "race": "Half-Orc",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3007,
+      "race": "Half-Troll",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3008,
+      "race": "Dunadan",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3009,
+      "race": "Kobold",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3010,
+      "race": "Human",
+      "class": "Mage"
+    },
+    {
+      "seed": 3011,
+      "race": "Half-Elf",
+      "class": "Druid"
+    },
+    {
+      "seed": 3012,
+      "race": "Elf",
+      "class": "Priest"
+    },
+    {
+      "seed": 3013,
+      "race": "Hobbit",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3014,
+      "race": "Gnome",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3015,
+      "race": "Dwarf",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3016,
+      "race": "Half-Orc",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3017,
+      "race": "Half-Troll",
+      "class": "Blackguard"
+    }
+  ]
+}

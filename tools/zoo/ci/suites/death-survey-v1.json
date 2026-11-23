@@ -1,0 +1,459 @@
+{
+  "schema": "neo-headless-suite@1",
+  "id": "death-survey-v1",
+  "birthProfile": "c-seeded-point-buy-v2",
+  "turns": 100000,
+  "wallSeconds": 600,
+  "cases": [
+    {
+      "seed": 3000,
+      "race": "Human",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3001,
+      "race": "Half-Elf",
+      "class": "Mage"
+    },
+    {
+      "seed": 3002,
+      "race": "Elf",
+      "class": "Druid"
+    },
+    {
+      "seed": 3003,
+      "race": "Hobbit",
+      "class": "Priest"
+    },
+    {
+      "seed": 3004,
+      "race": "Gnome",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3005,
+      "race": "Dwarf",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3006,
+      "race": "Half-Orc",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3007,
+      "race": "Half-Troll",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3008,
+      "race": "Dunadan",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3009,
+      "race": "Kobold",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3010,
+      "race": "Human",
+      "class": "Mage"
+    },
+    {
+      "seed": 3011,
+      "race": "Half-Elf",
+      "class": "Druid"
+    },
+    {
+      "seed": 3012,
+      "race": "Elf",
+      "class": "Priest"
+    },
+    {
+      "seed": 3013,
+      "race": "Hobbit",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3014,
+      "race": "Gnome",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3015,
+      "race": "Dwarf",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3016,
+      "race": "Half-Orc",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3017,
+      "race": "Half-Troll",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3018,
+      "race": "High-Elf",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3019,
+      "race": "Kobold",
+      "class": "Mage"
+    },
+    {
+      "seed": 3020,
+      "race": "Human",
+      "class": "Druid"
+    },
+    {
+      "seed": 3021,
+      "race": "Half-Elf",
+      "class": "Priest"
+    },
+    {
+      "seed": 3022,
+      "race": "Elf",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3023,
+      "race": "Hobbit",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3024,
+      "race": "Gnome",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3025,
+      "race": "Dwarf",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3026,
+      "race": "Half-Orc",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3027,
+      "race": "Dunadan",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3028,
+      "race": "High-Elf",
+      "class": "Mage"
+    },
+    {
+      "seed": 3029,
+      "race": "Kobold",
+      "class": "Druid"
+    },
+    {
+      "seed": 3030,
+      "race": "Human",
+      "class": "Priest"
+    },
+    {
+      "seed": 3031,
+      "race": "Half-Elf",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3032,
+      "race": "Elf",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3033,
+      "race": "Hobbit",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3034,
+      "race": "Gnome",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3035,
+      "race": "Dwarf",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3036,
+      "race": "Half-Troll",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3037,
+      "race": "Dunadan",
+      "class": "Mage"
+    },
+    {
+      "seed": 3038,
+      "race": "High-Elf",
+      "class": "Druid"
+    },
+    {
+      "seed": 3039,
+      "race": "Kobold",
+      "class": "Priest"
+    },
+    {
+      "seed": 3040,
+      "race": "Human",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3041,
+      "race": "Half-Elf",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3042,
+      "race": "Elf",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3043,
+      "race": "Hobbit",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3044,
+      "race": "Gnome",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3045,
+      "race": "Half-Orc",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3046,
+      "race": "Half-Troll",
+      "class": "Mage"
+    },
+    {
+      "seed": 3047,
+      "race": "Dunadan",
+      "class": "Druid"
+    },
+    {
+      "seed": 3048,
+      "race": "High-Elf",
+      "class": "Priest"
+    },
+    {
+      "seed": 3049,
+      "race": "Kobold",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3050,
+      "race": "Human",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3051,
+      "race": "Half-Elf",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3052,
+      "race": "Elf",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3053,
+      "race": "Hobbit",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3054,
+      "race": "Dwarf",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3055,
+      "race": "Half-Orc",
+      "class": "Mage"
+    },
+    {
+      "seed": 3056,
+      "race": "Half-Troll",
+      "class": "Druid"
+    },
+    {
+      "seed": 3057,
+      "race": "Dunadan",
+      "class": "Priest"
+    },
+    {
+      "seed": 3058,
+      "race": "High-Elf",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3059,
+      "race": "Kobold",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3060,
+      "race": "Human",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3061,
+      "race": "Half-Elf",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3062,
+      "race": "Elf",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3063,
+      "race": "Gnome",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3064,
+      "race": "Dwarf",
+      "class": "Mage"
+    },
+    {
+      "seed": 3065,
+      "race": "Half-Orc",
+      "class": "Druid"
+    },
+    {
+      "seed": 3066,
+      "race": "Half-Troll",
+      "class": "Priest"
+    },
+    {
+      "seed": 3067,
+      "race": "Dunadan",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3068,
+      "race": "High-Elf",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3069,
+      "race": "Kobold",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3070,
+      "race": "Human",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3071,
+      "race": "Half-Elf",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3072,
+      "race": "Hobbit",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3073,
+      "race": "Gnome",
+      "class": "Mage"
+    },
+    {
+      "seed": 3074,
+      "race": "Dwarf",
+      "class": "Druid"
+    },
+    {
+      "seed": 3075,
+      "race": "Half-Orc",
+      "class": "Priest"
+    },
+    {
+      "seed": 3076,
+      "race": "Half-Troll",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3077,
+      "race": "Dunadan",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3078,
+      "race": "High-Elf",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3079,
+      "race": "Kobold",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3080,
+      "race": "Human",
+      "class": "Blackguard"
+    },
+    {
+      "seed": 3081,
+      "race": "Elf",
+      "class": "Warrior"
+    },
+    {
+      "seed": 3082,
+      "race": "Hobbit",
+      "class": "Mage"
+    },
+    {
+      "seed": 3083,
+      "race": "Gnome",
+      "class": "Druid"
+    },
+    {
+      "seed": 3084,
+      "race": "Dwarf",
+      "class": "Priest"
+    },
+    {
+      "seed": 3085,
+      "race": "Half-Orc",
+      "class": "Necromancer"
+    },
+    {
+      "seed": 3086,
+      "race": "Half-Troll",
+      "class": "Paladin"
+    },
+    {
+      "seed": 3087,
+      "race": "Dunadan",
+      "class": "Rogue"
+    },
+    {
+      "seed": 3088,
+      "race": "High-Elf",
+      "class": "Ranger"
+    },
+    {
+      "seed": 3089,
+      "race": "Kobold",
+      "class": "Blackguard"
+    }
+  ]
+}
